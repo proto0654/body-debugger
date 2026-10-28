@@ -1,0 +1,31 @@
+{
+  "name": "body-debugger",
+  "version": "0.1.0",
+  "description": "Desktop tray app for short desk workouts — Body Debugger",
+  "main": "./out/main/index.js",
+  "author": "Body Debugger",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
+    "postinstall": "node scripts/ensure-electron.js"
+  },
+  "dependencies": {
+    "pinia": "^3.0.3",
+    "vue": "^3.5.22",
+    "vue-router": "^4.5.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.14",
+    "@types/node": "^26.6.6",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "electron": "^38.2.1",
+    "electron-vite": "^5.0.0",
+    "tailwindcss": "^4.1.14",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.9",
+    "vue-tsc": "^3.1.0"
+  }
+}

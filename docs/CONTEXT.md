@@ -6,7 +6,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 
 - Desktop **system-tray** app for IT workers: remind → one exercise popup → record result → update streak / character / stats.
 - Core principle: **one popup = one exercise**. Stats, character, weight, photos, AI, inventory are optional layers.
-- Current stage: **core cycle works** — trigger loop, weighted picker, character stage/branch, severity + popup timer, plus the first optional layer (session details: reps / feeling / weight). Sounds, photos, inventory UI, AI, themes and stats are still ahead.
+- Current stage: **core cycle works** — trigger loop, weighted picker, character stage/branch, severity + popup timer, plus optional session details and weight history. Sounds, photos, inventory UI, AI, themes and stats are still ahead.
 
 ## Communication
 
@@ -35,12 +35,14 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Windows | `electron/main/windows/` |
 | Session-cycle IPC | `electron/main/ipc/session-cycle.ts` |
 | Persistence IPC | `electron/main/ipc/persistence.ts` |
+| Weight history rules (range, series, goal, backfill) | `shared/domain/weight.ts` |
+| Weight store / dashboard card | `src/stores/weight.ts`, `src/components/weight/` |
 | Preload API | `electron/preload/index.ts` |
 | Renderer entry | `src/main.ts`, `src/App.vue`, `src/router.ts` |
 | Hydrate bootstrap | `src/bootstrap/hydrate.ts` |
 | Stores | `src/stores/` |
 | Reminder schedule store (UI mirror) | `src/stores/reminder.ts` |
-| Domain rules (picker, character, severity, session extras) | `shared/domain/` |
+| Domain rules (picker, character, severity, session extras, weight) | `shared/domain/` |
 | Exercise catalog (34) | `shared/constants/exercises.ts` |
 | Shared types | `shared/types/` |
 | Exercise validation | `shared/validation/exercise.ts` |
@@ -77,8 +79,9 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 - Character art is cut per frame: dashboard shows the stage body, the popup shows the emotion bust; emoji is the fallback.
 - Motion is live: popup entrance/exit + urgent timer, emotion crossfade/bounce, tray frame animation; «Анимации» switch and the OS setting collapse it.
 - Session details are live (optional, off by default): reps / feeling / weight in a collapsible popup block, validated ranges, shown as «Последняя сессия» on the dashboard.
-- Tests are in place: Vitest covers the trigger loop, picker, character progress/frames, severity, session details, JSON envelope, stores, popup and portrait (`npm test`).
-- Next roadmap item: **#8 optional layers** — remaining slices: photos, weight history, inventory UI, AI, themes.
+- Weight history is live (optional, off by default): `weights.json` in main, automatic entry for a done session with a weight, manual entries + goal on the dashboard, 90-day sparkline, deterministic session ids so replays never duplicate.
+- Tests are in place: Vitest covers the trigger loop, picker, character progress/frames, severity, session details, weight history, JSON envelope, stores, popup, portrait and the weight card (`npm test`).
+- Next roadmap item: **#8 optional layers** — remaining slices: photos, inventory UI, AI, themes.
 - Still stubs: streak counters (simple `done` bump), sounds playback, debug panel, Playwright E2E.
 
 ## Doc index

@@ -5,6 +5,8 @@ export {
   updateProgress,
   appendSession,
   applyDoneSession,
+  addWeightEntry,
+  removeWeightEntry,
   getSettings,
   getProgress
 } from './store'

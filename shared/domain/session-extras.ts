@@ -1,4 +1,6 @@
 import type { Feeling, SessionExtras } from '../types/session'
+import { parseFiniteNumber } from './parse-number'
+import { normalizeWeightEntry } from './weight'
 
 /**
  * Optional session details (CONCEPT.md §4, §10): reps, feeling, weight.
@@ -9,7 +11,6 @@ import type { Feeling, SessionExtras } from '../types/session'
  */
 
 export const REPS_RANGE = { min: 1, max: 999 } as const
-export const WEIGHT_KG_RANGE = { min: 20, max: 300 } as const
 export const FEELING_RANGE = { min: 1, max: 5 } as const
 
 export const FEELING_VALUES: readonly Feeling[] = [1, 2, 3, 4, 5]
@@ -28,32 +29,15 @@ export interface SessionExtrasInput {
   weightKg?: unknown
 }
 
-/** Parses a finite number from a number or a numeric string; null otherwise. */
-function toNumber(value: unknown): number | null {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null
-  if (typeof value !== 'string') return null
-
-  const trimmed = value.trim()
-  if (trimmed === '') return null
-
-  const parsed = Number(trimmed)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-/** Weight is stored with one decimal, matching the input step. */
-export function roundWeightKg(value: number): number {
-  return Math.round(value * 10) / 10
-}
-
 export function normalizeSessionExtras(input: SessionExtrasInput): SessionExtras {
   const extras: SessionExtras = {}
 
-  const reps = toNumber(input.reps)
+  const reps = parseFiniteNumber(input.reps)
   if (reps !== null && Number.isInteger(reps) && reps >= REPS_RANGE.min && reps <= REPS_RANGE.max) {
     extras.reps = reps
   }
 
-  const feeling = toNumber(input.feeling)
+  const feeling = parseFiniteNumber(input.feeling)
   if (
     feeling !== null &&
     Number.isInteger(feeling) &&
@@ -63,10 +47,10 @@ export function normalizeSessionExtras(input: SessionExtrasInput): SessionExtras
     extras.feeling = feeling as Feeling
   }
 
-  const weightKg = toNumber(input.weightKg)
-  if (weightKg !== null && weightKg >= WEIGHT_KG_RANGE.min && weightKg <= WEIGHT_KG_RANGE.max) {
-    extras.weightKg = roundWeightKg(weightKg)
-  }
+  // Weight rules (range + rounding) live in `shared/domain/weight.ts`.
+  const weight = normalizeWeightEntry({ weightKg: input.weightKg })
+  if (weight) extras.weightKg = weight.weightKg
 
   return extras
 }
+

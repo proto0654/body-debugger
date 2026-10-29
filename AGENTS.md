@@ -29,11 +29,12 @@ Project docs and this file override global agent rules when they conflict.
 | Main / tray / windows / IPC | `electron/main/` |
 | Reminder loop (interval / idle / pause / missed) | `electron/main/trigger-loop.ts` |
 | JSON persistence | `electron/main/persistence/` |
+| Weight history (rules, store, card) | `shared/domain/weight.ts`, `src/stores/weight.ts`, `src/components/weight/` |
 | Preload bridge | `electron/preload/` |
 | Vue renderer | `src/` |
 | Pinia hydrate | `src/bootstrap/hydrate.ts` |
 | Shared types & validation | `shared/` |
-| Exercise catalog + domain rules (picker, character, session extras) | `shared/constants/exercises.ts`, `shared/domain/` |
+| Exercise catalog + domain rules (picker, character, session extras, weight) | `shared/constants/exercises.ts`, `shared/domain/` |
 | Character assets (source sheets + cut frames) | `src/assets/character/desk-hulk/` |
 | Character frame rules / resolver | `shared/domain/character-visual.ts`, `src/components/character/frames.ts` |
 | Sprite cutting script | `scripts/cut-character-sprites.py` |

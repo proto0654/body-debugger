@@ -8,6 +8,8 @@ import type {
   SeverityLevel
 } from '@shared/types/settings'
 import type { UserFocus } from '@shared/types/progress'
+import type { WeightSettings } from '@shared/types/weight'
+import { normalizeWeightTarget } from '@shared/domain/weight'
 import { DEFAULT_CHARACTER_PACK } from '@shared/constants/character'
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -17,6 +19,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const pickerMode = ref<ExercisePickerMode>('balance')
   const inventory = ref<InventorySettings>({ enabled: false, items: [] })
   const sessionExtras = ref<SessionExtrasSettings>({ enabled: false })
+  const weight = ref<WeightSettings>({ enabled: false, targetKg: null })
   const themeId = ref('default')
   const characterPackId = ref(DEFAULT_CHARACTER_PACK)
   const reduceMotion = ref(false)
@@ -37,6 +40,10 @@ export const useSettingsStore = defineStore('settings', () => {
       },
       sessionExtras: {
         enabled: sessionExtras.value.enabled
+      },
+      weight: {
+        enabled: weight.value.enabled,
+        targetKg: weight.value.targetKg
       },
       themeId: themeId.value,
       characterPackId: characterPackId.value,
@@ -59,6 +66,10 @@ export const useSettingsStore = defineStore('settings', () => {
     }
     sessionExtras.value = {
       enabled: next.sessionExtras?.enabled ?? false
+    }
+    weight.value = {
+      enabled: next.weight?.enabled ?? false,
+      targetKg: next.weight?.targetKg ?? null
     }
     themeId.value = next.themeId
     characterPackId.value = next.characterPackId
@@ -95,6 +106,23 @@ export const useSettingsStore = defineStore('settings', () => {
     await persist()
   }
 
+  /** Toggles the optional weight history card on the dashboard. */
+  async function setWeightEnabled(next: boolean): Promise<void> {
+    if (weight.value.enabled === next) return
+    weight.value = { ...weight.value, enabled: next }
+    await persist()
+  }
+
+  /** `null` clears the goal; out-of-range values are ignored. */
+  async function setWeightTarget(targetKg: number | null): Promise<void> {
+    const normalized = targetKg === null ? null : normalizeWeightTarget(targetKg)
+    if (targetKg !== null && normalized === null) return
+    if (weight.value.targetKg === normalized) return
+
+    weight.value = { ...weight.value, targetKg: normalized }
+    await persist()
+  }
+
   return {
     severity,
     intervalMinutes,
@@ -102,6 +130,7 @@ export const useSettingsStore = defineStore('settings', () => {
     pickerMode,
     inventory,
     sessionExtras,
+    weight,
     themeId,
     characterPackId,
     reduceMotion,
@@ -112,6 +141,8 @@ export const useSettingsStore = defineStore('settings', () => {
     togglePause,
     setSeverity,
     setReduceMotion,
-    setSessionExtrasEnabled
+    setSessionExtrasEnabled,
+    setWeightEnabled,
+    setWeightTarget
   }
 })

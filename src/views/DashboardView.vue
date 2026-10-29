@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import CharacterPortrait from '@/components/character/CharacterPortrait.vue'
+import WeightCard from '@/components/weight/WeightCard.vue'
 import { useProgressStore } from '@/stores/progress'
 import { useCharacterStore } from '@/stores/character'
 import { useSettingsStore } from '@/stores/settings'
@@ -33,6 +34,11 @@ const motionOptions: { reduce: boolean; label: string }[] = [
 ]
 
 const extrasOptions: { enabled: boolean; label: string }[] = [
+  { enabled: false, label: 'Выкл' },
+  { enabled: true, label: 'Вкл' }
+]
+
+const weightOptions: { enabled: boolean; label: string }[] = [
   { enabled: false, label: 'Выкл' },
   { enabled: true, label: 'Вкл' }
 ]
@@ -70,6 +76,10 @@ async function setReduceMotion(next: boolean): Promise<void> {
 
 async function setSessionExtras(next: boolean): Promise<void> {
   await settings.setSessionExtrasEnabled(next)
+}
+
+async function setWeight(next: boolean): Promise<void> {
+  await settings.setWeightEnabled(next)
 }
 </script>
 
@@ -195,6 +205,23 @@ async function setSessionExtras(next: boolean): Promise<void> {
             {{ option.label }}
           </button>
         </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs text-slate-500">Вес:</span>
+          <button
+            v-for="option in weightOptions"
+            :key="String(option.enabled)"
+            type="button"
+            class="rounded-lg px-2.5 py-1 text-xs transition"
+            :class="
+              settings.weight.enabled === option.enabled
+                ? 'bg-slate-700 text-white'
+                : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+            "
+            @click="setWeight(option.enabled)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
         <p
           class="text-xs"
           :class="reminder.paused ? 'text-amber-400' : 'text-slate-500'"
@@ -217,5 +244,7 @@ async function setSessionExtras(next: boolean): Promise<void> {
     >
       Графики и распределение по зонам — следующий этап.
     </section>
+
+    <WeightCard v-if="tab === 'today' && settings.weight.enabled" />
   </div>
 </template>

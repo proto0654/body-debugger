@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import {
   IpcChannels,
+  type DataAddWeightPayload,
+  type DataRemoveWeightPayload,
   type DataSaveProgressPayload,
   type DataSaveSettingsPayload,
   type DataSnapshotPayload,
@@ -29,6 +31,10 @@ const api = {
     ipcRenderer.invoke(IpcChannels.DataSaveSettings, payload),
   saveProgress: (payload: DataSaveProgressPayload): Promise<DataSnapshotPayload> =>
     ipcRenderer.invoke(IpcChannels.DataSaveProgress, payload),
+  addWeight: (payload: DataAddWeightPayload): Promise<DataSnapshotPayload> =>
+    ipcRenderer.invoke(IpcChannels.DataAddWeight, payload),
+  removeWeight: (payload: DataRemoveWeightPayload): Promise<DataSnapshotPayload> =>
+    ipcRenderer.invoke(IpcChannels.DataRemoveWeight, payload),
   onLoopStateChanged: (handler: (payload: SessionLoopStatePayload) => void): (() => void) => {
     const listener = (
       _event: Electron.IpcRendererEvent,

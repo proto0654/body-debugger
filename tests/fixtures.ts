@@ -2,6 +2,7 @@ import type { Exercise } from '@shared/types/exercise'
 import type { UserFocus } from '@shared/types/progress'
 import type { Session, SessionStatus } from '@shared/types/session'
 import type { AppSettings } from '@shared/types/settings'
+import type { WeightEntry } from '@shared/types/weight'
 
 /** Fixed reference point so day-based rules stay deterministic. */
 export const NOW = new Date('2026-10-30T12:00:00+03:00')
@@ -47,6 +48,19 @@ export function makeFocus(overrides: Partial<UserFocus> = {}): UserFocus {
   return { primary: null, accents: [], ...overrides }
 }
 
+let weightCounter = 0
+
+export function makeWeightEntry(
+  overrides: Partial<WeightEntry> & Pick<WeightEntry, 'weightKg'>
+): WeightEntry {
+  weightCounter += 1
+  return {
+    id: `weight-${weightCounter}`,
+    at: daysAgo(0),
+    ...overrides
+  }
+}
+
 export function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
   return {
     severity: 'medium',
@@ -55,6 +69,7 @@ export function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings 
     pickerMode: 'balance',
     inventory: { enabled: false, items: [] },
     sessionExtras: { enabled: false },
+    weight: { enabled: false, targetKg: null },
     themeId: 'default',
     characterPackId: 'desk-hulk',
     reduceMotion: false,

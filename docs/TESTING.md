@@ -16,10 +16,10 @@ Stack: **Vitest** + **happy-dom** + **@vue/test-utils**. Config: [vitest.config.
 
 ```
 tests/
-  fixtures.ts        # exercise / session / settings builders, seeded RNG, fixed "now"
-  unit/              # pure domain + JSON envelope (node env)
+  fixtures.ts        # exercise / session / settings / weight builders, seeded RNG, fixed "now"
+  unit/              # pure domain + JSON envelope + persistence store (node env)
   stores/            # Pinia stores with a stubbed window.api
-  components/        # Vue Test Utils: CharacterPortrait, PopupView
+  components/        # Vue Test Utils: CharacterPortrait, PopupView, WeightCard
 ```
 
 ## Covered
@@ -32,11 +32,12 @@ tests/
 | Frame rules | stage tiers, branch pose from stage 4, build fallback, every resolved frame exists on disk | `tests/unit/character-visual.test.ts` |
 | Severity | 80% unlock boundary, timer-less exercises, `mm:ss` rounding | `tests/unit/severity.test.ts` |
 | Session details | ranges, weight rounding, blank / invalid input, popup toggle + resize, trigger-loop normalization | `tests/unit/session-extras.test.ts`, `tests/components/PopupView.test.ts`, `tests/unit/trigger-loop.test.ts` |
+| Weight history | entry validation + rounding, session entry ids, series window/sort, change and goal gap, backfill idempotency, store add/remove guards, card validation + goal commit | `tests/unit/weight.test.ts`, `tests/unit/persistence-weight.test.ts`, `tests/stores/weight.test.ts`, `tests/components/WeightCard.test.ts` |
 | Settings defaults | merge of an older settings file, nested array copies | `tests/unit/persistence-defaults.test.ts` |
 | Exercise payloads | required/optional fields, bad numbers, `assertExercise` | `tests/unit/exercise-validation.test.ts` |
 | Catalog | 34 entries, unique ids/titles, valid focus tags, inventory-tagged equipment | `tests/unit/exercise-catalog.test.ts` |
 | JSON persistence | atomic write, missing/corrupt/outdated envelope | `tests/unit/json-file.test.ts` |
-| Stores | settings persistence + no-op guards, progress streak, session lifecycle, character derivation, reminder labels | `tests/stores/` |
+| Stores | settings persistence + weight switch/goal, progress streak, session lifecycle, weight history, character derivation, reminder labels | `tests/stores/` |
 | Popup / portrait | severity gate, done + skip exits, flash and crossfade, double-submit guard, reduced motion, emoji fallback | `tests/components/` |
 
 Rules for new tests: no snapshots for logic, inject time (`now`) and randomness (seeded RNG), assert on behaviour rather than internal constants.
@@ -52,8 +53,9 @@ Rules for new tests: no snapshots for logic, inject time (`now`) and randomness 
 - Tray: right-click menu, «Напоминание сейчас», pause / resume, animations (and «Уменьшить анимации» off / on).
 - Popup: one exercise, Medium gate at 80%, Hardcore hold, closing the popup = `skipped`.
 - Popup details: turn «Детали в попапе» on, expand the block, save reps / feeling / weight, check they land in `sessions.json` and on the dashboard.
+- Weight history: turn «Вес» on, add a manual measurement, set a goal, delete an entry, relaunch and confirm `weights.json` keeps the history; a done session with a weight adds to the same list.
 - Persistence: streak, stage and sessions survive a relaunch (`.userdata/data/`).
-- Dashboard: form label, next reminder, severity, motion and details switches.
+- Dashboard: form label, next reminder, severity, motion, details and weight switches.
 
 ## Debug / admin panel (planned)
 

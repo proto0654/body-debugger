@@ -27,6 +27,8 @@ export const IpcChannels = {
   DataGetSnapshot: 'data:get-snapshot',
   DataSaveSettings: 'data:save-settings',
   DataSaveProgress: 'data:save-progress',
+  DataAddWeight: 'data:add-weight',
+  DataRemoveWeight: 'data:remove-weight',
   DataUpdated: 'data:updated'
 } as const
 
@@ -76,5 +78,16 @@ export type DataSnapshotPayload = DataSnapshot
 export type DataSaveSettingsPayload = AppSettings
 
 export type DataSaveProgressPayload = UserProgress
+
+/** Manual weight measurement from the dashboard (optional layer). */
+export interface DataAddWeightPayload {
+  weightKg: number
+  /** ISO timestamp; defaults to "now" in main */
+  at?: string
+}
+
+export interface DataRemoveWeightPayload {
+  id: string
+}
 
 export type DataUpdatedPayload = DataSnapshot

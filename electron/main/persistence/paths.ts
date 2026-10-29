@@ -16,3 +16,7 @@ export function getProgressPath(): string {
 export function getSessionsPath(): string {
   return join(getDataDir(), 'sessions.json')
 }
+
+export function getWeightsPath(): string {
+  return join(getDataDir(), 'weights.json')
+}

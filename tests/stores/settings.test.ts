@@ -14,7 +14,7 @@ const defaultProgress = {
 }
 
 function snapshot(settings = makeSettings()): DataSnapshot {
-  return { settings, progress: defaultProgress, sessions: [] }
+  return { settings, progress: defaultProgress, sessions: [], weights: [] }
 }
 
 const saveSettings = vi.fn(async (settings: DataSnapshot['settings']) => snapshot(settings))
@@ -92,6 +92,28 @@ describe('settings store', () => {
 
     expect(settings.sessionExtras.enabled).toBe(true)
     expect(saveSettings.mock.calls[0][0]).toMatchObject({ sessionExtras: { enabled: true } })
+  })
+
+  it('persists the weight layer switch and goal', async () => {
+    const settings = useSettingsStore()
+
+    await settings.setWeightEnabled(true)
+    await settings.setWeightTarget(72.55)
+
+    expect(settings.weight).toEqual({ enabled: true, targetKg: 72.6 })
+    expect(saveSettings.mock.calls[1][0]).toMatchObject({ weight: { enabled: true, targetKg: 72.6 } })
+  })
+
+  it('ignores an out-of-range weight goal and clears it explicitly', async () => {
+    const settings = useSettingsStore()
+    await settings.setWeightTarget(500)
+    expect(settings.weight.targetKg).toBeNull()
+    expect(saveSettings).not.toHaveBeenCalled()
+
+    settings.hydrate(makeSettings({ weight: { enabled: true, targetKg: 70 } }))
+    await settings.setWeightTarget(null)
+    expect(settings.weight.targetKg).toBeNull()
+    expect(saveSettings).toHaveBeenCalledTimes(1)
   })
 
   it('keeps working when the preload bridge is absent', async () => {

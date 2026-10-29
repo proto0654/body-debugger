@@ -11,19 +11,19 @@ electron/main/tray.ts       # Tray icon animation + menu
 electron/main/tray-icons.ts # Frame sets per TrayState
 electron/resources/tray/    # Generated tray frames (idle / soon / standup / success / streak)
 electron/main/broadcast.ts  # Window broadcast helpers
-electron/main/persistence/  # JSON SoT (settings / progress / sessions)
+electron/main/persistence/  # JSON SoT (settings / progress / sessions / weights)
 electron/main/ipc/          # session-cycle + persistence channels
 electron/preload/           # contextBridge → window.api
 src/                        # Vue renderer
 src/bootstrap/              # hydrate Pinia from main snapshot
 src/motion.ts               # Motion preference (settings + OS) and popup exit timings
 src/styles/index.css        # Tailwind entry, keyframes, reduced-motion overrides
-src/stores/                 # sessions, progress, settings, character, reminder
-src/components/             # UI (CharacterPortrait + frame resolver)
+src/stores/                 # sessions, progress, settings, character, reminder, weight
+src/components/             # UI (CharacterPortrait, weight history card)
 src/assets/character/       # Desk Hulk source sheets + cut frames
 src/assets/sounds/default/  # Optional cue pack (mp3); playback not wired
 shared/types/               # Exercise, Session, Character, Progress, Settings, Events, Persistence
-shared/domain/              # Pure rules: picker, character progress, character frames, severity
+shared/domain/              # Pure rules: picker, character progress, character frames, severity, session extras, weight
 shared/validation/          # isValidExercise
 shared/constants/           # stage keys / labels, exercise catalog
 ```
@@ -39,9 +39,11 @@ On disk under `.userdata/data/` (see [DEVELOPMENT.md](DEVELOPMENT.md)):
 | `settings.json` | `AppSettings` |
 | `progress.json` | `UserProgress` |
 | `sessions.json` | `Session[]` |
+| `weights.json` | `WeightEntry[]` (optional layer) |
 
 Envelope: `{ version: 1, data }`. Missing/corrupt → defaults. Writes are temp-file + rename.
 Settings files written before a field existed are merged with the current defaults on load (`normalizeSettings`), so new optional switches never break an existing profile.
+`weights.json` is backfilled from stored sessions on first load after the layer appeared, so old session weights are not lost.
 
 Module: `electron/main/persistence/`.  
 IPC: `electron/main/ipc/persistence.ts`.  
@@ -54,7 +56,8 @@ timer / idle / manual (trigger-loop)  →  tray:set-state(standup)
                                       →  popup window (main holds the active session)
 renderer pulls session:get-current-popup → { sessionId, exercise }
 [Готово | Отложить | Пропустить]      →  session:result (+ optional reps / feeling / weight)
-                                      →  append session JSON (+ streak bump and character recompute on done)
+                                      →  append session JSON (+ streak bump and character recompute on done;
+                                         a done weight also lands in weights.json)
                                       →  data:updated + session:updated + session:loop-changed
                                       →  tray success/soon/idle, next trigger rescheduled
 popup closed without an answer        →  skipped
@@ -117,6 +120,22 @@ Extra hardcore checks (CONCEPT §3) are not implemented yet.
 
 The block is **off by default**. «Детали в попапе» on the dashboard sets `settings.sessionExtras.enabled`; the popup then shows a collapsed «Детали (необязательно)» row. Values outside the ranges are dropped, never clamped, and a result still resolves without details. Details are stored only for `done` sessions — snooze / skip / miss never carry them. Expanding the block grows the popup via `window:resize-popup` (heights in `shared/constants/popup.ts`) while the window stays anchored to the bottom-right corner. Saved values appear on the dashboard as a short «Последняя сессия» line.
 
+### Weight history
+
+`shared/domain/weight.ts` — validation, series and summary rules; `weights.json` is the SoT, written by main only.
+
+| Rule | Behaviour |
+|------|-----------|
+| Range | 20–300 kg, one decimal (shared with the popup `weightKg` detail) |
+| Sources | A `done` session carrying `weightKg` (popup details), or a manual entry on the dashboard |
+| Idempotency | Session measurements get a deterministic id `weight:session:<sessionId>` and are skipped when present |
+| Backfill | On load, `done` sessions from before this layer are merged once into `weights.json` |
+| Chart window | Last 90 days (`WEIGHT_HISTORY_DAYS`); points are sorted oldest → newest |
+| Summary | Latest entry overall, change = latest − earliest inside the window, goal gap = latest − target |
+| Stored file | Re-validated on load; malformed entries are dropped |
+
+The layer is **off by default** (`settings.weight.enabled`). «Вес» on the dashboard turns it on and reveals `WeightCard` with the current value, a sparkline, a manual entry form, a goal input and the last five measurements (deletable). A target outside the range is ignored, `null` clears it. Nothing in the core cycle reads weight history.
+
 ### Character progress
 
 `shared/domain/character-progress.ts`, recomputed in main on every `done` and stored in `progress.json`.
@@ -170,9 +189,11 @@ Tray frames are generated by `scripts/build-tray-icons.py` (a placeholder stretc
 
 | Channel | Direction | Role |
 |---------|-----------|------|
-| `data:get-snapshot` | invoke | Full `{ settings, progress, sessions }` |
+| `data:get-snapshot` | invoke | Full `{ settings, progress, sessions, weights }` |
 | `data:save-settings` | invoke | Replace settings, broadcast, reschedule if interval/pause changed |
 | `data:save-progress` | invoke | Replace progress, broadcast |
+| `data:add-weight` | invoke | Append a manual measurement (`{ weightKg, at? }`), broadcast |
+| `data:remove-weight` | invoke | Delete a measurement by `{ id }`, broadcast |
 | `data:updated` | main → renderers | Snapshot after any write |
 | `session:get-current-popup` | invoke | Active popup payload (`{ sessionId, exercise }` or `null`) |
 | `session:get-loop-state` | invoke | `{ paused, nextTriggerAt, intervalMinutes }` |
@@ -205,6 +226,7 @@ Preload: `electron/preload/index.ts`.
 | Popup severity (timer gate, hold to confirm) | Yes — [ROADMAP.md](ROADMAP.md) #5 |
 | Dashboard: next reminder + pause + severity + motion + details switches | Yes |
 | Optional session details (reps / feeling / weight) | Yes — popup block + dashboard switch; ROADMAP #8 (partial) |
+| Weight history (sparkline, manual entries, goal) | Yes — dashboard card; sessions backfilled once; ROADMAP #8 (partial) |
 | Tailwind + stub views | Yes |
 | Desk Hulk source sheets + 33 cut frames under `src/assets/character/desk-hulk/` | Yes — [ROADMAP.md](ROADMAP.md) #6 |
 | CharacterPortrait (body / face frames + emoji fallback) | Yes |
@@ -223,6 +245,7 @@ Preload: `electron/preload/index.ts`.
 | Exercise catalog (ids are permanent) | [shared/constants/exercises.ts](../shared/constants/exercises.ts) |
 | Popup severity rules | [shared/domain/severity.ts](../shared/domain/severity.ts) |
 | Session detail ranges + normalization | [shared/domain/session-extras.ts](../shared/domain/session-extras.ts) |
+| Weight ranges, series, goal gap | [shared/domain/weight.ts](../shared/domain/weight.ts) |
 | Popup geometry (heights / margins) | [shared/constants/popup.ts](../shared/constants/popup.ts) |
 | Stage / branch from history | [shared/domain/character-progress.ts](../shared/domain/character-progress.ts) |
 | Character frame keys + fallbacks | [shared/domain/character-visual.ts](../shared/domain/character-visual.ts) |

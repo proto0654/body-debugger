@@ -1,4 +1,5 @@
 import type { UserFocus } from './progress'
+import type { WeightSettings } from './weight'
 
 /** Fixation severity from CONCEPT.md §3 */
 export type SeverityLevel = 'soft' | 'medium' | 'hardcore'
@@ -24,6 +25,7 @@ export interface AppSettings {
   pickerMode: ExercisePickerMode
   inventory: InventorySettings
   sessionExtras: SessionExtrasSettings
+  weight: WeightSettings
   themeId: string
   characterPackId: string
   reduceMotion: boolean

@@ -12,6 +12,7 @@ describe('settings defaults', () => {
     expect(settings.intervalMinutes).toBe(25)
     expect(settings.sessionExtras).toEqual({ enabled: false })
     expect(settings.inventory).toEqual({ enabled: false, items: [] })
+    expect(settings.weight).toEqual({ enabled: false, targetKg: null })
   })
 
   it('keeps stored nested values and copies their arrays', () => {
@@ -32,5 +33,16 @@ describe('settings defaults', () => {
 
   it('falls back to the defaults when the file is missing', () => {
     expect(normalizeSettings(null)).toEqual(defaultSettings())
+  })
+
+  it('keeps a valid weight goal and drops a malformed one', () => {
+    expect(normalizeSettings({ weight: { enabled: true, targetKg: 70.04 } }).weight).toEqual({
+      enabled: true,
+      targetKg: 70
+    })
+    expect(normalizeSettings({ weight: { enabled: true, targetKg: 1200 } }).weight).toEqual({
+      enabled: true,
+      targetKg: null
+    })
   })
 })

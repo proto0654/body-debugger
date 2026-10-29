@@ -1,6 +1,8 @@
 /// <reference types="vite/client" />
 
 import type {
+  DataAddWeightPayload,
+  DataRemoveWeightPayload,
   DataSaveProgressPayload,
   DataSaveSettingsPayload,
   DataSnapshotPayload,
@@ -28,6 +30,8 @@ export interface BodyDebuggerApi {
   getSnapshot: () => Promise<DataSnapshotPayload>
   saveSettings: (payload: DataSaveSettingsPayload) => Promise<DataSnapshotPayload>
   saveProgress: (payload: DataSaveProgressPayload) => Promise<DataSnapshotPayload>
+  addWeight: (payload: DataAddWeightPayload) => Promise<DataSnapshotPayload>
+  removeWeight: (payload: DataRemoveWeightPayload) => Promise<DataSnapshotPayload>
   onLoopStateChanged: (handler: (payload: SessionLoopStatePayload) => void) => () => void
   onTrayState: (handler: (payload: TraySetStatePayload) => void) => () => void
   onDataUpdated: (handler: (payload: DataUpdatedPayload) => void) => () => void

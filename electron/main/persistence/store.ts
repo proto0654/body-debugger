@@ -1,16 +1,31 @@
+import { randomUUID } from 'node:crypto'
 import type { AppSettings } from '../../../shared/types/settings'
 import type { UserProgress } from '../../../shared/types/progress'
 import type { Session } from '../../../shared/types/session'
+import type { WeightEntry } from '../../../shared/types/weight'
 import type { DataSnapshot } from '../../../shared/types/persistence'
 import { computeCharacterProgress } from '../../../shared/domain/character-progress'
-import { defaultProgress, defaultSessions, defaultSettings, normalizeSettings } from './defaults'
+import {
+  mergeSessionWeights,
+  normalizeWeightEntry,
+  weightEntryFromSession,
+  type WeightEntryInput
+} from '../../../shared/domain/weight'
+import {
+  defaultProgress,
+  defaultSessions,
+  defaultSettings,
+  defaultWeights,
+  normalizeSettings
+} from './defaults'
 import { readJsonEnvelope, writeJsonEnvelope } from './json-file'
-import { getProgressPath, getSessionsPath, getSettingsPath } from './paths'
+import { getProgressPath, getSessionsPath, getSettingsPath, getWeightsPath } from './paths'
 
 interface PersistenceState {
   settings: AppSettings
   progress: UserProgress
   sessions: Session[]
+  weights: WeightEntry[]
   loaded: boolean
 }
 
@@ -18,6 +33,7 @@ const state: PersistenceState = {
   settings: defaultSettings(),
   progress: defaultProgress(),
   sessions: defaultSessions(),
+  weights: defaultWeights(),
   loaded: false
 }
 
@@ -34,6 +50,10 @@ function cloneSettings(settings: AppSettings): AppSettings {
     },
     sessionExtras: {
       enabled: settings.sessionExtras.enabled
+    },
+    weight: {
+      enabled: settings.weight.enabled,
+      targetKg: settings.weight.targetKg
     }
   }
 }
@@ -52,10 +72,44 @@ function cloneProgress(progress: UserProgress): UserProgress {
   }
 }
 
+function cloneWeights(weights: readonly WeightEntry[]): WeightEntry[] {
+  return weights.map((entry) => ({ ...entry }))
+}
+
+/** Stored file is untrusted: every entry is re-validated on load. */
+function sanitizeStoredWeights(raw: WeightEntry[] | null): WeightEntry[] {
+  if (!Array.isArray(raw)) return []
+
+  const entries: WeightEntry[] = []
+  for (const entry of raw) {
+    if (!entry || typeof entry.id !== 'string' || entry.id === '') continue
+    if (typeof entry.at !== 'string') continue
+    const normalized = normalizeWeightEntry({
+      weightKg: entry.weightKg,
+      at: entry.at,
+      sessionId: entry.sessionId
+    })
+    if (normalized) entries.push({ id: entry.id, ...normalized })
+  }
+  return entries
+}
+
+function writeWeights(): void {
+  writeJsonEnvelope(getWeightsPath(), state.weights)
+}
+
 export function loadPersistence(): DataSnapshot {
   state.settings = normalizeSettings(readJsonEnvelope<Partial<AppSettings>>(getSettingsPath()))
   state.progress = readJsonEnvelope<UserProgress>(getProgressPath()) ?? defaultProgress()
   state.sessions = readJsonEnvelope<Session[]>(getSessionsPath()) ?? defaultSessions()
+
+  const storedWeights = sanitizeStoredWeights(
+    readJsonEnvelope<WeightEntry[]>(getWeightsPath())
+  )
+  // One-time backfill: sessions measured before the weight layer existed.
+  state.weights = mergeSessionWeights(state.sessions, storedWeights)
+  if (state.weights.length !== storedWeights.length) writeWeights()
+
   state.loaded = true
   return getSnapshot()
 }
@@ -64,7 +118,8 @@ export function getSnapshot(): DataSnapshot {
   return {
     settings: cloneSettings(state.settings),
     progress: cloneProgress(state.progress),
-    sessions: state.sessions.map((s) => ({ ...s }))
+    sessions: state.sessions.map((s) => ({ ...s })),
+    weights: cloneWeights(state.weights)
   }
 }
 
@@ -83,8 +138,70 @@ export function updateProgress(next: UserProgress): DataSnapshot {
 export function appendSession(session: Session): DataSnapshot {
   state.sessions = [...state.sessions, { ...session }]
   writeJsonEnvelope(getSessionsPath(), state.sessions)
+  recordSessionWeight(session)
   return getSnapshot()
 }
+
+/** A completed session may carry a weight measurement (optional layer). */
+function recordSessionWeight(session: Session): void {
+  const entry = weightEntryFromSession(session)
+  if (!entry) return
+  if (state.weights.some((existing) => existing.id === entry.id)) return
+
+  state.weights = [...state.weights, entry]
+  writeWeights()
+}
+
+/**
+ * Manual dashboard measurement. Invalid values and a repeated `sessionId` are
+ * ignored, so the caller can retry safely.
+ */
+export function addWeightEntry(input: WeightEntryInput): DataSnapshot {
+  const normalized = normalizeWeightEntry(input)
+  if (!normalized) return getSnapshot()
+  if (
+    normalized.sessionId &&
+    state.weights.some((entry) => entry.sessionId === normalized.sessionId)
+  ) {
+    return getSnapshot()
+  }
+
+  state.weights = [...state.weights, { id: randomUUID(), ...normalized }]
+  writeWeights()
+  return getSnapshot()
+}
+
+export function removeWeightEntry(id: string): DataSnapshot {
+  if (typeof id !== 'string' || id === '') return getSnapshot()
+
+  const target = state.weights.find((entry) => entry.id === id)
+  if (!target) return getSnapshot()
+
+  state.weights = state.weights.filter((entry) => entry.id !== id)
+  writeWeights()
+
+  // Remove the measurement from its source session too: otherwise the load-time
+  // backfill would recreate it on the next launch.
+  if (target.sessionId && clearSessionWeight(target.sessionId)) {
+    writeJsonEnvelope(getSessionsPath(), state.sessions)
+  }
+  return getSnapshot()
+}
+
+function clearSessionWeight(sessionId: string): boolean {
+  let changed = false
+
+  state.sessions = state.sessions.map((session) => {
+    if (session.id !== sessionId || session.weightKg === undefined) return session
+
+    changed = true
+    const next = { ...session }
+    delete next.weightKg
+    return next
+  })
+  return changed
+}
+
 
 /** Streak bump + character stage/branch recompute, written together on `done`. */
 export function applyDoneSession(): DataSnapshot {

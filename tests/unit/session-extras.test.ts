@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  FEELING_VALUES,
-  normalizeSessionExtras,
-  roundWeightKg
-} from '@shared/domain/session-extras'
+import { FEELING_VALUES, normalizeSessionExtras } from '@shared/domain/session-extras'
+import { roundWeightKg } from '@shared/domain/weight'
 
 describe('normalizeSessionExtras', () => {
   it('keeps in-range reps, feeling and weight', () => {

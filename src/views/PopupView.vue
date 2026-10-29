@@ -26,8 +26,12 @@ onBeforeUnmount(() => document.documentElement.classList.remove('window-popup'))
 const URGENT_MS = 10_000
 
 const busy = ref(false)
-const durationMs = ref(0)
-const remainingMs = ref(0)
+// Start from the known session duration so a medium/hardcore popup never shows
+// an enabled «Готово» for the first frame; `onMounted` re-reads it after the
+// async session lookup.
+const initialDurationMs = Math.max(0, (sessions.current?.durationSec ?? 0) * 1000)
+const durationMs = ref(initialDurationMs)
+const remainingMs = ref(initialDurationMs)
 const holdProgress = ref(0)
 const leaving = ref(false)
 const exitKind = ref<'done' | 'quiet' | null>(null)

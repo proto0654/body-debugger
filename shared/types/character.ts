@@ -32,8 +32,8 @@ export interface CharacterVisualKey {
   build: CharacterBuild
   emotion: CharacterEmotion
   /**
-   * Preference order for assets:
-   * stage+branch+build → stage+branch → stage → emoji
+   * Sprite frame keys, most specific first. The resolver tries them in order and
+   * falls back to the emoji. Rules: `shared/domain/character-visual.ts`.
    */
   candidates: string[]
 }

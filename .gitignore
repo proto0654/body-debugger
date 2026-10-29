@@ -3,6 +3,7 @@ dist
 out
 dist-electron
 .userdata
+__pycache__
 *.local
 *.tsbuildinfo
 .DS_Store

@@ -1,30 +1,14 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type {
-  CharacterBranch,
-  CharacterBuild,
   CharacterEmotion,
-  CharacterStage,
   CharacterState,
   CharacterVisualKey
 } from '@shared/types/character'
 import { DEFAULT_CHARACTER_PACK } from '@shared/constants/character'
+import { characterBodyCandidates } from '@shared/domain/character-visual'
 import { useProgressStore } from './progress'
 import { useSettingsStore } from './settings'
-
-function buildCandidates(
-  packId: string,
-  stage: CharacterStage,
-  branch: CharacterBranch,
-  build: CharacterBuild
-): string[] {
-  return [
-    `${packId}/stage-${stage}-${branch}-${build}`,
-    `${packId}/stage-${stage}-${branch}`,
-    `${packId}/stage-${stage}`,
-    `${packId}/emoji`
-  ]
-}
 
 export const useCharacterStore = defineStore('character', () => {
   const emotion = ref<CharacterEmotion>('neutral')
@@ -49,7 +33,7 @@ export const useCharacterStore = defineStore('character', () => {
       branch: s.branch,
       build: s.build,
       emotion: s.emotion,
-      candidates: buildCandidates(s.packId, s.stage, s.branch, s.build)
+      candidates: characterBodyCandidates(s.stage, s.branch, s.build)
     }
   })
 

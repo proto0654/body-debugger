@@ -3,6 +3,8 @@ import { join } from 'path'
 import { createAppTray } from './tray'
 import { createDashboardWindow } from './windows/dashboard'
 import { registerSessionCycleIpc } from './ipc/session-cycle'
+import { registerPersistenceIpc } from './ipc/persistence'
+import { loadPersistence } from './persistence'
 
 // Keep Chromium/Electron profile on the project drive (E:), not %APPDATA% on C:
 app.setPath('userData', join(app.getAppPath(), '.userdata'))
@@ -15,6 +17,8 @@ if (process.platform === 'win32') {
 }
 
 app.whenReady().then(() => {
+  loadPersistence()
+  registerPersistenceIpc()
   registerSessionCycleIpc()
   createAppTray()
 

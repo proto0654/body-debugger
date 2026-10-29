@@ -19,6 +19,7 @@ Heavy downloads stay on **E:**, never the system partition.
 | Electron zip cache | `E:/Electron/.cache/electron` (`electron_config_cache` / `ELECTRON_CACHE`) |
 | Unpacked runtime | `node_modules/electron/dist/` |
 | Chromium userData | `.userdata/` at repo root (`app.setPath` in `electron/main/index.ts`) |
+| App JSON (settings / progress / sessions) | `.userdata/data/*.json` (main persistence; gitignored with `.userdata/`) |
 
 Before / during Electron postinstall:
 
@@ -34,5 +35,6 @@ Do **not** download Electron into `%LOCALAPPDATA%\electron` or park the profile 
 ## Windows notes
 
 - App stays in the tray when all windows close.
-- Dev menu: **Dashboard**, **Popup (dev)**, Quit. Pause / Settings are stubs.
+- Dev menu: **Dashboard**, **Popup (dev)**, Quit. Pause / Settings UI still stubs (Pause can persist via store when wired).
 - Renderer routes: `#/dashboard`, `#/popup`.
+- After a **Готово** in the popup, streak and sessions survive quit/relaunch (check `.userdata/data/`).

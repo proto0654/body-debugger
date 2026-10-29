@@ -25,7 +25,25 @@ export const useProgressStore = defineStore('progress', () => {
     }
   }
 
-  /** Stub — real bump uses domain/character-progress later */
+  function hydrate(next: UserProgress): void {
+    streak.value = { ...next.streak }
+    characterStage.value = next.characterStage
+    characterBranch.value = next.characterBranch
+    characterBuild.value = next.characterBuild
+    exerciseLevels.value = { ...next.exerciseLevels }
+    focus.value = {
+      primary: next.focus.primary,
+      accents: [...next.focus.accents]
+    }
+  }
+
+  async function persist(): Promise<void> {
+    if (!window.api?.saveProgress) return
+    const snapshot = await window.api.saveProgress(asUserProgress())
+    hydrate(snapshot.progress)
+  }
+
+  /** Stub — real bump uses domain/character-progress later; prefer main-side bump on session done. */
   function bumpStreak(): void {
     streak.value = {
       current: streak.value.current + 1,
@@ -45,6 +63,8 @@ export const useProgressStore = defineStore('progress', () => {
     exerciseLevels,
     focus,
     asUserProgress,
+    hydrate,
+    persist,
     bumpStreak,
     resetStreak
   }

@@ -4,7 +4,7 @@ Post-skeleton milestones. Product detail: [CONCEPT.md](../CONCEPT.md).
 
 | # | Milestone | Notes |
 |---|-----------|--------|
-| 1 | Persistence | JSON first (progress, settings, sessions); SQLite optional later |
+| 1 | Persistence | **Done** — JSON in `.userdata/data/` (settings, progress, sessions); main SoT + Pinia hydrate |
 | 2 | Trigger loop | Interval from last completion; idle; pause in tray menu |
 | 3 | Exercise picker | Penalties / bonuses / Focus / modes in `src/domain/exercise-picker.ts` |
 | 4 | Character progress | Stage/branch from history in `src/domain/character-progress.ts` |
@@ -14,4 +14,5 @@ Post-skeleton milestones. Product detail: [CONCEPT.md](../CONCEPT.md).
 | 8 | Optional layers | Weight, photos, feeling, inventory, AI, themes |
 | 9 | Dashboard depth | Calendar heatmap + stats charts |
 
-Skeleton (tray, windows, types, stores, IPC schema, Tailwind) = **done**.
+Skeleton (tray, windows, types, stores, IPC schema, Tailwind) = **done**.  
+Persistence (#1) = **done**. Next: **#2 Trigger loop**.

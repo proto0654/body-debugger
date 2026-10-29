@@ -7,15 +7,18 @@ import {
   type SessionUpdatedPayload,
   type TraySetStatePayload
 } from '../../../shared/types/events'
+import type { Session } from '../../../shared/types/session'
 import { createPopupWindow, closePopupWindow, getPopupWindow } from '../windows/popup'
 import { createDashboardWindow } from '../windows/dashboard'
 import { setTrayState } from '../tray'
+import { appendSession, bumpStreakOnDone } from '../persistence'
+import { notifyDataUpdated } from './persistence'
 
 /**
  * Session cycle event wiring (CONCEPT.md §2):
  * trigger → tray state → show popup → result → update → tray idle
  *
- * Stubs only: logs + window/tray side-effects. No persistence / picker yet.
+ * Persistence: session:result appends to history and bumps streak on done.
  */
 export function registerSessionCycleIpc(): void {
   ipcMain.handle(IpcChannels.WindowOpenDashboard, async () => {
@@ -33,27 +36,35 @@ export function registerSessionCycleIpc(): void {
   ipcMain.handle(IpcChannels.SessionResult, async (_event, payload: SessionResultPayload) => {
     console.log('[session:result]', payload)
 
+    const completedAt = new Date().toISOString()
+    const session: Session = {
+      id: payload.sessionId,
+      exerciseId: payload.exerciseId,
+      status: payload.status,
+      durationSec: payload.durationSec ?? 0,
+      triggeredAt: completedAt,
+      completedAt,
+      skipReason: payload.skipReason
+    }
+
+    appendSession(session)
+    if (payload.status === 'done') {
+      bumpStreakOnDone()
+    }
+    notifyDataUpdated()
+
     const trayState =
       payload.status === 'done' ? 'success' : payload.status === 'snoozed' ? 'soon' : 'idle'
 
     setTrayState(trayState)
 
     const updated: SessionUpdatedPayload = {
-      session: {
-        id: payload.sessionId,
-        exerciseId: payload.exerciseId,
-        status: payload.status,
-        durationSec: payload.durationSec ?? 0,
-        triggeredAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        skipReason: payload.skipReason
-      },
+      session,
       trayState
     }
 
     broadcast(IpcChannels.SessionUpdated, updated)
 
-    // Return tray to idle shortly (success flash stub)
     if (trayState === 'success') {
       setTimeout(() => setTrayState('idle'), 1500)
     }

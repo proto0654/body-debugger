@@ -26,8 +26,10 @@ Project docs and this file override global agent rules when they conflict.
 | Area | Path |
 |------|------|
 | Main / tray / windows / IPC | `electron/main/` |
+| JSON persistence | `electron/main/persistence/` |
 | Preload bridge | `electron/preload/` |
 | Vue renderer | `src/` |
+| Pinia hydrate | `src/bootstrap/hydrate.ts` |
 | Shared types & validation | `shared/` |
 | Domain stubs (picker, stage) | `src/domain/` |
 | Character assets | `src/assets/character/desk-hulk/` |

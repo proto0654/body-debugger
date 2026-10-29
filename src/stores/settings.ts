@@ -40,8 +40,33 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  function togglePause(): void {
+  function hydrate(next: AppSettings): void {
+    severity.value = next.severity
+    intervalMinutes.value = next.intervalMinutes
+    focus.value = {
+      primary: next.focus.primary,
+      accents: [...next.focus.accents]
+    }
+    pickerMode.value = next.pickerMode
+    inventory.value = {
+      enabled: next.inventory.enabled,
+      items: [...next.inventory.items]
+    }
+    themeId.value = next.themeId
+    characterPackId.value = next.characterPackId
+    reduceMotion.value = next.reduceMotion
+    paused.value = next.paused
+  }
+
+  async function persist(): Promise<void> {
+    if (!window.api?.saveSettings) return
+    const snapshot = await window.api.saveSettings(asSettings())
+    hydrate(snapshot.settings)
+  }
+
+  async function togglePause(): Promise<void> {
     paused.value = !paused.value
+    await persist()
   }
 
   return {
@@ -55,6 +80,8 @@ export const useSettingsStore = defineStore('settings', () => {
     reduceMotion,
     paused,
     asSettings,
+    hydrate,
+    persist,
     togglePause
   }
 })

@@ -6,7 +6,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 
 - Desktop **system-tray** app for IT workers: remind → one exercise popup → record result → update streak / character / stats.
 - Core principle: **one popup = one exercise**. Stats, character, weight, photos, AI, inventory are optional layers.
-- Current stage: **runnable skeleton** (tray, popup, dashboard stubs, types, Pinia stores, IPC cycle schema). Business logic deferred.
+- Current stage: **skeleton + JSON persistence** (main-owned). Trigger loop and domain math still deferred.
 
 ## Communication
 
@@ -22,24 +22,27 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 - Electron + Vue 3 + Vite (`electron-vite`) + TypeScript
 - Pinia, Vue Router (hash routes `#/popup`, `#/dashboard`)
 - Tailwind CSS v4 (`@tailwindcss/vite`)
-- Persistence: **not implemented** (in-memory stores only)
+- Persistence: **JSON files** in `.userdata/data/` (main process SoT; Pinia hydrates via IPC)
 
 ## Key paths
 
 | Purpose | Path |
 |---------|------|
 | Main process | `electron/main/` |
+| Persistence (JSON) | `electron/main/persistence/` |
 | Tray | `electron/main/tray.ts` |
 | Windows | `electron/main/windows/` |
 | Session-cycle IPC | `electron/main/ipc/session-cycle.ts` |
+| Persistence IPC | `electron/main/ipc/persistence.ts` |
 | Preload API | `electron/preload/index.ts` |
 | Renderer entry | `src/main.ts`, `src/App.vue`, `src/router.ts` |
+| Hydrate bootstrap | `src/bootstrap/hydrate.ts` |
 | Stores | `src/stores/` |
 | Domain stubs | `src/domain/exercise-picker.ts`, `src/domain/character-progress.ts` |
 | Shared types | `shared/types/` |
 | Exercise validation | `shared/validation/exercise.ts` |
 | Desk Hulk assets | `src/assets/character/desk-hulk/` |
-| Electron userData | `.userdata/` (project root, gitignored) |
+| Electron userData + JSON | `.userdata/` → `.userdata/data/*.json` (gitignored) |
 
 ## Source of truth
 
@@ -52,16 +55,16 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 
 ## Current focus
 
-- Keep the skeleton runnable (`npm run dev` → tray + Tailwind dashboard).
-- Do not implement full picker / stage math / persistence until the matching roadmap item is in play.
-- Docs graph + `/actualize` pipeline in place.
+- Keep the app runnable (`npm run dev` → tray + dashboard; data survives restart).
+- Next roadmap item: **trigger loop** (interval / idle / pause).
+- Do not implement full picker / stage math until their roadmap items are in play.
 
 ## Doc index
 
 | Doc | Role |
 |-----|------|
 | [README.md](README.md) | Hub / TOC |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Structure, IPC, skeleton checklist |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Structure, IPC, persistence |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Dev commands, E: caches |
 | [ROADMAP.md](ROADMAP.md) | Post-skeleton milestones |
 | [../CONCEPT.md](../CONCEPT.md) | Product SoT |

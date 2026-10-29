@@ -4,6 +4,7 @@ out
 dist-electron
 .userdata
 *.local
+*.tsbuildinfo
 .DS_Store
 Thumbs.db
 *.log

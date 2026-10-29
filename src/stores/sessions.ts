@@ -13,6 +13,10 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   const lastSession = computed(() => history.value[history.value.length - 1] ?? null)
 
+  function hydrate(sessions: Session[]): void {
+    history.value = sessions.map((s) => ({ ...s }))
+  }
+
   function beginSession(exercise?: Exercise): Session {
     const progress = useProgressStore()
     const settings = useSettingsStore()
@@ -38,7 +42,10 @@ export const useSessionsStore = defineStore('sessions', () => {
     return session
   }
 
-  /** Stub: records result into history; stage/streak updates come later */
+  /**
+   * Records result into local current→history for UI feedback.
+   * Canonical append + streak live in main (session:result → persistence).
+   */
   function recordResult(
     status: SessionStatus,
     extras?: Partial<Pick<Session, 'durationSec' | 'skipReason' | 'reps' | 'feeling'>>
@@ -67,6 +74,7 @@ export const useSessionsStore = defineStore('sessions', () => {
     current,
     currentExercise,
     lastSession,
+    hydrate,
     beginSession,
     recordResult,
     clearCurrent

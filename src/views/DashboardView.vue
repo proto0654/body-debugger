@@ -33,7 +33,7 @@ async function openPopupDev(): Promise<void> {
         </p>
         <h1 class="mt-1 text-2xl font-semibold text-white">Дашборд</h1>
         <p class="mt-1 text-sm text-slate-400">
-          Заглушка UI. Tailwind подключён. Логика цикла — на следующих этапах.
+          Прогресс и настройки хранятся локально (JSON). Триггер-цикл — следующий этап.
         </p>
       </div>
       <button

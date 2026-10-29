@@ -24,6 +24,7 @@ app.whenReady().then(() => {
 
   createAppTray({
     isPaused: () => getSettings().paused,
+    isReducedMotion: () => getSettings().reduceMotion,
     onTogglePause: () => setPaused(!getSettings().paused),
     onTriggerNow: () => triggerNow('manual')
   })

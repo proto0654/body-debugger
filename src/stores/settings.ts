@@ -75,6 +75,12 @@ export const useSettingsStore = defineStore('settings', () => {
     await persist()
   }
 
+  async function setReduceMotion(next: boolean): Promise<void> {
+    if (reduceMotion.value === next) return
+    reduceMotion.value = next
+    await persist()
+  }
+
   return {
     severity,
     intervalMinutes,
@@ -89,6 +95,7 @@ export const useSettingsStore = defineStore('settings', () => {
     hydrate,
     persist,
     togglePause,
-    setSeverity
+    setSeverity,
+    setReduceMotion
   }
 })

@@ -19,3 +19,152 @@ body,
 body {
   @apply bg-slate-950 text-slate-100 antialiased;
 }
+
+/*
+ * Micro-animations (CONCEPT.md §13). `data-reduce-motion` is set on <html> from
+ * the settings toggle / OS preference; the media query covers the first paint
+ * before Vue mounts.
+ */
+@keyframes popup-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes popup-out-quiet {
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+
+@keyframes popup-out-done {
+  0% {
+    opacity: 1;
+    transform: none;
+  }
+  20% {
+    transform: scale(1.015);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+@keyframes popup-flash {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes timer-urgent {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.07);
+  }
+}
+
+@keyframes portrait-bounce {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.08);
+  }
+  65% {
+    transform: scale(0.96);
+  }
+}
+
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.popup-in {
+  animation: popup-in 180ms ease-out both;
+}
+
+.popup-out-quiet {
+  animation: popup-out-quiet 160ms ease-in both;
+}
+
+.popup-out-done {
+  animation: popup-out-done 300ms ease-in both;
+}
+
+.popup-flash {
+  background: radial-gradient(circle at 50% 40%, rgb(167 243 208 / 0.55), transparent 70%);
+  animation: popup-flash 320ms ease-out both;
+}
+
+.timer-urgent {
+  animation: timer-urgent 1s ease-in-out infinite;
+}
+
+.portrait-bounce {
+  animation: portrait-bounce 380ms ease-out;
+}
+
+.fade-rise {
+  animation: fade-rise 240ms ease-out both;
+}
+
+.frame-fade-enter-active,
+.frame-fade-leave-active {
+  transition: opacity 180ms ease;
+}
+
+.frame-fade-enter-from,
+.frame-fade-leave-to {
+  opacity: 0;
+}
+
+/* The popup shell moves during its micro-animations; never show scrollbars. */
+html.window-popup,
+html.window-popup body {
+  overflow: hidden;
+}
+
+html[data-reduce-motion='true'] *,
+html[data-reduce-motion='true'] *::before,
+html[data-reduce-motion='true'] *::after {
+  animation-duration: 1ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+  transition-delay: 0ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+  }
+}

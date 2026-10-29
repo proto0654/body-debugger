@@ -22,7 +22,7 @@ import {
   updateSettings
 } from './persistence'
 import { closePopupWindow, createPopupWindow, getPopupWindow } from './windows/popup'
-import { getTrayState, refreshTrayMenu, setTrayPaused, setTrayState } from './tray'
+import { getTrayState, refreshTrayAnimation, refreshTrayMenu, setTrayPaused, setTrayState } from './tray'
 
 /**
  * Reminder loop (CONCEPT.md §2, ROADMAP #2).
@@ -330,6 +330,7 @@ export function syncLoopFromSettings(): void {
   lastIntervalMinutes = settings.intervalMinutes
   setTrayPaused(paused)
   refreshTrayMenu()
+  refreshTrayAnimation()
 
   const now = Date.now()
   if (awaiting) {

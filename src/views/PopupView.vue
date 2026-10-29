@@ -9,16 +9,28 @@ import {
   canFinish,
   formatCountdown
 } from '@shared/domain/severity'
+import { POPUP_EXIT_MS, useMotionPreference } from '@/motion'
 import type { SessionStatus } from '@shared/types/session'
 
 const sessions = useSessionsStore()
 const character = useCharacterStore()
 const settings = useSettingsStore()
+const { reduced } = useMotionPreference()
+
+// Entrance/exit animations translate and scale the shell; without this the
+// popup window flashes classic scrollbars for the duration of the animation.
+document.documentElement.classList.add('window-popup')
+onBeforeUnmount(() => document.documentElement.classList.remove('window-popup'))
+
+/** Countdown starts pulsing at this point (CONCEPT §13). */
+const URGENT_MS = 10_000
 
 const busy = ref(false)
 const durationMs = ref(0)
 const remainingMs = ref(0)
 const holdProgress = ref(0)
+const leaving = ref(false)
+const exitKind = ref<'done' | 'quiet' | null>(null)
 
 let timer: ReturnType<typeof setInterval> | null = null
 let holdTimer: ReturnType<typeof setInterval> | null = null
@@ -28,6 +40,13 @@ const canFinishNow = computed(() =>
   canFinish(severity.value, remainingMs.value, durationMs.value)
 )
 const timeLabel = computed(() => formatCountdown(remainingMs.value))
+const isUrgent = computed(
+  () => !leaving.value && remainingMs.value > 0 && remainingMs.value <= URGENT_MS
+)
+const shellClass = computed(() => {
+  if (!leaving.value) return 'popup-in'
+  return exitKind.value === 'done' ? 'popup-out-done' : 'popup-out-quiet'
+})
 const progressPercent = computed(() => {
   if (durationMs.value <= 0) return 100
   const done = (durationMs.value - remainingMs.value) / durationMs.value
@@ -136,14 +155,29 @@ async function submit(status: SessionStatus): Promise<void> {
       status: session.status,
       durationSec: session.durationSec
     })
+    await playExit(status)
     await window.api.closePopup()
   }
   busy.value = false
 }
+
+/** Let the exit animation finish before the window closes (CONCEPT §13). */
+async function playExit(status: SessionStatus): Promise<void> {
+  if (reduced.value) return
+  exitKind.value = status === 'done' ? 'done' : 'quiet'
+  leaving.value = true
+  await new Promise((resolve) =>
+    setTimeout(resolve, status === 'done' ? POPUP_EXIT_MS.done : POPUP_EXIT_MS.quiet)
+  )
+}
 </script>
 
 <template>
-  <div class="flex h-full flex-col gap-2 p-3">
+  <div class="relative flex h-full flex-col gap-2 p-3" :class="shellClass">
+    <div
+      v-if="leaving && exitKind === 'done'"
+      class="popup-flash pointer-events-none absolute inset-0 z-20"
+    />
     <header class="flex items-start justify-between gap-2">
       <div class="min-w-0 flex-1">
         <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/90">
@@ -157,17 +191,20 @@ async function submit(status: SessionStatus): Promise<void> {
         </p>
       </div>
       <CharacterPortrait
+        variant="face"
         size="sm"
         :stage="character.state.stage"
         :branch="character.state.branch"
         :build="character.state.build"
         :emotion="character.emotion"
-        :emoji-fallback="sessions.currentExercise?.emojiFallback ?? '💪'"
       />
     </header>
 
     <div class="flex items-center gap-3">
-      <span class="w-14 text-2xl font-semibold tabular-nums text-slate-100">
+      <span
+        class="w-14 text-2xl font-semibold tabular-nums"
+        :class="isUrgent ? 'timer-urgent text-amber-300' : 'text-slate-100'"
+      >
         {{ timeLabel }}
       </span>
       <div class="min-w-0 flex-1">

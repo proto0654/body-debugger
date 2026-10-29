@@ -25,6 +25,11 @@ const tabs: { id: TabId; label: string }[] = [
 
 const severityOptions = SEVERITY_ORDER.map((id) => ({ id, label: SEVERITY_LABELS[id] }))
 
+const motionOptions: { reduce: boolean; label: string }[] = [
+  { reduce: false, label: 'Обычные' },
+  { reduce: true, label: 'Уменьшить' }
+]
+
 async function triggerReminder(): Promise<void> {
   await window.api?.openPopup()
 }
@@ -35,6 +40,10 @@ async function togglePause(): Promise<void> {
 
 async function setSeverity(next: SeverityLevel): Promise<void> {
   await settings.setSeverity(next)
+}
+
+async function setReduceMotion(next: boolean): Promise<void> {
+  await settings.setReduceMotion(next)
 }
 </script>
 
@@ -119,6 +128,23 @@ async function setSeverity(next: SeverityLevel): Promise<void> {
                 : 'bg-slate-900 text-slate-400 hover:text-slate-200'
             "
             @click="setSeverity(option.id)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs text-slate-500">Анимации:</span>
+          <button
+            v-for="option in motionOptions"
+            :key="String(option.reduce)"
+            type="button"
+            class="rounded-lg px-2.5 py-1 text-xs transition"
+            :class="
+              settings.reduceMotion === option.reduce
+                ? 'bg-slate-700 text-white'
+                : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+            "
+            @click="setReduceMotion(option.reduce)"
           >
             {{ option.label }}
           </button>

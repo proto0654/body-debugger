@@ -9,9 +9,12 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web && npm run typecheck:test",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
+    "typecheck:test": "vue-tsc --noEmit -p tsconfig.test.json --composite false",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "postinstall": "node scripts/ensure-electron.js"
   },
   "dependencies": {
@@ -23,11 +26,14 @@
     "@tailwindcss/vite": "^4.1.14",
     "@types/node": "^26.6.6",
     "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/test-utils": "^2.5.1",
     "electron": "^38.2.1",
     "electron-vite": "^5.0.0",
+    "happy-dom": "^21.0.4",
     "tailwindcss": "^4.1.14",
     "typescript": "^5.9.3",
     "vite": "^7.1.9",
+    "vitest": "^5.0.5",
     "vue-tsc": "^3.1.0"
   }
 }

@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.web.json",
+  "compilerOptions": {
+    "composite": false,
+    "types": ["node", "vite/client", "electron-vite/node"]
+  },
+  "include": [
+    "tests/**/*",
+    "src/**/*",
+    "shared/**/*",
+    "src/**/*.vue",
+    "electron/main/persistence/json-file.ts"
+  ]
+}

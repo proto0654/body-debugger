@@ -6,7 +6,9 @@
 npm run dev          # tray + dashboard (electron-vite)
 npm run build
 npm run preview
-npm run typecheck    # main + preload + shared (tsc) and renderer (vue-tsc)
+npm run typecheck    # main + preload + shared (tsc), renderer and tests (vue-tsc)
+npm test             # Vitest suite (see TESTING.md)
+npm run test:watch
 ```
 
 ## Dependency caches (project drive only)
@@ -99,4 +101,4 @@ Default cue pack: `src/assets/sounds/default/*.mp3`. Playback and settings are n
 
 ## Testing / debug
 
-No Vitest scripts yet. Manual hook: tray **Напоминание сейчас** (runs the real trigger cycle). Planned suite + debug panel: [TESTING.md](TESTING.md).
+`npm test` runs the Vitest suite (domain, stores, JSON envelope, popup/portrait). `npm run typecheck` includes the test project (`tsconfig.test.json`). Layout, covered areas and gaps: [TESTING.md](TESTING.md). Manual hook for end-to-end checks: tray **Напоминание сейчас** (runs the real trigger cycle).

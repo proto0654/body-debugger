@@ -41,6 +41,7 @@ Project docs and this file override global agent rules when they conflict.
 | Keyframes + reduced-motion CSS | `src/styles/index.css` |
 | Tray frames + animation specs | `electron/resources/tray/`, `electron/main/tray-icons.ts` |
 | Tray icon script | `scripts/build-tray-icons.py` |
+| Tests (Vitest) | `tests/`, `vitest.config.ts` |
 | Sound packs | `src/assets/sounds/default/` |
 | Docs | `docs/` |
 | `/actualize` | [.cursor/commands/actualize.md](.cursor/commands/actualize.md) |
@@ -50,7 +51,8 @@ Project docs and this file override global agent rules when they conflict.
 ```bash
 npm run dev          # electron-vite: tray + dashboard
 npm run build
-npm run typecheck
+npm run typecheck    # main + renderer + tests
+npm test             # Vitest suite
 ```
 
 Caches and Electron binary stay on **E:** — see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Do not download Electron into `%LOCALAPPDATA%` on the system drive.

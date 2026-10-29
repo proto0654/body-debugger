@@ -2,31 +2,55 @@
 
 How we verify domain logic and run visual scenarios without fighting the tray. Product rules stay in [CONCEPT.md](../CONCEPT.md).
 
-## Goals
+## Commands
 
-- Unit-cover picker, stage/branch, streak, severity, `Exercise` validation
-- Give a **dev-only** debug surface for full scenarios (no manual tray clicking)
-- Keep debug tools out of normal user runs
+```bash
+npm test             # vitest run — CI-style single pass
+npm run test:watch   # watch mode
+npm run typecheck    # node + renderer + tests (tsconfig.test.json)
+```
 
-## Levels
+Stack: **Vitest** + **happy-dom** + **@vue/test-utils**. Config: [vitest.config.ts](../vitest.config.ts) (aliases `@` / `@shared` mirror the renderer). Pure domain and persistence tests run with `// @vitest-environment node` and skip the DOM setup.
 
-| Level | What | Tool | Priority |
-|-------|------|------|----------|
-| Unit | Stage/branch, picker weights, validation, streak, statuses | Vitest | High |
-| Store | Pinia transitions (+ hydrate from snapshot) | Vitest | High |
-| Component | Popup, character portrait, base states | Vitest + Vue Test Utils | Medium |
-| Scenario / visual | End-to-end flows by eye | Debug panel | High |
-| E2E | Real tray / windows | Playwright (if needed) | Low |
+## Layout
 
-## Cover first
+```
+tests/
+  fixtures.ts        # exercise / session / settings builders, seeded RNG, fixed "now"
+  unit/              # pure domain + JSON envelope (node env)
+  stores/            # Pinia stores with a stubbed window.api
+  components/        # Vue Test Utils: CharacterPortrait, PopupView
+```
 
-1. `characterStage` / `characterBranch` (`shared/domain/character-progress.ts`)
-2. Next-exercise selection — zone penalties, Focus bonuses (`shared/domain/exercise-picker.ts`)
-3. `isValidExercise` (`shared/validation/exercise.ts`)
-4. Session statuses: `done` / `snoozed` / `skipped` / `missed`
-5. Streak updates on result
-6. Severity level effects on the popup timer
-7. Character frame resolution — every stage/branch/build/emotion combination lands on a frame or the emoji (`shared/domain/character-visual.ts`)
+## Covered
+
+| Area | What the suite pins down | File |
+|------|--------------------------|------|
+| Reminder loop | manual trigger, single popup, done / snoozed / skipped / missed, tray states, success blink, pause, idle hold + long-break restart, interval reschedule | `tests/unit/trigger-loop.test.ts` (Electron mocked) |
+| Picker | inventory gate, previous/today penalties, neglect cap, focus bonuses, four modes, deterministic roll edges | `tests/unit/exercise-picker.test.ts` |
+| Character progress | stage thresholds, branch window (last 30), 20% margin, status filtering | `tests/unit/character-progress.test.ts` |
+| Frame rules | stage tiers, branch pose from stage 4, build fallback, every resolved frame exists on disk | `tests/unit/character-visual.test.ts` |
+| Severity | 80% unlock boundary, timer-less exercises, `mm:ss` rounding | `tests/unit/severity.test.ts` |
+| Exercise payloads | required/optional fields, bad numbers, `assertExercise` | `tests/unit/exercise-validation.test.ts` |
+| Catalog | 34 entries, unique ids/titles, valid focus tags, inventory-tagged equipment | `tests/unit/exercise-catalog.test.ts` |
+| JSON persistence | atomic write, missing/corrupt/outdated envelope | `tests/unit/json-file.test.ts` |
+| Stores | settings persistence + no-op guards, progress streak, session lifecycle, character derivation, reminder labels | `tests/stores/` |
+| Popup / portrait | severity gate, done + skip exits, flash and crossfade, double-submit guard, reduced motion, emoji fallback | `tests/components/` |
+
+Rules for new tests: no snapshots for logic, inject time (`now`) and randomness (seeded RNG), assert on behaviour rather than internal constants.
+
+## Not covered yet
+
+- **Main-process windows, tray and IPC wiring** — needs a real Electron session; keep the manual smoke run (`npm run dev`).
+- **Debug / scenario panel** — see below; fixtures do not exist yet.
+- **E2E (Playwright)** — low priority until the tray flow ships.
+
+## Manual checklist
+
+- Tray: right-click menu, «Напоминание сейчас», pause / resume, animations (and «Уменьшить анимации» off / on).
+- Popup: one exercise, Medium gate at 80%, Hardcore hold, closing the popup = `skipped`.
+- Persistence: streak, stage and sessions survive a relaunch (`.userdata/data/`).
+- Dashboard: form label, next reminder, severity and motion switches.
 
 ## Debug / admin panel (planned)
 
@@ -64,14 +88,9 @@ Dev-only (env flag, build mode, or hidden hotkey). Must not alter production UX.
 - Tray / popup animations with «Уменьшить анимации» on and off
 - Line / quote previews
 
-## Planned tree
+## Planned tree (debug panel)
 
 ```
-tests/
-  unit/
-  stores/
-  components/
-  scenarios/          # fixtures for the debug panel
 src/
   debug/
     DebugPanel.vue
@@ -84,7 +103,3 @@ src/
 2. Scenarios apply and roll back cleanly (prefer writing through persistence IPC so hydrate stays honest).
 3. Domain logic stays testable without UI.
 4. Panel covers both logic and presentation in one place.
-
-## Status
-
-No Vitest suite or `src/debug/` panel yet. Tray **Напоминание сейчас** is the manual hook (full trigger cycle) — see [DEVELOPMENT.md](DEVELOPMENT.md).

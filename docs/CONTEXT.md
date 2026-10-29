@@ -52,6 +52,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Keyframes / reduced-motion CSS | `src/styles/index.css` |
 | Tray frames + specs | `electron/resources/tray/`, `electron/main/tray-icons.ts` |
 | Tray icon script | `scripts/build-tray-icons.py` |
+| Tests (Vitest) | `tests/` (unit / stores / components), config `vitest.config.ts` |
 | Sound packs (default mp3) | `src/assets/sounds/default/` |
 | Electron userData + JSON | `.userdata/` → `.userdata/data/*.json` (gitignored) |
 
@@ -75,8 +76,9 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 - Severity is live: countdown + progress in the popup, Medium/Hardcore gate «Готово» (80% of the timer), Hardcore needs a hold; switch it on the dashboard.
 - Character art is cut per frame: dashboard shows the stage body, the popup shows the emotion bust; emoji is the fallback.
 - Motion is live: popup entrance/exit + urgent timer, emotion crossfade/bounce, tray frame animation; «Анимации» switch and the OS setting collapse it.
+- Tests are in place: Vitest covers the trigger loop, picker, character progress/frames, severity, JSON envelope, stores, popup and portrait (`npm test`).
 - Next roadmap item: **#8 optional layers** (weight, photos, feeling, inventory, AI, themes).
-- Still stubs: streak counters (simple `done` bump), sounds playback, debug panel, Vitest suite.
+- Still stubs: streak counters (simple `done` bump), sounds playback, debug panel, Playwright E2E.
 
 ## Doc index
 
@@ -86,7 +88,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Structure, IPC, persistence |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Dev commands, E: caches |
 | [SOUNDS.md](SOUNDS.md) | Optional sound layer + default pack |
-| [TESTING.md](TESTING.md) | Vitest priorities + debug panel |
+| [TESTING.md](TESTING.md) | Vitest suite (commands, coverage, gaps) + debug panel plan |
 | [ROADMAP.md](ROADMAP.md) | Post-skeleton milestones |
 | [../CONCEPT.md](../CONCEPT.md) | Product SoT |
 | [../AGENTS.md](../AGENTS.md) | Agent entry |

@@ -13,8 +13,8 @@ Post-skeleton milestones. Product detail: [CONCEPT.md](../CONCEPT.md).
 | 7 | Micro-animations | **Done** — popup entrance/exit, urgent timer, emotion crossfade + bounce; tray frame animation; «Анимации» switch (reduce motion) |
 | 8 | Optional layers | Weight, photos, feeling, inventory, AI, themes |
 | 9 | Sounds | Wire default pack + mute/volume; theme packs later — [SOUNDS.md](SOUNDS.md) |
-| 10 | Tests + debug panel | Vitest for domain/stores; dev-only scenarios — [TESTING.md](TESTING.md) |
+| 10 | Tests + debug panel | **Partly** — Vitest suite for trigger loop, domain, JSON envelope, stores, popup/portrait; debug panel + scenarios still ahead — [TESTING.md](TESTING.md) |
 | 11 | Dashboard depth | Calendar heatmap + stats charts |
 
 Skeleton (tray, windows, types, stores, IPC schema, Tailwind) = **done**.  
-Persistence (#1), trigger loop (#2), picker (#3), character progress (#4), severity/timer (#5), sprite cut (#6) and micro-animations (#7) = **done**. Default sound **assets** landed (playback = #9). Next: **#8 Optional layers**.
+Persistence (#1), trigger loop (#2), picker (#3), character progress (#4), severity/timer (#5), sprite cut (#6) and micro-animations (#7) = **done**. Tests (#10) are in place for the core; the debug panel is the remaining half. Default sound **assets** landed (playback = #9). Next: **#8 Optional layers**.

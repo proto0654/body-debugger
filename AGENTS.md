@@ -20,6 +20,7 @@ Project docs and this file override global agent rules when they conflict.
 1. [docs/CONTEXT.md](docs/CONTEXT.md) — permanent snapshot
 2. [docs/README.md](docs/README.md) — docs hub
 3. [CONCEPT.md](CONCEPT.md) — product rules (cycle, character, picker)
+4. Optional layers: [docs/SOUNDS.md](docs/SOUNDS.md), [docs/TESTING.md](docs/TESTING.md)
 
 ## Key paths
 
@@ -33,6 +34,7 @@ Project docs and this file override global agent rules when they conflict.
 | Shared types & validation | `shared/` |
 | Domain stubs (picker, stage) | `src/domain/` |
 | Character assets | `src/assets/character/desk-hulk/` |
+| Sound packs | `src/assets/sounds/default/` |
 | Docs | `docs/` |
 | `/actualize` | [.cursor/commands/actualize.md](.cursor/commands/actualize.md) |
 

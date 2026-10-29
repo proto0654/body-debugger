@@ -15,6 +15,7 @@ src/domain/                 # Rule stubs: picker, character progress
 src/stores/                 # sessions, progress, settings, character
 src/components/             # UI (CharacterPortrait, …)
 src/assets/character/       # Desk Hulk sprites
+src/assets/sounds/default/  # Optional cue pack (mp3); playback not wired
 shared/types/               # Exercise, Session, Character, Progress, Settings, Events, Persistence
 shared/validation/          # isValidExercise
 shared/constants/           # stage keys / labels
@@ -76,6 +77,9 @@ Preload: `electron/preload/index.ts`.
 | Tailwind + stub views | Yes |
 | Desk Hulk assets under `src/assets/character/desk-hulk/` | Yes |
 | CharacterPortrait (emoji + sheet backdrop) | Yes |
+| Default sound pack under `src/assets/sounds/default/` | Assets only |
+| Sound playback / mute / pack settings | Not yet — [SOUNDS.md](SOUNDS.md) |
+| Vitest suite / `src/debug/` panel | Not yet — [TESTING.md](TESTING.md) |
 | Trigger timer / idle / tray Pause | Not yet |
 
 ## Where rules live
@@ -85,6 +89,8 @@ Preload: `electron/preload/index.ts`.
 | Exercise weights / penalties / modes | [src/domain/exercise-picker.ts](../src/domain/exercise-picker.ts) |
 | Stage / branch from history | [src/domain/character-progress.ts](../src/domain/character-progress.ts) |
 | Character presentation | `src/components/character/` + `src/assets/character/` |
+| Sound cues / packs | [SOUNDS.md](SOUNDS.md) + `src/assets/sounds/` |
+| Tests + debug panel | [TESTING.md](TESTING.md) |
 | IPC schema | `shared/types/events.ts` + `electron/main/ipc/` |
 | JSON persistence | `electron/main/persistence/` |
 | External Exercise validation | [shared/validation/exercise.ts](../shared/validation/exercise.ts) |
@@ -92,7 +98,7 @@ Preload: `electron/preload/index.ts`.
 ## Invariants
 
 1. One popup = one exercise (`PopupView` must not render a list).
-2. Optional fields stay optional; core does not depend on AI/photos.
-3. Character progress from data; PNGs are presentation only.
+2. Optional fields stay optional; core does not depend on AI/photos/sounds.
+3. Character progress from data; PNGs and sound packs are presentation only.
 4. External Exercise payloads must pass validation before entering the catalog.
 5. Durable state is owned by main; Pinia is a per-window projection.

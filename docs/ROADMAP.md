@@ -12,7 +12,9 @@ Post-skeleton milestones. Product detail: [CONCEPT.md](../CONCEPT.md).
 | 6 | Sprite cut | `stage-{n}-{build}`, `pose-{branch}`, `emotion-*` |
 | 7 | Micro-animations | Tray + popup (CONCEPT §13); respect `reduceMotion` |
 | 8 | Optional layers | Weight, photos, feeling, inventory, AI, themes |
-| 9 | Dashboard depth | Calendar heatmap + stats charts |
+| 9 | Sounds | Wire default pack + mute/volume; theme packs later — [SOUNDS.md](SOUNDS.md) |
+| 10 | Tests + debug panel | Vitest for domain/stores; dev-only scenarios — [TESTING.md](TESTING.md) |
+| 11 | Dashboard depth | Calendar heatmap + stats charts |
 
 Skeleton (tray, windows, types, stores, IPC schema, Tailwind) = **done**.  
-Persistence (#1) = **done**. Next: **#2 Trigger loop**.
+Persistence (#1) = **done**. Default sound **assets** landed (playback = #9). Next: **#2 Trigger loop**.

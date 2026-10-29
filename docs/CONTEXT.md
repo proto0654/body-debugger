@@ -42,6 +42,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Shared types | `shared/types/` |
 | Exercise validation | `shared/validation/exercise.ts` |
 | Desk Hulk assets | `src/assets/character/desk-hulk/` |
+| Sound packs (default mp3) | `src/assets/sounds/default/` |
 | Electron userData + JSON | `.userdata/` → `.userdata/data/*.json` (gitignored) |
 
 ## Source of truth
@@ -51,6 +52,8 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Product rules (cycle, severity, character model, picker) | [CONCEPT.md](../CONCEPT.md) |
 | What code already reflects | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | How to run / caches | [DEVELOPMENT.md](DEVELOPMENT.md) |
+| Optional sound cues + packs | [SOUNDS.md](SOUNDS.md) |
+| Unit / store tests + debug panel | [TESTING.md](TESTING.md) |
 | Next work | [ROADMAP.md](ROADMAP.md) |
 
 ## Current focus
@@ -58,6 +61,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 - Keep the app runnable (`npm run dev` → tray + dashboard; data survives restart).
 - Next roadmap item: **trigger loop** (interval / idle / pause).
 - Do not implement full picker / stage math until their roadmap items are in play.
+- Sounds and debug/testing are **documented + assets only** — no playback or Vitest suite yet.
 
 ## Doc index
 
@@ -66,6 +70,8 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | [README.md](README.md) | Hub / TOC |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Structure, IPC, persistence |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Dev commands, E: caches |
+| [SOUNDS.md](SOUNDS.md) | Optional sound layer + default pack |
+| [TESTING.md](TESTING.md) | Vitest priorities + debug panel |
 | [ROADMAP.md](ROADMAP.md) | Post-skeleton milestones |
 | [../CONCEPT.md](../CONCEPT.md) | Product SoT |
 | [../AGENTS.md](../AGENTS.md) | Agent entry |

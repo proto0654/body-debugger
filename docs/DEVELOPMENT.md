@@ -38,3 +38,11 @@ Do **not** download Electron into `%LOCALAPPDATA%\electron` or park the profile 
 - Dev menu: **Dashboard**, **Popup (dev)**, Quit. Pause / Settings UI still stubs (Pause can persist via store when wired).
 - Renderer routes: `#/dashboard`, `#/popup`.
 - After a **Готово** in the popup, streak and sessions survive quit/relaunch (check `.userdata/data/`).
+
+## Sounds (assets only)
+
+Default cue pack: `src/assets/sounds/default/*.mp3`. Playback and settings are not wired — see [SOUNDS.md](SOUNDS.md). When implementing, keep mute / DND respect and treat audio as an optional layer.
+
+## Testing / debug
+
+No Vitest scripts yet. Manual hook: tray **Popup (dev)**. Planned suite + debug panel: [TESTING.md](TESTING.md).

@@ -11,6 +11,22 @@ npm test             # Vitest suite (see TESTING.md)
 npm run test:watch
 ```
 
+## First run
+
+```powershell
+$env:electron_config_cache = "E:\Electron\.cache\electron"
+$env:ELECTRON_CACHE = "E:\Electron\.cache\electron"
+
+npm install
+npm run dev
+```
+
+`npm run dev` builds main / preload, starts the renderer dev server (port 5173, or the next free one) and launches Electron. Expected: an emerald tray icon, the dashboard window, and a popup after **Напоминание сейчас** (dashboard button or tray menu). Data is written to `.userdata/data/*.json`; delete `.userdata/` to reset progress.
+
+If Electron boots as plain Node and crashes on `electron.app`, the shell exports `ELECTRON_RUN_AS_NODE=1` — clear it for the run (see Windows notes).
+
+What to click for a manual smoke: [TESTING.md](TESTING.md#manual-checklist).
+
 ## Dependency caches (project drive only)
 
 Heavy downloads stay on **E:**, never the system partition.

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { Session, SessionStatus } from '@shared/types/session'
+import type { Session, SessionExtras, SessionStatus } from '@shared/types/session'
 import type { Exercise } from '@shared/types/exercise'
 import { EXERCISE_CATALOG } from '@shared/constants/exercises'
 import { pickNextExercise } from '@shared/domain/exercise-picker'
@@ -46,7 +46,7 @@ export const useSessionsStore = defineStore('sessions', () => {
    */
   function recordResult(
     status: SessionStatus,
-    extras?: Partial<Pick<Session, 'durationSec' | 'skipReason' | 'reps' | 'feeling'>>
+    extras?: SessionExtras & { durationSec?: number; skipReason?: string }
   ): Session | null {
     if (!current.value) return null
 

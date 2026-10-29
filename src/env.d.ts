@@ -21,6 +21,7 @@ export interface BodyDebuggerApi {
   openDashboard: () => Promise<void>
   openPopup: () => Promise<void>
   closePopup: () => Promise<void>
+  resizePopup: (height: number) => Promise<void>
   sessionResult: (payload: SessionResultPayload) => Promise<void>
   getCurrentPopup: () => Promise<SessionPopupPayload | null>
   getLoopState: () => Promise<SessionLoopStatePayload>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import CharacterPortrait from '@/components/character/CharacterPortrait.vue'
 import { useSessionsStore } from '@/stores/sessions'
 import { useCharacterStore } from '@/stores/character'
@@ -9,8 +9,18 @@ import {
   canFinish,
   formatCountdown
 } from '@shared/domain/severity'
+import {
+  FEELING_LABELS,
+  FEELING_VALUES,
+  normalizeSessionExtras
+} from '@shared/domain/session-extras'
+import {
+  POPUP_BASE_HEIGHT,
+  POPUP_EXTRAS_COLLAPSED_HEIGHT,
+  POPUP_EXTRAS_HEIGHT
+} from '@shared/constants/popup'
 import { POPUP_EXIT_MS, useMotionPreference } from '@/motion'
-import type { SessionStatus } from '@shared/types/session'
+import type { Feeling, SessionExtras, SessionStatus } from '@shared/types/session'
 
 const sessions = useSessionsStore()
 const character = useCharacterStore()
@@ -35,6 +45,14 @@ const remainingMs = ref(initialDurationMs)
 const holdProgress = ref(0)
 const leaving = ref(false)
 const exitKind = ref<'done' | 'quiet' | null>(null)
+
+// Optional details (CONCEPT §4, §10): hidden unless the user turned them on,
+// and collapsed by default so the core cycle stays one exercise + one timer.
+const extrasEnabled = computed(() => settings.sessionExtras.enabled)
+const extrasOpen = ref(false)
+const repsInput = ref('')
+const weightInput = ref('')
+const feeling = ref<Feeling | null>(null)
 
 let timer: ReturnType<typeof setInterval> | null = null
 let holdTimer: ReturnType<typeof setInterval> | null = null
@@ -77,6 +95,34 @@ function startTimer(): void {
   timer = setInterval(() => {
     remainingMs.value = Math.max(0, durationMs.value - (Date.now() - startedAt))
   }, 250)
+}
+
+/** Window height follows the details block: base → collapsed row → expanded panel. */
+function requestedPopupHeight(): number {
+  if (!extrasEnabled.value) return POPUP_BASE_HEIGHT
+  return extrasOpen.value ? POPUP_EXTRAS_HEIGHT : POPUP_EXTRAS_COLLAPSED_HEIGHT
+}
+
+watch([extrasEnabled, extrasOpen], () => {
+  void window.api?.resizePopup?.(requestedPopupHeight())
+})
+
+function toggleExtras(): void {
+  extrasOpen.value = !extrasOpen.value
+}
+
+function toggleFeeling(value: Feeling): void {
+  feeling.value = feeling.value === value ? null : value
+}
+
+function collectExtras(): SessionExtras {
+  if (!extrasEnabled.value || !extrasOpen.value) return {}
+
+  return normalizeSessionExtras({
+    reps: repsInput.value,
+    feeling: feeling.value,
+    weightKg: weightInput.value
+  })
 }
 
 function stopTimer(): void {
@@ -151,13 +197,16 @@ async function submit(status: SessionStatus): Promise<void> {
     character.setEmotion('tired')
   }
 
-  const session = sessions.recordResult(status)
+  // Details only describe a completed exercise; snooze / skip never carry them.
+  const extras = status === 'done' ? collectExtras() : {}
+  const session = sessions.recordResult(status, extras)
   if (session && window.api) {
     await window.api.sessionResult({
       sessionId: session.id,
       exerciseId: session.exerciseId,
       status: session.status,
-      durationSec: session.durationSec
+      durationSec: session.durationSec,
+      ...extras
     })
     await playExit(status)
     await window.api.closePopup()
@@ -221,6 +270,78 @@ async function playExit(status: SessionStatus): Promise<void> {
         <p class="mt-1 truncate text-[10px] text-slate-500">{{ severityHint }}</p>
       </div>
     </div>
+
+    <section
+      v-if="extrasEnabled"
+      class="rounded-lg border border-slate-800 bg-slate-900/70"
+      data-testid="extras"
+    >
+      <button
+        type="button"
+        class="flex w-full items-center justify-between px-2 py-1 text-[11px] text-slate-400 hover:text-slate-200"
+        :aria-expanded="extrasOpen"
+        data-testid="extras-toggle"
+        @click="toggleExtras"
+      >
+        <span>Детали (необязательно)</span>
+        <span aria-hidden="true">{{ extrasOpen ? '▴' : '▾' }}</span>
+      </button>
+
+      <div v-if="extrasOpen" class="grid gap-2 px-2 pb-2" data-testid="extras-panel">
+        <div class="grid grid-cols-2 gap-2">
+          <label class="flex flex-col gap-1 text-[10px] text-slate-500">
+            Повторы
+            <input
+              v-model="repsInput"
+              data-testid="reps-input"
+              type="number"
+              min="1"
+              max="999"
+              inputmode="numeric"
+              placeholder="—"
+              class="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-emerald-500"
+            />
+          </label>
+          <label class="flex flex-col gap-1 text-[10px] text-slate-500">
+            Вес, кг
+            <input
+              v-model="weightInput"
+              data-testid="weight-input"
+              type="number"
+              min="20"
+              max="300"
+              step="0.1"
+              placeholder="—"
+              class="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-emerald-500"
+            />
+          </label>
+        </div>
+
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-[10px] text-slate-500">Ощущения</span>
+          <div class="flex gap-1">
+            <button
+              v-for="value in FEELING_VALUES"
+              :key="value"
+              type="button"
+              class="h-6 w-6 rounded-md text-[11px] transition"
+              :class="
+                feeling === value
+                  ? 'bg-emerald-500 font-semibold text-slate-950'
+                  : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+              "
+              :title="FEELING_LABELS[value]"
+              :aria-label="FEELING_LABELS[value]"
+              :aria-pressed="feeling === value"
+              :data-feeling="value"
+              @click="toggleFeeling(value)"
+            >
+              {{ value }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <div class="mt-auto flex items-center gap-2">
       <button

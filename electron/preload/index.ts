@@ -15,6 +15,8 @@ const api = {
   openDashboard: (): Promise<void> => ipcRenderer.invoke(IpcChannels.WindowOpenDashboard),
   openPopup: (): Promise<void> => ipcRenderer.invoke(IpcChannels.WindowOpenPopup),
   closePopup: (): Promise<void> => ipcRenderer.invoke(IpcChannels.WindowClosePopup),
+  resizePopup: (height: number): Promise<void> =>
+    ipcRenderer.invoke(IpcChannels.WindowResizePopup, height),
   sessionResult: (payload: SessionResultPayload): Promise<void> =>
     ipcRenderer.invoke(IpcChannels.SessionResult, payload),
   getCurrentPopup: (): Promise<SessionPopupPayload | null> =>

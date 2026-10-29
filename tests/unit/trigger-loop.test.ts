@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defaultProgress, defaultSettings } from '../../electron/main/persistence/defaults'
 import type { AppSettings } from '@shared/types/settings'
-import type { Session } from '@shared/types/session'
+import type { Feeling, Session } from '@shared/types/session'
 import type { TrayState } from '@shared/types/events'
 
 const mocks = vi.hoisted(() => {
@@ -160,6 +160,45 @@ describe('trigger loop — session results', () => {
 
     const next = Date.parse(loop.getLoopState().nextTriggerAt ?? '')
     expect(next - Date.now()).toBe(45 * 60_000)
+  })
+
+  it('stores optional details, normalized, with the resolved session', async () => {
+    loop = await loadLoop()
+    loop.triggerNow('manual')
+    const active = loop.getActivePopup()
+
+    loop.handleSessionResult({
+      sessionId: active?.sessionId ?? '',
+      exerciseId: active?.exercise.id ?? '',
+      status: 'done',
+      reps: 12,
+      feeling: 4,
+      weightKg: 72.55
+    })
+
+    expect(mocks.appendSession).toHaveBeenCalledWith(
+      expect.objectContaining({ reps: 12, feeling: 4, weightKg: 72.6 })
+    )
+  })
+
+  it('drops optional details outside the documented ranges', async () => {
+    loop = await loadLoop()
+    loop.triggerNow('manual')
+    const active = loop.getActivePopup()
+
+    loop.handleSessionResult({
+      sessionId: active?.sessionId ?? '',
+      exerciseId: active?.exercise.id ?? '',
+      status: 'done',
+      reps: 0,
+      feeling: 9 as Feeling,
+      weightKg: 10
+    })
+
+    const stored = mocks.appendSession.mock.calls[0]?.[0] as Session
+    expect(stored.reps).toBeUndefined()
+    expect(stored.feeling).toBeUndefined()
+    expect(stored.weightKg).toBeUndefined()
   })
 
   it('returns the tray to idle after the success blink', async () => {

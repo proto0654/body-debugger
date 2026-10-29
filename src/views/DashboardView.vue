@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import CharacterPortrait from '@/components/character/CharacterPortrait.vue'
 import { useProgressStore } from '@/stores/progress'
 import { useCharacterStore } from '@/stores/character'
 import { useSettingsStore } from '@/stores/settings'
 import { useReminderStore } from '@/stores/reminder'
+import { useSessionsStore } from '@/stores/sessions'
 import { CHARACTER_STAGE_LABELS } from '@shared/constants/character'
 import { SEVERITY_LABELS, SEVERITY_ORDER } from '@shared/domain/severity'
 import type { SeverityLevel } from '@shared/types/settings'
@@ -16,6 +17,7 @@ const progress = useProgressStore()
 const character = useCharacterStore()
 const settings = useSettingsStore()
 const reminder = useReminderStore()
+const sessions = useSessionsStore()
 
 const tabs: { id: TabId; label: string }[] = [
   { id: 'today', label: 'Сегодня' },
@@ -29,6 +31,26 @@ const motionOptions: { reduce: boolean; label: string }[] = [
   { reduce: false, label: 'Обычные' },
   { reduce: true, label: 'Уменьшить' }
 ]
+
+const extrasOptions: { enabled: boolean; label: string }[] = [
+  { enabled: false, label: 'Выкл' },
+  { enabled: true, label: 'Вкл' }
+]
+
+const lastDone = computed(
+  () => [...sessions.history].reverse().find((session) => session.status === 'done') ?? null
+)
+
+const lastDetails = computed(() => {
+  const session = lastDone.value
+  if (!session) return ''
+
+  const parts: string[] = []
+  if (session.reps !== undefined) parts.push(`${session.reps} повторов`)
+  if (session.feeling !== undefined) parts.push(`ощущение ${session.feeling}/5`)
+  if (session.weightKg !== undefined) parts.push(`вес ${session.weightKg} кг`)
+  return parts.join(' · ')
+})
 
 async function triggerReminder(): Promise<void> {
   await window.api?.openPopup()
@@ -44,6 +66,10 @@ async function setSeverity(next: SeverityLevel): Promise<void> {
 
 async function setReduceMotion(next: boolean): Promise<void> {
   await settings.setReduceMotion(next)
+}
+
+async function setSessionExtras(next: boolean): Promise<void> {
+  await settings.setSessionExtrasEnabled(next)
 }
 </script>
 
@@ -114,6 +140,9 @@ async function setReduceMotion(next: boolean): Promise<void> {
           <span class="font-medium text-emerald-400">{{ progress.streak.current }}</span>
           <span class="text-slate-500"> / max {{ progress.streak.max }}</span>
         </p>
+        <p v-if="lastDetails" class="text-xs text-slate-500">
+          Последняя сессия: {{ lastDetails }}
+        </p>
         <p class="text-sm text-slate-300">Интервал: {{ settings.intervalMinutes }} мин</p>
         <div class="flex flex-wrap items-center gap-2">
           <span class="text-xs text-slate-500">Строгость:</span>
@@ -145,6 +174,23 @@ async function setReduceMotion(next: boolean): Promise<void> {
                 : 'bg-slate-900 text-slate-400 hover:text-slate-200'
             "
             @click="setReduceMotion(option.reduce)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs text-slate-500">Детали в попапе:</span>
+          <button
+            v-for="option in extrasOptions"
+            :key="String(option.enabled)"
+            type="button"
+            class="rounded-lg px-2.5 py-1 text-xs transition"
+            :class="
+              settings.sessionExtras.enabled === option.enabled
+                ? 'bg-slate-700 text-white'
+                : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+            "
+            @click="setSessionExtras(option.enabled)"
           >
             {{ option.label }}
           </button>

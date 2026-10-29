@@ -34,6 +34,7 @@ describe('settings store', () => {
     expect(settings.severity).toBe('medium')
     expect(settings.pickerMode).toBe('balance')
     expect(settings.reduceMotion).toBe(false)
+    expect(settings.sessionExtras).toEqual({ enabled: false })
     expect(settings.paused).toBe(false)
     expect(settings.characterPackId).toBe('desk-hulk')
   })
@@ -83,6 +84,14 @@ describe('settings store', () => {
     await settings.setReduceMotion(true)
     expect(settings.reduceMotion).toBe(true)
     expect(saveSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists the optional-details switch', async () => {
+    const settings = useSettingsStore()
+    await settings.setSessionExtrasEnabled(true)
+
+    expect(settings.sessionExtras.enabled).toBe(true)
+    expect(saveSettings.mock.calls[0][0]).toMatchObject({ sessionExtras: { enabled: true } })
   })
 
   it('keeps working when the preload bridge is absent', async () => {

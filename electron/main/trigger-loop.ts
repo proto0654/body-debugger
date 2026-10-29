@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { powerMonitor } from 'electron'
 import { EXERCISE_CATALOG } from '../../shared/constants/exercises'
 import { pickNextExercise } from '../../shared/domain/exercise-picker'
+import { normalizeSessionExtras } from '../../shared/domain/session-extras'
 import {
   IpcChannels,
   type SessionLoopStatePayload,
@@ -12,7 +13,7 @@ import {
   type TrayState
 } from '../../shared/types/events'
 import type { Exercise } from '../../shared/types/exercise'
-import type { Session, SessionStatus } from '../../shared/types/session'
+import type { Session, SessionExtras, SessionStatus } from '../../shared/types/session'
 import { broadcastToWindows, notifyDataUpdated } from './broadcast'
 import {
   appendSession,
@@ -66,6 +67,11 @@ interface SessionOrigin {
   exerciseId: string
   triggeredAt: string
   durationSec: number
+}
+
+type SessionCompletionExtras = SessionExtras & {
+  durationSec?: number
+  skipReason?: string
 }
 
 let started = false
@@ -125,7 +131,7 @@ export function getActivePopup(): SessionPopupPayload | null {
 function completeSession(
   origin: SessionOrigin,
   status: SessionStatus,
-  extras: { durationSec?: number; skipReason?: string } = {}
+  extras: SessionCompletionExtras = {}
 ): void {
   if (awaiting?.sessionId === origin.sessionId) {
     clearTimeout(awaiting.timeout)
@@ -138,7 +144,9 @@ function completeSession(
     status,
     durationSec: extras.durationSec ?? origin.durationSec,
     triggeredAt: origin.triggeredAt,
-    completedAt: new Date().toISOString()
+    completedAt: new Date().toISOString(),
+    // Untrusted renderer input: only in-range details are stored.
+    ...normalizeSessionExtras(extras)
   }
   if (extras.skipReason) session.skipReason = extras.skipReason
 
@@ -198,7 +206,10 @@ export function handleSessionResult(payload: SessionResultPayload): void {
 
   completeSession(origin, payload.status, {
     durationSec: payload.durationSec,
-    skipReason: payload.skipReason
+    skipReason: payload.skipReason,
+    reps: payload.reps,
+    feeling: payload.feeling,
+    weightKg: payload.weightKg
   })
 }
 

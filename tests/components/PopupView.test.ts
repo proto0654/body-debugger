@@ -4,15 +4,21 @@ import { createPinia, setActivePinia } from 'pinia'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import PopupView from '@/views/PopupView.vue'
 import { POPUP_EXIT_MS } from '@/motion'
+import {
+  POPUP_EXTRAS_COLLAPSED_HEIGHT,
+  POPUP_EXTRAS_HEIGHT
+} from '@shared/constants/popup'
 import { useCharacterStore } from '@/stores/character'
 import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsStore } from '@/stores/settings'
 import type { SeverityLevel } from '@shared/types/settings'
+import type { SessionResultPayload } from '@shared/types/events'
 import { makeExercise, makeSettings } from '../fixtures'
 
 const api = {
-  sessionResult: vi.fn(async () => undefined),
-  closePopup: vi.fn(async () => undefined)
+  sessionResult: vi.fn(async (_payload: SessionResultPayload) => undefined),
+  closePopup: vi.fn(async () => undefined),
+  resizePopup: vi.fn(async () => undefined)
 }
 
 /** Resolves a chain of microtasks while fake timers are active. */
@@ -27,13 +33,16 @@ function findButton(wrapper: VueWrapper, label: string) {
   return button
 }
 
-function mountPopup(options: { severity?: SeverityLevel; reduceMotion?: boolean } = {}) {
+function mountPopup(
+  options: { severity?: SeverityLevel; reduceMotion?: boolean; extras?: boolean } = {}
+) {
   const pinia = createPinia()
   setActivePinia(pinia)
   useSettingsStore().hydrate(
     makeSettings({
       severity: options.severity ?? 'soft',
-      reduceMotion: options.reduceMotion ?? false
+      reduceMotion: options.reduceMotion ?? false,
+      sessionExtras: { enabled: options.extras ?? false }
     })
   )
   useSessionsStore().beginSession(
@@ -48,6 +57,7 @@ let wrapper: VueWrapper | null = null
 beforeEach(() => {
   api.sessionResult.mockClear()
   api.closePopup.mockClear()
+  api.resizePopup.mockClear()
   Object.defineProperty(window, 'api', { configurable: true, value: api })
   vi.useFakeTimers()
 })
@@ -136,5 +146,68 @@ describe('PopupView — skip flow', () => {
     vi.advanceTimersByTime(POPUP_EXIT_MS.quiet)
     await flushMicrotasks()
     expect(api.closePopup).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('PopupView — optional details', () => {
+  it('shows no details row while the optional layer is off', () => {
+    wrapper = mountPopup()
+    expect(wrapper.find('[data-testid="extras-toggle"]').exists()).toBe(false)
+  })
+
+  it('keeps details collapsed by default and grows the window only when opened', async () => {
+    wrapper = mountPopup({ extras: true })
+    const toggle = wrapper.find('[data-testid="extras-toggle"]')
+    expect(toggle.exists()).toBe(true)
+    expect(wrapper.find('[data-testid="extras-panel"]').exists()).toBe(false)
+
+    await toggle.trigger('click')
+    expect(wrapper.find('[data-testid="extras-panel"]').exists()).toBe(true)
+    expect(api.resizePopup).toHaveBeenLastCalledWith(POPUP_EXTRAS_HEIGHT)
+
+    await toggle.trigger('click')
+    expect(wrapper.find('[data-testid="extras-panel"]').exists()).toBe(false)
+    expect(api.resizePopup).toHaveBeenLastCalledWith(POPUP_EXTRAS_COLLAPSED_HEIGHT)
+  })
+
+  it('submits reps, feeling and weight with the result', async () => {
+    wrapper = mountPopup({ extras: true })
+
+    await wrapper.find('[data-testid="extras-toggle"]').trigger('click')
+    await wrapper.find('[data-testid="reps-input"]').setValue('12')
+    await wrapper.find('[data-testid="weight-input"]').setValue('72.55')
+    await wrapper.find('[data-feeling="4"]').trigger('click')
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+
+    expect(api.sessionResult).toHaveBeenCalledWith(
+      expect.objectContaining({ reps: 12, feeling: 4, weightKg: 72.6 })
+    )
+  })
+
+  it('drops blank and out-of-range details instead of sending them', async () => {
+    wrapper = mountPopup({ extras: true })
+
+    await wrapper.find('[data-testid="extras-toggle"]').trigger('click')
+    await wrapper.find('[data-testid="reps-input"]').setValue('0')
+    await wrapper.find('[data-testid="weight-input"]').setValue('5')
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+
+    const payload = api.sessionResult.mock.calls[0]?.[0]
+    expect(payload?.reps).toBeUndefined()
+    expect(payload?.weightKg).toBeUndefined()
+    expect(payload?.feeling).toBeUndefined()
+  })
+
+  it('never attaches details to a skip', async () => {
+    wrapper = mountPopup({ extras: true })
+
+    await wrapper.find('[data-testid="extras-toggle"]').trigger('click')
+    await wrapper.find('[data-testid="reps-input"]').setValue('12')
+    await findButton(wrapper, 'Пропустить').trigger('click')
+    await flushMicrotasks()
+
+    expect(api.sessionResult.mock.calls[0]?.[0]?.reps).toBeUndefined()
   })
 })

@@ -54,6 +54,7 @@ export function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings 
     focus: makeFocus(),
     pickerMode: 'balance',
     inventory: { enabled: false, items: [] },
+    sessionExtras: { enabled: false },
     themeId: 'default',
     characterPackId: 'desk-hulk',
     reduceMotion: false,

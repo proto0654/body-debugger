@@ -10,10 +10,42 @@ export function defaultSettings(): AppSettings {
     focus: { primary: null, accents: [] },
     pickerMode: 'balance',
     inventory: { enabled: false, items: [] },
+    sessionExtras: { enabled: false },
     themeId: 'default',
     characterPackId: DEFAULT_CHARACTER_PACK,
     reduceMotion: false,
     paused: false
+  }
+}
+
+/**
+ * Merge a stored settings file with the current defaults.
+ *
+ * Settings are stored as one JSON object, so a field added in a later version is
+ * absent from older files. Nested objects and their arrays are rebuilt against
+ * the defaults instead of being spread blindly.
+ */
+export function normalizeSettings(stored: Partial<AppSettings> | null | undefined): AppSettings {
+  const base = defaultSettings()
+  if (!stored) return base
+
+  return {
+    ...base,
+    ...stored,
+    focus: {
+      ...base.focus,
+      ...stored.focus,
+      accents: [...(stored.focus?.accents ?? base.focus.accents)]
+    },
+    inventory: {
+      ...base.inventory,
+      ...stored.inventory,
+      items: [...(stored.inventory?.items ?? base.inventory.items)]
+    },
+    sessionExtras: {
+      ...base.sessionExtras,
+      ...stored.sessionExtras
+    }
   }
 }
 

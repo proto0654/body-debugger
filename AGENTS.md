@@ -33,7 +33,7 @@ Project docs and this file override global agent rules when they conflict.
 | Vue renderer | `src/` |
 | Pinia hydrate | `src/bootstrap/hydrate.ts` |
 | Shared types & validation | `shared/` |
-| Exercise catalog + domain rules (picker, character) | `shared/constants/exercises.ts`, `shared/domain/` |
+| Exercise catalog + domain rules (picker, character, session extras) | `shared/constants/exercises.ts`, `shared/domain/` |
 | Character assets (source sheets + cut frames) | `src/assets/character/desk-hulk/` |
 | Character frame rules / resolver | `shared/domain/character-visual.ts`, `src/components/character/frames.ts` |
 | Sprite cutting script | `scripts/cut-character-sprites.py` |

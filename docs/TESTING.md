@@ -31,6 +31,8 @@ tests/
 | Character progress | stage thresholds, branch window (last 30), 20% margin, status filtering | `tests/unit/character-progress.test.ts` |
 | Frame rules | stage tiers, branch pose from stage 4, build fallback, every resolved frame exists on disk | `tests/unit/character-visual.test.ts` |
 | Severity | 80% unlock boundary, timer-less exercises, `mm:ss` rounding | `tests/unit/severity.test.ts` |
+| Session details | ranges, weight rounding, blank / invalid input, popup toggle + resize, trigger-loop normalization | `tests/unit/session-extras.test.ts`, `tests/components/PopupView.test.ts`, `tests/unit/trigger-loop.test.ts` |
+| Settings defaults | merge of an older settings file, nested array copies | `tests/unit/persistence-defaults.test.ts` |
 | Exercise payloads | required/optional fields, bad numbers, `assertExercise` | `tests/unit/exercise-validation.test.ts` |
 | Catalog | 34 entries, unique ids/titles, valid focus tags, inventory-tagged equipment | `tests/unit/exercise-catalog.test.ts` |
 | JSON persistence | atomic write, missing/corrupt/outdated envelope | `tests/unit/json-file.test.ts` |
@@ -49,8 +51,9 @@ Rules for new tests: no snapshots for logic, inject time (`now`) and randomness 
 
 - Tray: right-click menu, «Напоминание сейчас», pause / resume, animations (and «Уменьшить анимации» off / on).
 - Popup: one exercise, Medium gate at 80%, Hardcore hold, closing the popup = `skipped`.
+- Popup details: turn «Детали в попапе» on, expand the block, save reps / feeling / weight, check they land in `sessions.json` and on the dashboard.
 - Persistence: streak, stage and sessions survive a relaunch (`.userdata/data/`).
-- Dashboard: form label, next reminder, severity and motion switches.
+- Dashboard: form label, next reminder, severity, motion and details switches.
 
 ## Debug / admin panel (planned)
 

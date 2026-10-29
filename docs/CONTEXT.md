@@ -6,7 +6,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 
 - Desktop **system-tray** app for IT workers: remind → one exercise popup → record result → update streak / character / stats.
 - Core principle: **one popup = one exercise**. Stats, character, weight, photos, AI, inventory are optional layers.
-- Current stage: **core cycle works** — trigger loop, weighted picker, character stage/branch, severity + popup timer. Optional layers (sounds, photos, AI, inventory UI, stats) are still ahead.
+- Current stage: **core cycle works** — trigger loop, weighted picker, character stage/branch, severity + popup timer, plus the first optional layer (session details: reps / feeling / weight). Sounds, photos, inventory UI, AI, themes and stats are still ahead.
 
 ## Communication
 
@@ -40,7 +40,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Hydrate bootstrap | `src/bootstrap/hydrate.ts` |
 | Stores | `src/stores/` |
 | Reminder schedule store (UI mirror) | `src/stores/reminder.ts` |
-| Domain rules (picker, character, severity) | `shared/domain/` |
+| Domain rules (picker, character, severity, session extras) | `shared/domain/` |
 | Exercise catalog (34) | `shared/constants/exercises.ts` |
 | Shared types | `shared/types/` |
 | Exercise validation | `shared/validation/exercise.ts` |
@@ -76,8 +76,9 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 - Severity is live: countdown + progress in the popup, Medium/Hardcore gate «Готово» (80% of the timer), Hardcore needs a hold; switch it on the dashboard.
 - Character art is cut per frame: dashboard shows the stage body, the popup shows the emotion bust; emoji is the fallback.
 - Motion is live: popup entrance/exit + urgent timer, emotion crossfade/bounce, tray frame animation; «Анимации» switch and the OS setting collapse it.
-- Tests are in place: Vitest covers the trigger loop, picker, character progress/frames, severity, JSON envelope, stores, popup and portrait (`npm test`).
-- Next roadmap item: **#8 optional layers** (weight, photos, feeling, inventory, AI, themes).
+- Session details are live (optional, off by default): reps / feeling / weight in a collapsible popup block, validated ranges, shown as «Последняя сессия» on the dashboard.
+- Tests are in place: Vitest covers the trigger loop, picker, character progress/frames, severity, session details, JSON envelope, stores, popup and portrait (`npm test`).
+- Next roadmap item: **#8 optional layers** — remaining slices: photos, weight history, inventory UI, AI, themes.
 - Still stubs: streak counters (simple `done` bump), sounds playback, debug panel, Playwright E2E.
 
 ## Doc index

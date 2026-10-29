@@ -53,7 +53,7 @@ Do **not** download Electron into `%LOCALAPPDATA%\electron` or park the profile 
 ## Windows notes
 
 - App stays in the tray when all windows close.
-- Tray menu: **Дашборд**, **Напоминание сейчас**, **Пауза / Продолжить**, Quit. There is no settings screen yet — pause and severity live on the dashboard.
+- Tray menu: **Дашборд**, **Напоминание сейчас**, **Пауза / Продолжить**, Quit. There is no settings screen yet — pause, severity, motion and session-details switches live on the dashboard.
 - Renderer routes: `#/dashboard`, `#/popup`.
 - After a **Готово** in the popup, streak, sessions and character survive quit/relaunch (check `.userdata/data/`).
 - If the shell exports `ELECTRON_RUN_AS_NODE=1` (some editors/agents do), `electron.exe .` boots as plain Node and crashes on `electron.app`. Clear the variable for smoke runs.
@@ -84,6 +84,14 @@ Rules live in [shared/domain/severity.ts](../shared/domain/severity.ts); switch 
 | Жёсткая | Same unlock + hold the button for 1.5 s |
 
 Closing the popup without an answer is recorded as `skipped` at every level.
+
+## Session details
+
+Optional, off by default. «Детали в попапе» on the dashboard adds a collapsible
+row to the popup (reps / feeling / weight). Ranges and normalization live in
+`shared/domain/session-extras.ts`; the popup grows through `window:resize-popup`
+with heights in `shared/constants/popup.ts`. Out-of-range values are dropped,
+never clamped, and the core cycle resolves without any details.
 
 ## Character sprites
 

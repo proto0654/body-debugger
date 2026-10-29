@@ -3,7 +3,7 @@ import type { UserProgress } from '../../../shared/types/progress'
 import type { Session } from '../../../shared/types/session'
 import type { DataSnapshot } from '../../../shared/types/persistence'
 import { computeCharacterProgress } from '../../../shared/domain/character-progress'
-import { defaultProgress, defaultSessions, defaultSettings } from './defaults'
+import { defaultProgress, defaultSessions, defaultSettings, normalizeSettings } from './defaults'
 import { readJsonEnvelope, writeJsonEnvelope } from './json-file'
 import { getProgressPath, getSessionsPath, getSettingsPath } from './paths'
 
@@ -31,6 +31,9 @@ function cloneSettings(settings: AppSettings): AppSettings {
     inventory: {
       enabled: settings.inventory.enabled,
       items: [...settings.inventory.items]
+    },
+    sessionExtras: {
+      enabled: settings.sessionExtras.enabled
     }
   }
 }
@@ -50,7 +53,7 @@ function cloneProgress(progress: UserProgress): UserProgress {
 }
 
 export function loadPersistence(): DataSnapshot {
-  state.settings = readJsonEnvelope<AppSettings>(getSettingsPath()) ?? defaultSettings()
+  state.settings = normalizeSettings(readJsonEnvelope<Partial<AppSettings>>(getSettingsPath()))
   state.progress = readJsonEnvelope<UserProgress>(getProgressPath()) ?? defaultProgress()
   state.sessions = readJsonEnvelope<Session[]>(getSessionsPath()) ?? defaultSessions()
   state.loaded = true

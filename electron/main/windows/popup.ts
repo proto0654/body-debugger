@@ -1,5 +1,13 @@
 import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
+import {
+  POPUP_BASE_HEIGHT,
+  POPUP_EXTRAS_COLLAPSED_HEIGHT,
+  POPUP_MAX_HEIGHT,
+  POPUP_SCREEN_MARGIN,
+  POPUP_WIDTH
+} from '../../../shared/constants/popup'
+import { getSettings } from '../persistence'
 
 let popupWindow: BrowserWindow | null = null
 
@@ -19,14 +27,17 @@ export function createPopupWindow(): BrowserWindow {
 
   const display = screen.getPrimaryDisplay()
   const { width: sw, height: sh } = display.workArea
-  const width = 320
-  const height = 220
+  const width = POPUP_WIDTH
+  // Reserve room for the collapsed details row so the popup does not jump.
+  const height = getSettings().sessionExtras.enabled
+    ? POPUP_EXTRAS_COLLAPSED_HEIGHT
+    : POPUP_BASE_HEIGHT
 
   popupWindow = new BrowserWindow({
     width,
     height,
-    x: sw - width - 16,
-    y: sh - height - 16,
+    x: sw - width - POPUP_SCREEN_MARGIN,
+    y: sh - height - POPUP_SCREEN_MARGIN,
     show: false,
     frame: false,
     resizable: false,
@@ -59,6 +70,26 @@ export function createPopupWindow(): BrowserWindow {
   }
 
   return popupWindow
+}
+
+/**
+ * Resize the popup as its optional details block expands or collapses.
+ * The window is anchored to the bottom-right corner, so it grows upwards.
+ */
+export function resizePopupWindow(height: number): void {
+  if (!popupWindow || popupWindow.isDestroyed()) return
+  if (typeof height !== 'number' || !Number.isFinite(height)) return
+
+  const next = Math.min(POPUP_MAX_HEIGHT, Math.max(POPUP_BASE_HEIGHT, Math.round(height)))
+  const bounds = popupWindow.getBounds()
+  const { workArea } = screen.getDisplayMatching(bounds)
+
+  popupWindow.setBounds({
+    x: bounds.x,
+    y: workArea.y + workArea.height - next - POPUP_SCREEN_MARGIN,
+    width: POPUP_WIDTH,
+    height: next
+  })
 }
 
 export function closePopupWindow(): void {

@@ -11,6 +11,11 @@ export interface InventorySettings {
   items: string[]
 }
 
+export interface SessionExtrasSettings {
+  /** Show the optional details block (reps / feeling / weight) in the popup */
+  enabled: boolean
+}
+
 export interface AppSettings {
   severity: SeverityLevel
   /** Minutes between triggers (counted from last session completion) */
@@ -18,6 +23,7 @@ export interface AppSettings {
   focus: UserFocus
   pickerMode: ExercisePickerMode
   inventory: InventorySettings
+  sessionExtras: SessionExtrasSettings
   themeId: string
   characterPackId: string
   reduceMotion: boolean

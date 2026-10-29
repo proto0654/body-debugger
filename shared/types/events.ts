@@ -1,4 +1,4 @@
-import type { Session, SessionStatus } from './session'
+import type { Session, SessionExtras, SessionStatus } from './session'
 import type { Exercise } from './exercise'
 import type { AppSettings } from './settings'
 import type { UserProgress } from './progress'
@@ -23,6 +23,7 @@ export const IpcChannels = {
   WindowOpenDashboard: 'window:open-dashboard',
   WindowClosePopup: 'window:close-popup',
   WindowOpenPopup: 'window:open-popup',
+  WindowResizePopup: 'window:resize-popup',
   DataGetSnapshot: 'data:get-snapshot',
   DataSaveSettings: 'data:save-settings',
   DataSaveProgress: 'data:save-progress',
@@ -53,7 +54,7 @@ export interface SessionLoopStatePayload {
   intervalMinutes: number
 }
 
-export interface SessionResultPayload {
+export interface SessionResultPayload extends SessionExtras {
   sessionId: string
   exerciseId: string
   status: SessionStatus

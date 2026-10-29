@@ -5,8 +5,9 @@ import type {
   DataSaveSettingsPayload,
   DataSnapshotPayload,
   DataUpdatedPayload,
+  SessionLoopStatePayload,
+  SessionPopupPayload,
   SessionResultPayload,
-  SessionShowPopupPayload,
   TraySetStatePayload
 } from '@shared/types/events'
 
@@ -21,10 +22,12 @@ export interface BodyDebuggerApi {
   openPopup: () => Promise<void>
   closePopup: () => Promise<void>
   sessionResult: (payload: SessionResultPayload) => Promise<void>
+  getCurrentPopup: () => Promise<SessionPopupPayload | null>
+  getLoopState: () => Promise<SessionLoopStatePayload>
   getSnapshot: () => Promise<DataSnapshotPayload>
   saveSettings: (payload: DataSaveSettingsPayload) => Promise<DataSnapshotPayload>
   saveProgress: (payload: DataSaveProgressPayload) => Promise<DataSnapshotPayload>
-  onShowPopup: (handler: (payload: SessionShowPopupPayload) => void) => () => void
+  onLoopStateChanged: (handler: (payload: SessionLoopStatePayload) => void) => () => void
   onTrayState: (handler: (payload: TraySetStatePayload) => void) => () => void
   onDataUpdated: (handler: (payload: DataUpdatedPayload) => void) => () => void
 }

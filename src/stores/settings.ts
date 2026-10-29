@@ -69,6 +69,12 @@ export const useSettingsStore = defineStore('settings', () => {
     await persist()
   }
 
+  async function setSeverity(next: SeverityLevel): Promise<void> {
+    if (severity.value === next) return
+    severity.value = next
+    await persist()
+  }
+
   return {
     severity,
     intervalMinutes,
@@ -82,6 +88,7 @@ export const useSettingsStore = defineStore('settings', () => {
     asSettings,
     hydrate,
     persist,
-    togglePause
+    togglePause,
+    setSeverity
   }
 })

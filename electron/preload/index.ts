@@ -5,8 +5,9 @@ import {
   type DataSaveSettingsPayload,
   type DataSnapshotPayload,
   type DataUpdatedPayload,
+  type SessionLoopStatePayload,
+  type SessionPopupPayload,
   type SessionResultPayload,
-  type SessionShowPopupPayload,
   type TraySetStatePayload
 } from '../../shared/types/events'
 
@@ -16,18 +17,25 @@ const api = {
   closePopup: (): Promise<void> => ipcRenderer.invoke(IpcChannels.WindowClosePopup),
   sessionResult: (payload: SessionResultPayload): Promise<void> =>
     ipcRenderer.invoke(IpcChannels.SessionResult, payload),
+  getCurrentPopup: (): Promise<SessionPopupPayload | null> =>
+    ipcRenderer.invoke(IpcChannels.SessionGetCurrentPopup),
+  getLoopState: (): Promise<SessionLoopStatePayload> =>
+    ipcRenderer.invoke(IpcChannels.SessionGetLoopState),
   getSnapshot: (): Promise<DataSnapshotPayload> =>
     ipcRenderer.invoke(IpcChannels.DataGetSnapshot),
   saveSettings: (payload: DataSaveSettingsPayload): Promise<DataSnapshotPayload> =>
     ipcRenderer.invoke(IpcChannels.DataSaveSettings, payload),
   saveProgress: (payload: DataSaveProgressPayload): Promise<DataSnapshotPayload> =>
     ipcRenderer.invoke(IpcChannels.DataSaveProgress, payload),
-  onShowPopup: (handler: (payload: SessionShowPopupPayload) => void): (() => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, payload: SessionShowPopupPayload): void => {
+  onLoopStateChanged: (handler: (payload: SessionLoopStatePayload) => void): (() => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: SessionLoopStatePayload
+    ): void => {
       handler(payload)
     }
-    ipcRenderer.on(IpcChannels.SessionShowPopup, listener)
-    return () => ipcRenderer.removeListener(IpcChannels.SessionShowPopup, listener)
+    ipcRenderer.on(IpcChannels.SessionLoopChanged, listener)
+    return () => ipcRenderer.removeListener(IpcChannels.SessionLoopChanged, listener)
   },
   onTrayState: (handler: (payload: TraySetStatePayload) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: TraySetStatePayload): void => {

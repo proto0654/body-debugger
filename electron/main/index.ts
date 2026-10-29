@@ -4,7 +4,8 @@ import { createAppTray } from './tray'
 import { createDashboardWindow } from './windows/dashboard'
 import { registerSessionCycleIpc } from './ipc/session-cycle'
 import { registerPersistenceIpc } from './ipc/persistence'
-import { loadPersistence } from './persistence'
+import { loadPersistence, getSettings } from './persistence'
+import { setPaused, startTriggerLoop, stopTriggerLoop, triggerNow } from './trigger-loop'
 
 // Keep Chromium/Electron profile on the project drive (E:), not %APPDATA% on C:
 app.setPath('userData', join(app.getAppPath(), '.userdata'))
@@ -20,7 +21,14 @@ app.whenReady().then(() => {
   loadPersistence()
   registerPersistenceIpc()
   registerSessionCycleIpc()
-  createAppTray()
+
+  createAppTray({
+    isPaused: () => getSettings().paused,
+    onTogglePause: () => setPaused(!getSettings().paused),
+    onTriggerNow: () => triggerNow('manual')
+  })
+
+  startTriggerLoop()
 
   // Open dashboard on first launch so Tailwind styles are visible immediately
   createDashboardWindow()
@@ -30,6 +38,10 @@ app.whenReady().then(() => {
       createDashboardWindow()
     }
   })
+})
+
+app.on('will-quit', () => {
+  stopTriggerLoop()
 })
 
 app.on('window-all-closed', () => {

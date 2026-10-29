@@ -2,6 +2,7 @@ import type { AppSettings } from '../../../shared/types/settings'
 import type { UserProgress } from '../../../shared/types/progress'
 import type { Session } from '../../../shared/types/session'
 import type { DataSnapshot } from '../../../shared/types/persistence'
+import { computeCharacterProgress } from '../../../shared/domain/character-progress'
 import { defaultProgress, defaultSessions, defaultSettings } from './defaults'
 import { readJsonEnvelope, writeJsonEnvelope } from './json-file'
 import { getProgressPath, getSessionsPath, getSettingsPath } from './paths'
@@ -82,15 +83,19 @@ export function appendSession(session: Session): DataSnapshot {
   return getSnapshot()
 }
 
-/** Stub streak bump — mirrors renderer progress store until character-progress domain lands. */
-export function bumpStreakOnDone(): DataSnapshot {
+/** Streak bump + character stage/branch recompute, written together on `done`. */
+export function applyDoneSession(): DataSnapshot {
+  const character = computeCharacterProgress(state.sessions)
   const current = state.progress.streak.current + 1
+
   state.progress = {
     ...cloneProgress(state.progress),
     streak: {
       current,
       max: Math.max(state.progress.streak.max, current)
-    }
+    },
+    characterStage: character.stage,
+    characterBranch: character.branch
   }
   writeJsonEnvelope(getProgressPath(), state.progress)
   return getSnapshot()

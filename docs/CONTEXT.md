@@ -6,7 +6,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 
 - Desktop **system-tray** app for IT workers: remind → one exercise popup → record result → update streak / character / stats.
 - Core principle: **one popup = one exercise**. Stats, character, weight, photos, AI, inventory are optional layers.
-- Current stage: **skeleton + JSON persistence** (main-owned). Trigger loop and domain math still deferred.
+- Current stage: **core cycle works** — trigger loop, weighted picker, character stage/branch, severity + popup timer. Optional layers (sounds, photos, AI, inventory UI, stats) are still ahead.
 
 ## Communication
 
@@ -29,6 +29,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Purpose | Path |
 |---------|------|
 | Main process | `electron/main/` |
+| Reminder schedule (interval / idle / pause / missed) | `electron/main/trigger-loop.ts` |
 | Persistence (JSON) | `electron/main/persistence/` |
 | Tray | `electron/main/tray.ts` |
 | Windows | `electron/main/windows/` |
@@ -38,7 +39,9 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Renderer entry | `src/main.ts`, `src/App.vue`, `src/router.ts` |
 | Hydrate bootstrap | `src/bootstrap/hydrate.ts` |
 | Stores | `src/stores/` |
-| Domain stubs | `src/domain/exercise-picker.ts`, `src/domain/character-progress.ts` |
+| Reminder schedule store (UI mirror) | `src/stores/reminder.ts` |
+| Domain rules (picker, character, severity) | `shared/domain/` |
+| Exercise catalog (34) | `shared/constants/exercises.ts` |
 | Shared types | `shared/types/` |
 | Exercise validation | `shared/validation/exercise.ts` |
 | Desk Hulk assets | `src/assets/character/desk-hulk/` |
@@ -59,9 +62,12 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 ## Current focus
 
 - Keep the app runnable (`npm run dev` → tray + dashboard; data survives restart).
-- Next roadmap item: **trigger loop** (interval / idle / pause).
-- Do not implement full picker / stage math until their roadmap items are in play.
-- Sounds and debug/testing are **documented + assets only** — no playback or Vitest suite yet.
+- Trigger loop is in place: interval from last completion, idle hold/reset, snooze, tray + dashboard pause, `missed` timeout.
+- Picker is in place: 34-exercise catalog, zone/group penalties, neglect bonus, Focus, inventory gate, four modes.
+- Character stage/branch now derive from history and are persisted on every `done`.
+- Severity is live: countdown + progress in the popup, Medium/Hardcore gate «Готово» (80% of the timer), Hardcore needs a hold; switch it on the dashboard.
+- Next roadmap item: **#6 sprite cut** (`stage-{n}-{build}`, `pose-{branch}`, `emotion-*`).
+- Still stubs: streak counters (simple `done` bump), sounds playback, debug panel, Vitest suite.
 
 ## Doc index
 

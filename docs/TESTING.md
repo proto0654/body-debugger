@@ -20,8 +20,8 @@ How we verify domain logic and run visual scenarios without fighting the tray. P
 
 ## Cover first
 
-1. `characterStage` / `characterBranch` (`src/domain/character-progress.ts`)
-2. Next-exercise selection — zone penalties, Focus bonuses (`src/domain/exercise-picker.ts`)
+1. `characterStage` / `characterBranch` (`shared/domain/character-progress.ts`)
+2. Next-exercise selection — zone penalties, Focus bonuses (`shared/domain/exercise-picker.ts`)
 3. `isValidExercise` (`shared/validation/exercise.ts`)
 4. Session statuses: `done` / `snoozed` / `skipped` / `missed`
 5. Streak updates on result
@@ -85,4 +85,4 @@ src/
 
 ## Status
 
-No Vitest suite or `src/debug/` panel yet. Tray still has **Popup (dev)** as a manual hook — see [DEVELOPMENT.md](DEVELOPMENT.md).
+No Vitest suite or `src/debug/` panel yet. Tray **Напоминание сейчас** is the manual hook (full trigger cycle) — see [DEVELOPMENT.md](DEVELOPMENT.md).

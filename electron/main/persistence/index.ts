@@ -4,7 +4,7 @@ export {
   updateSettings,
   updateProgress,
   appendSession,
-  bumpStreakOnDone,
+  applyDoneSession,
   getSettings,
   getProgress
 } from './store'

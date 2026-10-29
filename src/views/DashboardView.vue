@@ -4,7 +4,10 @@ import CharacterPortrait from '@/components/character/CharacterPortrait.vue'
 import { useProgressStore } from '@/stores/progress'
 import { useCharacterStore } from '@/stores/character'
 import { useSettingsStore } from '@/stores/settings'
+import { useReminderStore } from '@/stores/reminder'
 import { CHARACTER_STAGE_LABELS } from '@shared/constants/character'
+import { SEVERITY_LABELS, SEVERITY_ORDER } from '@shared/domain/severity'
+import type { SeverityLevel } from '@shared/types/settings'
 
 type TabId = 'today' | 'calendar' | 'stats'
 
@@ -12,6 +15,7 @@ const tab = ref<TabId>('today')
 const progress = useProgressStore()
 const character = useCharacterStore()
 const settings = useSettingsStore()
+const reminder = useReminderStore()
 
 const tabs: { id: TabId; label: string }[] = [
   { id: 'today', label: 'Сегодня' },
@@ -19,8 +23,18 @@ const tabs: { id: TabId; label: string }[] = [
   { id: 'stats', label: 'Статистика' }
 ]
 
-async function openPopupDev(): Promise<void> {
+const severityOptions = SEVERITY_ORDER.map((id) => ({ id, label: SEVERITY_LABELS[id] }))
+
+async function triggerReminder(): Promise<void> {
   await window.api?.openPopup()
+}
+
+async function togglePause(): Promise<void> {
+  await settings.togglePause()
+}
+
+async function setSeverity(next: SeverityLevel): Promise<void> {
+  await settings.setSeverity(next)
 }
 </script>
 
@@ -33,16 +47,25 @@ async function openPopupDev(): Promise<void> {
         </p>
         <h1 class="mt-1 text-2xl font-semibold text-white">Дашборд</h1>
         <p class="mt-1 text-sm text-slate-400">
-          Прогресс и настройки хранятся локально (JSON). Триггер-цикл — следующий этап.
+          Прогресс и настройки хранятся локально (JSON).
         </p>
       </div>
-      <button
-        type="button"
-        class="rounded-lg bg-slate-800 px-3 py-2 text-xs text-slate-200 hover:bg-slate-700"
-        @click="openPopupDev"
-      >
-        Открыть попап
-      </button>
+      <div class="flex flex-wrap gap-2">
+        <button
+          type="button"
+          class="rounded-lg bg-slate-800 px-3 py-2 text-xs text-slate-200 hover:bg-slate-700"
+          @click="togglePause"
+        >
+          {{ settings.paused ? 'Продолжить' : 'Пауза' }}
+        </button>
+        <button
+          type="button"
+          class="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-emerald-400"
+          @click="triggerReminder"
+        >
+          Напоминание сейчас
+        </button>
+      </div>
     </header>
 
     <nav class="flex gap-1 rounded-xl bg-slate-900 p-1">
@@ -82,12 +105,29 @@ async function openPopupDev(): Promise<void> {
           <span class="font-medium text-emerald-400">{{ progress.streak.current }}</span>
           <span class="text-slate-500"> / max {{ progress.streak.max }}</span>
         </p>
-        <p class="text-sm text-slate-300">
-          Интервал: {{ settings.intervalMinutes }} мин · строгость
-          {{ settings.severity }}
-        </p>
-        <p class="text-xs text-slate-500">
-          Следующее напоминание — после завершения сессии (ещё не реализовано).
+        <p class="text-sm text-slate-300">Интервал: {{ settings.intervalMinutes }} мин</p>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs text-slate-500">Строгость:</span>
+          <button
+            v-for="option in severityOptions"
+            :key="option.id"
+            type="button"
+            class="rounded-lg px-2.5 py-1 text-xs transition"
+            :class="
+              settings.severity === option.id
+                ? 'bg-slate-700 text-white'
+                : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+            "
+            @click="setSeverity(option.id)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+        <p
+          class="text-xs"
+          :class="reminder.paused ? 'text-amber-400' : 'text-slate-500'"
+        >
+          {{ reminder.nextTriggerLabel }}
         </p>
       </div>
     </section>

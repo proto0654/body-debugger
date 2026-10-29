@@ -1,5 +1,7 @@
 /** Strict Exercise schema from CONCEPT.md §8 */
 
+import type { FocusDirection } from './progress'
+
 export type ExerciseDifficulty = 1 | 2 | 3 | 4 | 5
 
 export type ExerciseGroup = 'upper' | 'lower' | 'full' | 'equipment'
@@ -20,4 +22,6 @@ export interface Exercise {
   modificationOf?: string
   /** Optional group for rotation rules — derived or stored */
   group?: ExerciseGroup
+  /** Focus directions this exercise serves (CONCEPT §6); omitted = no preference bonus */
+  focus?: FocusDirection[]
 }

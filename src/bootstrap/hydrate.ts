@@ -2,6 +2,7 @@ import type { DataSnapshot } from '@shared/types/persistence'
 import { useSettingsStore } from '@/stores/settings'
 import { useProgressStore } from '@/stores/progress'
 import { useSessionsStore } from '@/stores/sessions'
+import { useReminderStore } from '@/stores/reminder'
 
 export function applySnapshot(snapshot: DataSnapshot): void {
   useSettingsStore().hydrate(snapshot.settings)
@@ -9,20 +10,24 @@ export function applySnapshot(snapshot: DataSnapshot): void {
   useSessionsStore().hydrate(snapshot.sessions)
 }
 
-/** Load main-owned state into Pinia; subscribe to cross-window updates. */
+/** Load main-owned state into Pinia and subscribe to loop / data updates. */
 export async function hydrateFromMain(): Promise<() => void> {
-  if (!window.api?.getSnapshot) {
+  const api = window.api
+  if (!api?.getSnapshot) {
     return () => undefined
   }
 
-  const snapshot = await window.api.getSnapshot()
-  applySnapshot(snapshot)
+  applySnapshot(await api.getSnapshot())
 
-  if (!window.api.onDataUpdated) {
-    return () => undefined
+  const reminder = useReminderStore()
+  reminder.apply(await api.getLoopState())
+
+  const unsubscribers = [
+    api.onDataUpdated((next) => applySnapshot(next)),
+    api.onLoopStateChanged((next) => reminder.apply(next))
+  ]
+
+  return () => {
+    for (const unsubscribe of unsubscribers) unsubscribe()
   }
-
-  return window.api.onDataUpdated((next) => {
-    applySnapshot(next)
-  })
 }

@@ -9,12 +9,14 @@ export type TrayState = 'idle' | 'soon' | 'standup' | 'success' | 'streak'
 
 /**
  * IPC / session-cycle channel names.
- * trigger → show-popup → result → updated → tray:set-state
+ * trigger → get-current-popup → result → updated → tray:set-state
+ * loop-changed — schedule / pause state after every reschedule
  * data:* — main-owned JSON persistence
  */
 export const IpcChannels = {
-  SessionTrigger: 'session:trigger',
-  SessionShowPopup: 'session:show-popup',
+  SessionGetCurrentPopup: 'session:get-current-popup',
+  SessionGetLoopState: 'session:get-loop-state',
+  SessionLoopChanged: 'session:loop-changed',
   SessionResult: 'session:result',
   SessionUpdated: 'session:updated',
   TraySetState: 'tray:set-state',
@@ -29,14 +31,26 @@ export const IpcChannels = {
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels]
 
+/** Why the reminder fired (CONCEPT.md §2) */
+export type SessionTriggerReason = 'timer' | 'idle' | 'event' | 'manual'
+
 export interface SessionTriggerPayload {
-  reason: 'timer' | 'idle' | 'event' | 'manual'
+  reason: SessionTriggerReason
   at: string
 }
 
-export interface SessionShowPopupPayload {
+/** The single exercise the popup must show; main is the source of truth for the active session. */
+export interface SessionPopupPayload {
   exercise: Exercise
   sessionId: string
+}
+
+/** Runtime reminder schedule — derived state, never persisted */
+export interface SessionLoopStatePayload {
+  paused: boolean
+  /** ISO timestamp of the next reminder, null while paused or a popup is open */
+  nextTriggerAt: string | null
+  intervalMinutes: number
 }
 
 export interface SessionResultPayload {

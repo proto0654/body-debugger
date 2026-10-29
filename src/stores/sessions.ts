@@ -2,8 +2,8 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { Session, SessionStatus } from '@shared/types/session'
 import type { Exercise } from '@shared/types/exercise'
-import { pickNextExercise } from '@/domain/exercise-picker'
-import { useProgressStore } from './progress'
+import { EXERCISE_CATALOG } from '@shared/constants/exercises'
+import { pickNextExercise } from '@shared/domain/exercise-picker'
 import { useSettingsStore } from './settings'
 
 export const useSessionsStore = defineStore('sessions', () => {
@@ -17,20 +17,18 @@ export const useSessionsStore = defineStore('sessions', () => {
     history.value = sessions.map((s) => ({ ...s }))
   }
 
-  function beginSession(exercise?: Exercise): Session {
-    const progress = useProgressStore()
+  function beginSession(exercise?: Exercise, sessionId?: string): Session {
     const settings = useSettingsStore()
     const picked =
       exercise ??
       pickNextExercise({
-        catalog: [],
+        catalog: EXERCISE_CATALOG,
         recentSessions: history.value,
-        progress: progress.asUserProgress(),
         settings: settings.asSettings()
       })
 
     const session: Session = {
-      id: crypto.randomUUID(),
+      id: sessionId ?? crypto.randomUUID(),
       exerciseId: picked.id,
       status: 'missed',
       durationSec: picked.durationSec,

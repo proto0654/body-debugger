@@ -5,10 +5,10 @@ Post-skeleton milestones. Product detail: [CONCEPT.md](../CONCEPT.md).
 | # | Milestone | Notes |
 |---|-----------|--------|
 | 1 | Persistence | **Done** — JSON in `.userdata/data/` (settings, progress, sessions); main SoT + Pinia hydrate |
-| 2 | Trigger loop | Interval from last completion; idle; pause in tray menu |
-| 3 | Exercise picker | Penalties / bonuses / Focus / modes in `src/domain/exercise-picker.ts` |
-| 4 | Character progress | Stage/branch from history in `src/domain/character-progress.ts` |
-| 5 | Severity + timer | Soft / Medium (default) / Hardcore in popup |
+| 2 | Trigger loop | **Done** — interval from last completion, idle hold/reset, snooze, pause (tray + dashboard), `missed` timeout |
+| 3 | Exercise picker | **Done** — 34-exercise catalog, zone/group penalties, neglect, Focus, inventory, four modes (`shared/domain/exercise-picker.ts`) |
+| 4 | Character progress | **Done** — stage from done-session thresholds, branch from the last 30 sessions (`shared/domain/character-progress.ts`) |
+| 5 | Severity + timer | **Done** — countdown + progress in popup; Soft unlocks immediately, Medium at 80%, Hardcore adds a 1.5 s hold (extra checks later) |
 | 6 | Sprite cut | `stage-{n}-{build}`, `pose-{branch}`, `emotion-*` |
 | 7 | Micro-animations | Tray + popup (CONCEPT §13); respect `reduceMotion` |
 | 8 | Optional layers | Weight, photos, feeling, inventory, AI, themes |
@@ -17,4 +17,4 @@ Post-skeleton milestones. Product detail: [CONCEPT.md](../CONCEPT.md).
 | 11 | Dashboard depth | Calendar heatmap + stats charts |
 
 Skeleton (tray, windows, types, stores, IPC schema, Tailwind) = **done**.  
-Persistence (#1) = **done**. Default sound **assets** landed (playback = #9). Next: **#2 Trigger loop**.
+Persistence (#1), trigger loop (#2), picker (#3), character progress (#4) and severity/timer (#5) = **done**. Default sound **assets** landed (playback = #9). Next: **#6 Sprite cut**.

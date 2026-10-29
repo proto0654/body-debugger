@@ -26,6 +26,7 @@ How we verify domain logic and run visual scenarios without fighting the tray. P
 4. Session statuses: `done` / `snoozed` / `skipped` / `missed`
 5. Streak updates on result
 6. Severity level effects on the popup timer
+7. Character frame resolution — every stage/branch/build/emotion combination lands on a frame or the emoji (`shared/domain/character-visual.ts`)
 
 ## Debug / admin panel (planned)
 
@@ -60,6 +61,7 @@ Dev-only (env flag, build mode, or hidden hotkey). Must not alter production UX.
 
 - Emotion switches
 - Popup states
+- Tray / popup animations with «Уменьшить анимации» on and off
 - Line / quote previews
 
 ## Planned tree

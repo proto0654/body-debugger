@@ -44,7 +44,14 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Exercise catalog (34) | `shared/constants/exercises.ts` |
 | Shared types | `shared/types/` |
 | Exercise validation | `shared/validation/exercise.ts` |
-| Desk Hulk assets | `src/assets/character/desk-hulk/` |
+| Desk Hulk assets (sheets + cut frames) | `src/assets/character/desk-hulk/` |
+| Character frame rules (stage → body, branch pose, emotion bust) | `shared/domain/character-visual.ts` |
+| Frame key → bundled URL | `src/components/character/frames.ts` |
+| Sprite cutting script | `scripts/cut-character-sprites.py` |
+| Motion preference + popup exit timings | `src/motion.ts` |
+| Keyframes / reduced-motion CSS | `src/styles/index.css` |
+| Tray frames + specs | `electron/resources/tray/`, `electron/main/tray-icons.ts` |
+| Tray icon script | `scripts/build-tray-icons.py` |
 | Sound packs (default mp3) | `src/assets/sounds/default/` |
 | Electron userData + JSON | `.userdata/` → `.userdata/data/*.json` (gitignored) |
 
@@ -66,7 +73,9 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 - Picker is in place: 34-exercise catalog, zone/group penalties, neglect bonus, Focus, inventory gate, four modes.
 - Character stage/branch now derive from history and are persisted on every `done`.
 - Severity is live: countdown + progress in the popup, Medium/Hardcore gate «Готово» (80% of the timer), Hardcore needs a hold; switch it on the dashboard.
-- Next roadmap item: **#6 sprite cut** (`stage-{n}-{build}`, `pose-{branch}`, `emotion-*`).
+- Character art is cut per frame: dashboard shows the stage body, the popup shows the emotion bust; emoji is the fallback.
+- Motion is live: popup entrance/exit + urgent timer, emotion crossfade/bounce, tray frame animation; «Анимации» switch and the OS setting collapse it.
+- Next roadmap item: **#8 optional layers** (weight, photos, feeling, inventory, AI, themes).
 - Still stubs: streak counters (simple `done` bump), sounds playback, debug panel, Vitest suite.
 
 ## Doc index

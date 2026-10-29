@@ -67,6 +67,32 @@ Rules live in [shared/domain/severity.ts](../shared/domain/severity.ts); switch 
 
 Closing the popup without an answer is recorded as `skipped` at every level.
 
+## Character sprites
+
+Source sheets in `src/assets/character/desk-hulk/` (`sprite-sheet-stages.png`, `sprite-sheet-branches.png`, `emotions/emotions-set-*.png`) are the only art source. After replacing a sheet, re-cut the frames:
+
+```bash
+python scripts/cut-character-sprites.py   # needs Pillow + NumPy
+```
+
+The script detects figures, drops the flat sheet background and writes individual PNGs to `src/assets/character/desk-hulk/frames/`. Do not edit `frames/` by hand. Naming and resolution rules: [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Motion
+
+Keyframes and reduced-motion overrides live in `src/styles/index.css`; popup exit timings in `src/motion.ts` — keep the CSS durations and `POPUP_EXIT_MS` in sync. The «Анимации» switch on the dashboard persists `settings.reduceMotion`; the main process reads it for tray frames through `TrayHandlers.isReducedMotion`, so no IPC round trip is needed.
+
+The OS `prefers-reduced-motion` setting is honoured in the renderer only; the main process cannot read it.
+
+## Tray icons
+
+Frames in `electron/resources/tray/` are generated, not hand-drawn:
+
+```bash
+python scripts/build-tray-icons.py   # needs Pillow
+```
+
+The glyph is a placeholder "person stretching" mark. Replace the drawing in the script and re-run to change the tray identity; adding a state means new frames plus a `TRAY_FRAME_SPECS` entry in `electron/main/tray-icons.ts`. Frames are 32×32 PNGs — Windows scales them down for the 16 px notification area.
+
 ## Sounds (assets only)
 
 Default cue pack: `src/assets/sounds/default/*.mp3`. Playback and settings are not wired — see [SOUNDS.md](SOUNDS.md). When implementing, keep mute / DND respect and treat audio as an optional layer.

@@ -30,6 +30,13 @@ Project docs and this file override global agent rules when they conflict.
 | Reminder loop (interval / idle / pause / missed) | `electron/main/trigger-loop.ts` |
 | JSON persistence | `electron/main/persistence/` |
 | Weight history (rules, store, card) | `shared/domain/weight.ts`, `src/stores/weight.ts`, `src/components/weight/` |
+| Streak (day-based) | `shared/domain/streak.ts` |
+| Sounds (rules, player, pack) | `shared/domain/sounds.ts`, `src/sounds.ts`, `src/assets/sounds/default/` |
+| Progress photos (rules, main store, protocol, UI) | `shared/domain/photos.ts`, `electron/main/photos.ts`, `electron/main/photo-protocol.ts`, `src/components/photos/` |
+| AI proposals (parsing, approval, store, UI) | `shared/domain/ai-proposal.ts`, `electron/main/custom-exercises.ts`, `src/components/ai/` |
+| Themes / equipment | `shared/constants/themes.ts`, `shared/constants/equipment.ts`, `src/styles/index.css` |
+| Dashboard calendar + stats | `shared/domain/stats.ts`, `src/components/stats/` |
+| Debug panel + scenarios (dev-only) | `src/debug/`, `electron/main/ipc/debug.ts` |
 | Preload bridge | `electron/preload/` |
 | Vue renderer | `src/` |
 | Pinia hydrate | `src/bootstrap/hydrate.ts` |
@@ -43,7 +50,6 @@ Project docs and this file override global agent rules when they conflict.
 | Tray frames + animation specs | `electron/resources/tray/`, `electron/main/tray-icons.ts` |
 | Tray icon script | `scripts/build-tray-icons.py` |
 | Tests (Vitest) | `tests/`, `vitest.config.ts` |
-| Sound packs | `src/assets/sounds/default/` |
 | Docs | `docs/` |
 | `/actualize` | [.cursor/commands/actualize.md](.cursor/commands/actualize.md) |
 

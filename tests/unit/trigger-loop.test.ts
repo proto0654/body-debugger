@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defaultProgress, defaultSettings } from '../../electron/main/persistence/defaults'
 import type { AppSettings } from '@shared/types/settings'
-import type { Feeling, Session } from '@shared/types/session'
+import type { Feeling, Session, SessionStatus } from '@shared/types/session'
 import type { TrayState } from '@shared/types/events'
 
 const mocks = vi.hoisted(() => {
@@ -31,7 +31,19 @@ const mocks = vi.hoisted(() => {
     applyDoneSession: vi.fn(),
     updateSettings: vi.fn((next: AppSettings) => {
       mocks.settings.current = next
-    })
+    }),
+    getPhoto: vi.fn((id: string) =>
+      id === 'photo-1'
+        ? {
+            id,
+            fileName: `${id}.png`,
+            mimeType: 'image/png',
+            sizeBytes: 4,
+            createdAt: '2026-10-30T06:00:00.000Z',
+            sessionId: 'session-1'
+          }
+        : null
+    )
   }
 })
 
@@ -62,6 +74,10 @@ vi.mock('../../electron/main/windows/popup', () => ({
   createPopupWindow: mocks.createPopupWindow,
   getPopupWindow: mocks.getPopupWindow,
   closePopupWindow: mocks.closePopupWindow
+}))
+
+vi.mock('../../electron/main/photos', () => ({
+  getPhoto: mocks.getPhoto
 }))
 
 vi.mock('../../electron/main/tray', () => ({
@@ -179,6 +195,45 @@ describe('trigger loop — session results', () => {
     expect(mocks.appendSession).toHaveBeenCalledWith(
       expect.objectContaining({ reps: 12, feeling: 4, weightKg: 72.6 })
     )
+  })
+
+  it('ignores an unknown status and a negative duration', async () => {
+    loop = await loadLoop()
+    loop.triggerNow('manual')
+    const active = loop.getActivePopup()
+
+    loop.handleSessionResult({
+      sessionId: active?.sessionId ?? '',
+      exerciseId: active?.exercise.id ?? '',
+      status: 'exploded' as SessionStatus
+    })
+    expect(mocks.appendSession).not.toHaveBeenCalled()
+
+    loop.handleSessionResult({
+      sessionId: active?.sessionId ?? '',
+      exerciseId: active?.exercise.id ?? '',
+      status: 'done',
+      durationSec: -30
+    })
+
+    const stored = mocks.appendSession.mock.calls[0]?.[0] as Session
+    expect(stored.durationSec).toBe(active?.exercise.durationSec)
+  })
+
+  it('keeps photo ids that exist in the main photo store', async () => {
+    loop = await loadLoop()
+    loop.triggerNow('manual')
+    const active = loop.getActivePopup()
+
+    loop.handleSessionResult({
+      sessionId: active?.sessionId ?? '',
+      exerciseId: active?.exercise.id ?? '',
+      status: 'done',
+      photoIds: ['photo-1', 'missing', 'photo-1']
+    })
+
+    const stored = mocks.appendSession.mock.calls[0]?.[0] as Session
+    expect(stored.photoIds).toEqual(['photo-1'])
   })
 
   it('drops optional details outside the documented ranges', async () => {

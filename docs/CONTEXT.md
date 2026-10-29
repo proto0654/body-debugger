@@ -6,7 +6,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 
 - Desktop **system-tray** app for IT workers: remind → one exercise popup → record result → update streak / character / stats.
 - Core principle: **one popup = one exercise**. Stats, character, weight, photos, AI, inventory are optional layers.
-- Current stage: **core cycle works** — trigger loop, weighted picker, character stage/branch, severity + popup timer, plus optional session details and weight history. Sounds, photos, inventory UI, AI, themes and stats are still ahead.
+- Current stage: **all roadmap milestones are done** — core cycle, weighted picker, character stage/branch, severity + timer, dashboard calendar/stats, and every optional layer (session details, weight, photos, inventory, sounds, AI proposals, themes).
 
 ## Communication
 
@@ -37,6 +37,13 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Persistence IPC | `electron/main/ipc/persistence.ts` |
 | Weight history rules (range, series, goal, backfill) | `shared/domain/weight.ts` |
 | Weight store / dashboard card | `src/stores/weight.ts`, `src/components/weight/` |
+| Streak rules (day-based current / max) | `shared/domain/streak.ts` |
+| Sounds rules + renderer player | `shared/domain/sounds.ts`, `src/sounds.ts` |
+| Photo rules / main store / protocol / UI | `shared/domain/photos.ts`, `electron/main/photos.ts`, `electron/main/photo-protocol.ts`, `src/components/photos/` |
+| AI proposal parsing + approval | `shared/domain/ai-proposal.ts`, `electron/main/custom-exercises.ts`, `src/components/ai/` |
+| Themes + equipment catalogs | `shared/constants/themes.ts`, `shared/constants/equipment.ts` |
+| Dashboard aggregation (heatmap / stats) | `shared/domain/stats.ts`, `src/components/stats/` |
+| Debug panel + scenarios | `src/debug/`, `electron/main/ipc/debug.ts` |
 | Preload API | `electron/preload/index.ts` |
 | Renderer entry | `src/main.ts`, `src/App.vue`, `src/router.ts` |
 | Hydrate bootstrap | `src/bootstrap/hydrate.ts` |
@@ -72,17 +79,16 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 ## Current focus
 
 - Keep the app runnable (`npm run dev` → tray + dashboard; data survives restart).
-- Trigger loop is in place: interval from last completion, idle hold/reset, snooze, tray + dashboard pause, `missed` timeout.
-- Picker is in place: 34-exercise catalog, zone/group penalties, neglect bonus, Focus, inventory gate, four modes.
-- Character stage/branch now derive from history and are persisted on every `done`.
-- Severity is live: countdown + progress in the popup, Medium/Hardcore gate «Готово» (80% of the timer), Hardcore needs a hold; switch it on the dashboard.
-- Character art is cut per frame: dashboard shows the stage body, the popup shows the emotion bust; emoji is the fallback.
-- Motion is live: popup entrance/exit + urgent timer, emotion crossfade/bounce, tray frame animation; «Анимации» switch and the OS setting collapse it.
-- Session details are live (optional, off by default): reps / feeling / weight in a collapsible popup block, validated ranges, shown as «Последняя сессия» on the dashboard.
-- Weight history is live (optional, off by default): `weights.json` in main, automatic entry for a done session with a weight, manual entries + goal on the dashboard, 90-day sparkline, deterministic session ids so replays never duplicate.
-- Tests are in place: Vitest covers the trigger loop, picker, character progress/frames, severity, session details, weight history, JSON envelope, stores, popup, portrait and the weight card (`npm test`).
-- Next roadmap item: **#8 optional layers** — remaining slices: photos, inventory UI, AI, themes.
-- Still stubs: streak counters (simple `done` bump), sounds playback, debug panel, Playwright E2E.
+- Trigger loop: interval from last completion, idle hold/reset, snooze, tray + dashboard pause, `missed` timeout.
+- Picker: 34-exercise catalog plus approved AI exercises, zone/group penalties, neglect bonus, Focus, inventory gate, four modes.
+- Character stage/branch and a **day-based streak** derive from history and are persisted on every `done`.
+- Severity: countdown + progress in the popup; Medium/Hardcore gate «Готово» (80% of the timer); Hardcore needs a hold.
+- Character art is cut per frame; emoji fallback. Motion respects the dashboard switch and the OS setting.
+- Optional layers are live and off by default unless noted: session details, weight history, photos, inventory, sounds, AI proposals, themes.
+- Dashboard depth: 13-week calendar heatmap with day details, stats cards, seven-day activity chart, zone distribution and top exercises.
+- Debug panel: dev-only, with state view, quick actions, six scenario presets and per-cue sound preview.
+- Tests: Vitest covers domain rules, stores, persistence, popup/portrait/weight/heatmap/stats/photo/AI components and the debug panel.
+- No planned roadmap milestones remain. Known gaps: Playwright E2E and real-Electron checks of tray/windows/IPC (manual smoke).
 
 ## Doc index
 

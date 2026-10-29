@@ -20,3 +20,17 @@ export function getSessionsPath(): string {
 export function getWeightsPath(): string {
   return join(getDataDir(), 'weights.json')
 }
+
+/** Photo metadata; the image files live next to the data directory. */
+export function getPhotosPath(): string {
+  return join(getDataDir(), 'photos.json')
+}
+
+export function getPhotoDir(): string {
+  return join(app.getPath('userData'), 'photos')
+}
+
+/** AI proposals approved by the user (optional layer). */
+export function getCustomExercisesPath(): string {
+  return join(getDataDir(), 'custom-exercises.json')
+}

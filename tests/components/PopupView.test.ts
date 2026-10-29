@@ -13,12 +13,30 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsStore } from '@/stores/settings'
 import type { SeverityLevel } from '@shared/types/settings'
 import type { SessionResultPayload } from '@shared/types/events'
-import { makeExercise, makeSettings } from '../fixtures'
+import { makeExercise, makeSession, makeSettings } from '../fixtures'
+
+const soundPlayer = vi.hoisted(() => ({ play: vi.fn(), preload: vi.fn() }))
+
+vi.mock('@/sounds', () => ({
+  useSoundPlayer: () => soundPlayer
+}))
+
+const photoEntry = {
+  id: 'photo-1',
+  fileName: 'photo-1.png',
+  mimeType: 'image/png',
+  sizeBytes: 2,
+  createdAt: '2026-10-30T09:00:00.000Z',
+  sessionId: 'session-1'
+}
 
 const api = {
   sessionResult: vi.fn(async (_payload: SessionResultPayload) => undefined),
   closePopup: vi.fn(async () => undefined),
-  resizePopup: vi.fn(async () => undefined)
+  resizePopup: vi.fn(async () => undefined),
+  addPhoto: vi.fn(async () => photoEntry),
+  removePhoto: vi.fn(async () => ({ removed: true, photos: [] })),
+  listPhotos: vi.fn(async () => [photoEntry])
 }
 
 /** Resolves a chain of microtasks while fake timers are active. */
@@ -34,7 +52,12 @@ function findButton(wrapper: VueWrapper, label: string) {
 }
 
 function mountPopup(
-  options: { severity?: SeverityLevel; reduceMotion?: boolean; extras?: boolean } = {}
+  options: {
+    severity?: SeverityLevel
+    reduceMotion?: boolean
+    extras?: boolean
+    photos?: boolean
+  } = {}
 ) {
   const pinia = createPinia()
   setActivePinia(pinia)
@@ -42,7 +65,8 @@ function mountPopup(
     makeSettings({
       severity: options.severity ?? 'soft',
       reduceMotion: options.reduceMotion ?? false,
-      sessionExtras: { enabled: options.extras ?? false }
+      sessionExtras: { enabled: options.extras ?? false },
+      photos: { enabled: options.photos ?? false }
     })
   )
   useSessionsStore().beginSession(
@@ -58,6 +82,11 @@ beforeEach(() => {
   api.sessionResult.mockClear()
   api.closePopup.mockClear()
   api.resizePopup.mockClear()
+  api.addPhoto.mockClear()
+  api.removePhoto.mockClear()
+  api.listPhotos.mockClear()
+  soundPlayer.play.mockClear()
+  soundPlayer.preload.mockClear()
   Object.defineProperty(window, 'api', { configurable: true, value: api })
   vi.useFakeTimers()
 })
@@ -87,6 +116,28 @@ describe('PopupView — done flow', () => {
     vi.advanceTimersByTime(POPUP_EXIT_MS.done)
     await flushMicrotasks()
     expect(api.closePopup).toHaveBeenCalledTimes(1)
+  })
+
+  it('plays the stage-up cue when done unlocks a new stage', async () => {
+    wrapper = mountPopup()
+    useSessionsStore().hydrate([
+      makeSession({ id: 'prior-1', exerciseId: 'neck-tilts', status: 'done' }),
+      makeSession({ id: 'prior-2', exerciseId: 'neck-tilts', status: 'done' })
+    ])
+
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+
+    expect(soundPlayer.play).toHaveBeenCalledWith('stage-up')
+  })
+
+  it('plays the plain done cue while the stage is unchanged', async () => {
+    wrapper = mountPopup()
+
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+
+    expect(soundPlayer.play).toHaveBeenCalledWith('done')
   })
 
   it('ignores a second click while the first one is in flight', async () => {
@@ -198,6 +249,44 @@ describe('PopupView — optional details', () => {
     expect(payload?.reps).toBeUndefined()
     expect(payload?.weightKg).toBeUndefined()
     expect(payload?.feeling).toBeUndefined()
+  })
+
+  it('attaches a photo and sends its id with the result', async () => {
+    wrapper = mountPopup({ photos: true })
+    await wrapper.get('[data-testid="extras-toggle"]').trigger('click')
+
+    const input = wrapper.get('[data-testid="photo-input"]')
+    const file = new File([new Uint8Array([1, 2])], 'photo.png', { type: 'image/png' })
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+    await flushMicrotasks()
+
+    expect(api.addPhoto).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('img[src="photo://photo-1"]').exists()).toBe(true)
+
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+
+    expect(api.sessionResult).toHaveBeenCalledWith(
+      expect.objectContaining({ photoIds: ['photo-1'] })
+    )
+  })
+
+  it('removes an attached photo before submitting', async () => {
+    wrapper = mountPopup({ photos: true })
+    await wrapper.get('[data-testid="extras-toggle"]').trigger('click')
+
+    const input = wrapper.get('[data-testid="photo-input"]')
+    const file = new File([new Uint8Array([1, 2])], 'photo.png', { type: 'image/png' })
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+    await flushMicrotasks()
+
+    await wrapper.get('[data-testid="photo-remove"]').trigger('click')
+    await flushMicrotasks()
+
+    expect(api.removePhoto).toHaveBeenCalledWith({ id: 'photo-1' })
+    expect(wrapper.find('img[src="photo://photo-1"]').exists()).toBe(false)
   })
 
   it('never attaches details to a skip', async () => {

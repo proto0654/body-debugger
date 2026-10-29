@@ -3,6 +3,7 @@ import type { Exercise } from './exercise'
 import type { AppSettings } from './settings'
 import type { UserProgress } from './progress'
 import type { DataSnapshot } from './persistence'
+import type { PhotoEntry } from './photo'
 
 /** Tray visual states from CONCEPT.md §4 / §13 */
 export type TrayState = 'idle' | 'soon' | 'standup' | 'success' | 'streak'
@@ -29,7 +30,16 @@ export const IpcChannels = {
   DataSaveProgress: 'data:save-progress',
   DataAddWeight: 'data:add-weight',
   DataRemoveWeight: 'data:remove-weight',
-  DataUpdated: 'data:updated'
+  DataUpdated: 'data:updated',
+  DebugApplyScenario: 'debug:apply-scenario',
+  PhotoList: 'photo:list',
+  PhotoAdd: 'photo:add',
+  PhotoRemove: 'photo:remove',
+  PhotosUpdated: 'photos:updated',
+  ExerciseListCustom: 'exercise:list-custom',
+  ExerciseAddCustom: 'exercise:add-custom',
+  ExerciseRemoveCustom: 'exercise:remove-custom',
+  ExercisesUpdated: 'exercise:updated'
 } as const
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels]
@@ -91,3 +101,45 @@ export interface DataRemoveWeightPayload {
 }
 
 export type DataUpdatedPayload = DataSnapshot
+
+/**
+ * Debug-only scenario payload (docs/TESTING.md). It replaces the session history
+ * and settings with a deterministic preset; main re-validates both.
+ */
+export interface DebugApplyScenarioPayload {
+  sessions: Session[]
+  settings: AppSettings
+  progress: UserProgress
+}
+
+/** Optional photo layer: raw bytes are validated and written by main only. */
+export interface PhotoAddPayload {
+  bytes: Uint8Array
+  mimeType: string
+  sessionId?: string
+}
+
+export interface PhotoRemovePayload {
+  id: string
+}
+
+export type PhotoListPayload = PhotoEntry[]
+
+export interface PhotosUpdatedPayload {
+  photos: PhotoEntry[]
+}
+
+/** User-approved AI exercises (optional layer). */
+export interface ExerciseAddCustomPayload {
+  exercise: Exercise
+}
+
+export interface ExerciseRemoveCustomPayload {
+  id: string
+}
+
+export type ExerciseListCustomPayload = Exercise[]
+
+export interface ExercisesUpdatedPayload {
+  exercises: Exercise[]
+}

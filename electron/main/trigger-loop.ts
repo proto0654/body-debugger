@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { powerMonitor } from 'electron'
-import { EXERCISE_CATALOG } from '../../shared/constants/exercises'
+import { getAvailableCatalog } from './custom-exercises'
 import { pickNextExercise } from '../../shared/domain/exercise-picker'
 import { normalizeSessionExtras } from '../../shared/domain/session-extras'
+import { normalizePhotoIds } from '../../shared/domain/photos'
+import { getPhoto } from './photos'
 import {
   IpcChannels,
   type SessionLoopStatePayload,
@@ -53,6 +55,8 @@ const REST_IDLE_SEC = 5 * 60
 const STARTUP_GRACE_MS = 60_000
 /** Minimum delay when the schedule is recomputed after a settings change. */
 const RESCHEDULE_GRACE_MS = 15_000
+
+const SESSION_STATUSES: readonly SessionStatus[] = ['done', 'snoozed', 'skipped', 'missed']
 
 interface AwaitingResult {
   sessionId: string
@@ -138,6 +142,8 @@ function completeSession(
     awaiting = null
   }
 
+  // Photos must already exist in the main store; stale or forged ids are dropped.
+  const photoIds = normalizePhotoIds(extras.photoIds).filter((id) => getPhoto(id) !== null)
   const session: Session = {
     id: origin.sessionId,
     exerciseId: origin.exerciseId,
@@ -146,7 +152,8 @@ function completeSession(
     triggeredAt: origin.triggeredAt,
     completedAt: new Date().toISOString(),
     // Untrusted renderer input: only in-range details are stored.
-    ...normalizeSessionExtras(extras)
+    ...normalizeSessionExtras(extras),
+    ...(photoIds.length > 0 ? { photoIds } : {})
   }
   if (extras.skipReason) session.skipReason = extras.skipReason
 
@@ -186,8 +193,22 @@ function originOfAwaiting(current: AwaitingResult): SessionOrigin {
   }
 }
 
+function validDuration(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
+}
+
 /** Renderer reported a result — the canonical write happens here. */
 export function handleSessionResult(payload: SessionResultPayload): void {
+  // Untrusted IPC: never write an unknown status or a session without identity.
+  if (!payload || !SESSION_STATUSES.includes(payload.status)) {
+    console.warn('[session:result] unknown status', payload?.status)
+    return
+  }
+  if (!awaiting && (!payload.sessionId || !payload.exerciseId)) {
+    console.warn('[session:result] missing session identity')
+    return
+  }
+
   if (awaiting && awaiting.sessionId !== payload.sessionId) {
     console.warn('[session:result] session id mismatch', {
       expected: awaiting.sessionId,
@@ -205,11 +226,12 @@ export function handleSessionResult(payload: SessionResultPayload): void {
       }
 
   completeSession(origin, payload.status, {
-    durationSec: payload.durationSec,
+    durationSec: validDuration(payload.durationSec),
     skipReason: payload.skipReason,
     reps: payload.reps,
     feeling: payload.feeling,
-    weightKg: payload.weightKg
+    weightKg: payload.weightKg,
+    photoIds: payload.photoIds
   })
 }
 
@@ -227,7 +249,7 @@ function handleMissed(sessionId: string): void {
 /** Pick the next exercise from stored history + settings (CONCEPT §7). */
 function pickForCycle(): Exercise {
   return pickNextExercise({
-    catalog: EXERCISE_CATALOG,
+    catalog: getAvailableCatalog(),
     recentSessions: getSnapshot().sessions,
     settings: getSettings()
   })

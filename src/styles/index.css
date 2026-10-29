@@ -21,6 +21,42 @@ body {
 }
 
 /*
+ * Themes (CONCEPT.md §10) override Tailwind v4 color tokens only. Every view
+ * keeps its normal utility classes, so adding a theme never touches components.
+ */
+:root[data-theme='night'] {
+  color-scheme: dark;
+  --color-slate-950: #050816;
+  --color-slate-900: #0a1024;
+  --color-slate-800: #131b35;
+  --color-slate-700: #223052;
+  --color-slate-500: #7c8db5;
+  --color-slate-400: #9baccf;
+  --color-slate-300: #c3cfe8;
+  --color-emerald-300: #67e8f9;
+  --color-emerald-400: #22d3ee;
+  --color-emerald-500: #06b6d4;
+}
+
+:root[data-theme='warm'] {
+  color-scheme: light;
+  --color-white: #2b2118;
+  --color-slate-50: #2b2118;
+  --color-slate-100: #35291f;
+  --color-slate-200: #4a3b2e;
+  --color-slate-300: #5c4a39;
+  --color-slate-400: #7a6450;
+  --color-slate-500: #8a735c;
+  --color-slate-700: #d8c7b2;
+  --color-slate-800: #e6d8c6;
+  --color-slate-900: #f1e7da;
+  --color-slate-950: #f8f1e7;
+  --color-emerald-300: #f59e0b;
+  --color-emerald-400: #b45309;
+  --color-emerald-500: #d97706;
+}
+
+/*
  * Micro-animations (CONCEPT.md §13). `data-reduce-motion` is set on <html> from
  * the settings toggle / OS preference; the media query covers the first paint
  * before Vue mounts.

@@ -1,6 +1,16 @@
-import type { Exercise, ExerciseDifficulty } from '../types/exercise'
+import type { Exercise, ExerciseDifficulty, ExerciseGroup } from '../types/exercise'
+import type { FocusDirection } from '../types/progress'
 
 const DIFFICULTIES: ExerciseDifficulty[] = [1, 2, 3, 4, 5]
+const GROUPS: ExerciseGroup[] = ['upper', 'lower', 'full', 'equipment']
+const FOCUS_DIRECTIONS: FocusDirection[] = [
+  'mobility',
+  'light_athletics',
+  'strength',
+  'body_belts',
+  'striking',
+  'balance'
+]
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
@@ -25,12 +35,25 @@ export function isValidExercise(value: unknown): value is Exercise {
   if (!isNonEmptyString(e.emojiFallback)) return false
 
   if (e.equipment !== undefined) {
-    if (!Array.isArray(e.equipment) || !e.equipment.every((x) => typeof x === 'string')) {
+    if (
+      !Array.isArray(e.equipment) ||
+      !e.equipment.every((x) => typeof x === 'string' && x.trim().length > 0)
+    ) {
       return false
     }
   }
   if (e.imageKey !== undefined && typeof e.imageKey !== 'string') return false
   if (e.modificationOf !== undefined && typeof e.modificationOf !== 'string') return false
+  if (e.group !== undefined && !GROUPS.includes(e.group as ExerciseGroup)) return false
+
+  if (e.focus !== undefined) {
+    if (
+      !Array.isArray(e.focus) ||
+      !e.focus.every((direction) => FOCUS_DIRECTIONS.includes(direction as FocusDirection))
+    ) {
+      return false
+    }
+  }
 
   return true
 }

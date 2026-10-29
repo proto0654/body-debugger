@@ -7,6 +7,15 @@ import {
   type DataSaveSettingsPayload,
   type DataSnapshotPayload,
   type DataUpdatedPayload,
+  type DebugApplyScenarioPayload,
+  type PhotoAddPayload,
+  type PhotoListPayload,
+  type PhotoRemovePayload,
+  type PhotosUpdatedPayload,
+  type ExerciseAddCustomPayload,
+  type ExerciseListCustomPayload,
+  type ExerciseRemoveCustomPayload,
+  type ExercisesUpdatedPayload,
   type SessionLoopStatePayload,
   type SessionPopupPayload,
   type SessionResultPayload,
@@ -35,6 +44,25 @@ const api = {
     ipcRenderer.invoke(IpcChannels.DataAddWeight, payload),
   removeWeight: (payload: DataRemoveWeightPayload): Promise<DataSnapshotPayload> =>
     ipcRenderer.invoke(IpcChannels.DataRemoveWeight, payload),
+  applyDebugScenario: (payload: DebugApplyScenarioPayload): Promise<DataSnapshotPayload> =>
+    ipcRenderer.invoke(IpcChannels.DebugApplyScenario, payload),
+  listPhotos: (): Promise<PhotoListPayload> => ipcRenderer.invoke(IpcChannels.PhotoList),
+  addPhoto: (payload: PhotoAddPayload): Promise<PhotoListPayload[number] | null> =>
+    ipcRenderer.invoke(IpcChannels.PhotoAdd, payload),
+  removePhoto: (
+    payload: PhotoRemovePayload
+  ): Promise<{ removed: boolean; photos: PhotoListPayload }> =>
+    ipcRenderer.invoke(IpcChannels.PhotoRemove, payload),
+  listCustomExercises: (): Promise<ExerciseListCustomPayload> =>
+    ipcRenderer.invoke(IpcChannels.ExerciseListCustom),
+  addCustomExercise: (
+    payload: ExerciseAddCustomPayload
+  ): Promise<{ exercise: ExerciseListCustomPayload[number] | null; exercises: ExerciseListCustomPayload }> =>
+    ipcRenderer.invoke(IpcChannels.ExerciseAddCustom, payload),
+  removeCustomExercise: (
+    payload: ExerciseRemoveCustomPayload
+  ): Promise<{ removed: boolean; exercises: ExerciseListCustomPayload }> =>
+    ipcRenderer.invoke(IpcChannels.ExerciseRemoveCustom, payload),
   onLoopStateChanged: (handler: (payload: SessionLoopStatePayload) => void): (() => void) => {
     const listener = (
       _event: Electron.IpcRendererEvent,
@@ -58,6 +86,23 @@ const api = {
     }
     ipcRenderer.on(IpcChannels.DataUpdated, listener)
     return () => ipcRenderer.removeListener(IpcChannels.DataUpdated, listener)
+  },
+  onPhotosUpdated: (handler: (payload: PhotosUpdatedPayload) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: PhotosUpdatedPayload): void => {
+      handler(payload)
+    }
+    ipcRenderer.on(IpcChannels.PhotosUpdated, listener)
+    return () => ipcRenderer.removeListener(IpcChannels.PhotosUpdated, listener)
+  },
+  onExercisesUpdated: (handler: (payload: ExercisesUpdatedPayload) => void): (() => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: ExercisesUpdatedPayload
+    ): void => {
+      handler(payload)
+    }
+    ipcRenderer.on(IpcChannels.ExercisesUpdated, listener)
+    return () => ipcRenderer.removeListener(IpcChannels.ExercisesUpdated, listener)
   }
 }
 

@@ -7,6 +7,15 @@ import type {
   DataSaveSettingsPayload,
   DataSnapshotPayload,
   DataUpdatedPayload,
+  DebugApplyScenarioPayload,
+  PhotoAddPayload,
+  PhotoListPayload,
+  PhotoRemovePayload,
+  PhotosUpdatedPayload,
+  ExerciseAddCustomPayload,
+  ExerciseListCustomPayload,
+  ExerciseRemoveCustomPayload,
+  ExercisesUpdatedPayload,
   SessionLoopStatePayload,
   SessionPopupPayload,
   SessionResultPayload,
@@ -32,9 +41,27 @@ export interface BodyDebuggerApi {
   saveProgress: (payload: DataSaveProgressPayload) => Promise<DataSnapshotPayload>
   addWeight: (payload: DataAddWeightPayload) => Promise<DataSnapshotPayload>
   removeWeight: (payload: DataRemoveWeightPayload) => Promise<DataSnapshotPayload>
+  applyDebugScenario: (payload: DebugApplyScenarioPayload) => Promise<DataSnapshotPayload>
+  listPhotos: () => Promise<PhotoListPayload>
+  addPhoto: (payload: PhotoAddPayload) => Promise<PhotoListPayload[number] | null>
+  removePhoto: (
+    payload: PhotoRemovePayload
+  ) => Promise<{ removed: boolean; photos: PhotoListPayload }>
+  listCustomExercises: () => Promise<ExerciseListCustomPayload>
+  addCustomExercise: (
+    payload: ExerciseAddCustomPayload
+  ) => Promise<{
+    exercise: ExerciseListCustomPayload[number] | null
+    exercises: ExerciseListCustomPayload
+  }>
+  removeCustomExercise: (
+    payload: ExerciseRemoveCustomPayload
+  ) => Promise<{ removed: boolean; exercises: ExerciseListCustomPayload }>
   onLoopStateChanged: (handler: (payload: SessionLoopStatePayload) => void) => () => void
   onTrayState: (handler: (payload: TraySetStatePayload) => void) => () => void
   onDataUpdated: (handler: (payload: DataUpdatedPayload) => void) => () => void
+  onPhotosUpdated: (handler: (payload: PhotosUpdatedPayload) => void) => () => void
+  onExercisesUpdated: (handler: (payload: ExercisesUpdatedPayload) => void) => () => void
 }
 
 declare global {

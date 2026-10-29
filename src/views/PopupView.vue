@@ -3,7 +3,10 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import CharacterPortrait from '@/components/character/CharacterPortrait.vue'
 import { useSessionsStore } from '@/stores/sessions'
 import { useCharacterStore } from '@/stores/character'
+import { useProgressStore } from '@/stores/progress'
 import { useSettingsStore } from '@/stores/settings'
+import { usePhotosStore } from '@/stores/photos'
+import { photoUrl } from '@/photos'
 import {
   HOLD_CONFIRM_MS,
   canFinish,
@@ -20,12 +23,19 @@ import {
   POPUP_EXTRAS_HEIGHT
 } from '@shared/constants/popup'
 import { POPUP_EXIT_MS, useMotionPreference } from '@/motion'
+import { cueForSessionStatus, type SoundCue } from '@shared/domain/sounds'
+import { computeCharacterProgress } from '@shared/domain/character-progress'
+import { useSoundPlayer } from '@/sounds'
 import type { Feeling, SessionExtras, SessionStatus } from '@shared/types/session'
+import type { PhotoEntry } from '@shared/types/photo'
 
 const sessions = useSessionsStore()
 const character = useCharacterStore()
+const progress = useProgressStore()
 const settings = useSettingsStore()
+const photos = usePhotosStore()
 const { reduced } = useMotionPreference()
+const sounds = useSoundPlayer()
 
 // Entrance/exit animations translate and scale the shell; without this the
 // popup window flashes classic scrollbars for the duration of the animation.
@@ -49,10 +59,14 @@ const exitKind = ref<'done' | 'quiet' | null>(null)
 // Optional details (CONCEPT §4, §10): hidden unless the user turned them on,
 // and collapsed by default so the core cycle stays one exercise + one timer.
 const extrasEnabled = computed(() => settings.sessionExtras.enabled)
+const photosEnabled = computed(() => settings.photos.enabled)
+const detailsEnabled = computed(() => extrasEnabled.value || photosEnabled.value)
 const extrasOpen = ref(false)
 const repsInput = ref('')
 const weightInput = ref('')
 const feeling = ref<Feeling | null>(null)
+const attachedPhotos = ref<PhotoEntry[]>([])
+const photoInput = ref<HTMLInputElement | null>(null)
 
 let timer: ReturnType<typeof setInterval> | null = null
 let holdTimer: ReturnType<typeof setInterval> | null = null
@@ -99,13 +113,17 @@ function startTimer(): void {
 
 /** Window height follows the details block: base → collapsed row → expanded panel. */
 function requestedPopupHeight(): number {
-  if (!extrasEnabled.value) return POPUP_BASE_HEIGHT
+  if (!detailsEnabled.value) return POPUP_BASE_HEIGHT
   return extrasOpen.value ? POPUP_EXTRAS_HEIGHT : POPUP_EXTRAS_COLLAPSED_HEIGHT
 }
 
-watch([extrasEnabled, extrasOpen], () => {
-  void window.api?.resizePopup?.(requestedPopupHeight())
-})
+watch(
+  [detailsEnabled, extrasOpen],
+  () => {
+    void window.api?.resizePopup?.(requestedPopupHeight())
+  },
+  { immediate: true }
+)
 
 function toggleExtras(): void {
   extrasOpen.value = !extrasOpen.value
@@ -116,13 +134,39 @@ function toggleFeeling(value: Feeling): void {
 }
 
 function collectExtras(): SessionExtras {
-  if (!extrasEnabled.value || !extrasOpen.value) return {}
+  if (!detailsEnabled.value || !extrasOpen.value) return {}
 
-  return normalizeSessionExtras({
-    reps: repsInput.value,
-    feeling: feeling.value,
-    weightKg: weightInput.value
-  })
+  const extras: SessionExtras = extrasEnabled.value
+    ? normalizeSessionExtras({
+        reps: repsInput.value,
+        feeling: feeling.value,
+        weightKg: weightInput.value
+      })
+    : {}
+
+  if (photosEnabled.value && attachedPhotos.value.length > 0) {
+    extras.photoIds = attachedPhotos.value.map((photo) => photo.id)
+  }
+  return extras
+}
+
+async function onPhotoPicked(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  const entry = await photos.add(file, sessions.current?.id)
+  if (entry) attachedPhotos.value = [...attachedPhotos.value, entry]
+}
+
+async function detachPhoto(id: string): Promise<void> {
+  await photos.remove(id)
+  attachedPhotos.value = attachedPhotos.value.filter((photo) => photo.id !== id)
+}
+
+function openPhotoPicker(): void {
+  photoInput.value?.click()
 }
 
 function stopTimer(): void {
@@ -178,6 +222,9 @@ onMounted(async () => {
   }
   startTimer()
   character.setEmotion('focused')
+  sounds.preload()
+  sounds.play('popup')
+  if (photosEnabled.value) await photos.refresh()
 })
 
 onBeforeUnmount(() => {
@@ -200,6 +247,7 @@ async function submit(status: SessionStatus): Promise<void> {
   // Details only describe a completed exercise; snooze / skip never carry them.
   const extras = status === 'done' ? collectExtras() : {}
   const session = sessions.recordResult(status, extras)
+  sounds.play(sessionCue(status))
   if (session && window.api) {
     await window.api.sessionResult({
       sessionId: session.id,
@@ -212,6 +260,17 @@ async function submit(status: SessionStatus): Promise<void> {
     await window.api.closePopup()
   }
   busy.value = false
+}
+
+/**
+ * A finished session can also unlock a stage; the stage-up cue replaces the
+ * plain `done` cue in that case (SOUNDS.md event table).
+ */
+function sessionCue(status: SessionStatus): SoundCue | null {
+  if (status !== 'done') return cueForSessionStatus(status)
+
+  const nextStage = computeCharacterProgress(sessions.history).stage
+  return nextStage > progress.characterStage ? 'stage-up' : 'done'
 }
 
 /** Let the exit animation finish before the window closes (CONCEPT §13). */
@@ -272,7 +331,7 @@ async function playExit(status: SessionStatus): Promise<void> {
     </div>
 
     <section
-      v-if="extrasEnabled"
+      v-if="detailsEnabled"
       class="rounded-lg border border-slate-800 bg-slate-900/70"
       data-testid="extras"
     >
@@ -283,12 +342,12 @@ async function playExit(status: SessionStatus): Promise<void> {
         data-testid="extras-toggle"
         @click="toggleExtras"
       >
-        <span>Детали (необязательно)</span>
+        <span>{{ photosEnabled ? 'Детали и фото (необязательно)' : 'Детали (необязательно)' }}</span>
         <span aria-hidden="true">{{ extrasOpen ? '▴' : '▾' }}</span>
       </button>
 
       <div v-if="extrasOpen" class="grid gap-2 px-2 pb-2" data-testid="extras-panel">
-        <div class="grid grid-cols-2 gap-2">
+        <div v-if="extrasEnabled" class="grid grid-cols-2 gap-2">
           <label class="flex flex-col gap-1 text-[10px] text-slate-500">
             Повторы
             <input
@@ -317,7 +376,7 @@ async function playExit(status: SessionStatus): Promise<void> {
           </label>
         </div>
 
-        <div class="flex items-center justify-between gap-2">
+        <div v-if="extrasEnabled" class="flex items-center justify-between gap-2">
           <span class="text-[10px] text-slate-500">Ощущения</span>
           <div class="flex gap-1">
             <button
@@ -339,6 +398,43 @@ async function playExit(status: SessionStatus): Promise<void> {
               {{ value }}
             </button>
           </div>
+        </div>
+
+        <div v-if="photosEnabled" class="flex flex-wrap items-center gap-2" data-testid="photo-attach">
+          <button
+            type="button"
+            data-testid="photo-add"
+            class="rounded-md border border-slate-700 px-2 py-1 text-[10px] text-slate-300 hover:bg-slate-800"
+            @click="openPhotoPicker"
+          >
+            Добавить фото
+          </button>
+          <input
+            ref="photoInput"
+            data-testid="photo-input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            class="hidden"
+            @change="onPhotoPicked"
+          />
+          <ul v-if="attachedPhotos.length" class="flex gap-1">
+            <li v-for="photo in attachedPhotos" :key="photo.id" class="relative">
+              <img
+                :src="photoUrl(photo.id)"
+                alt="Фото прогресса"
+                class="h-8 w-8 rounded object-cover"
+              />
+              <button
+                type="button"
+                data-testid="photo-remove"
+                class="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-slate-950 text-[10px] text-slate-300"
+                aria-label="Удалить фото"
+                @click="detachPhoto(photo.id)"
+              >
+                ×
+              </button>
+            </li>
+          </ul>
         </div>
       </div>
     </section>

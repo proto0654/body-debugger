@@ -4,8 +4,17 @@ import { createAppTray } from './tray'
 import { createDashboardWindow } from './windows/dashboard'
 import { registerSessionCycleIpc } from './ipc/session-cycle'
 import { registerPersistenceIpc } from './ipc/persistence'
+import { registerDebugIpc } from './ipc/debug'
+import { registerPhotoIpc } from './ipc/photos'
+import { loadPhotos } from './photos'
+import { loadCustomExercises } from './custom-exercises'
+import { registerCustomExerciseIpc } from './ipc/custom-exercises'
+import { registerPhotoProtocol, registerPhotoScheme } from './photo-protocol'
 import { loadPersistence, getSettings } from './persistence'
 import { setPaused, startTriggerLoop, stopTriggerLoop, triggerNow } from './trigger-loop'
+
+// Custom scheme for progress photos; must be declared before app is ready.
+registerPhotoScheme()
 
 // Keep Chromium/Electron profile on the project drive (E:), not %APPDATA% on C:
 app.setPath('userData', join(app.getAppPath(), '.userdata'))
@@ -19,8 +28,14 @@ if (process.platform === 'win32') {
 
 app.whenReady().then(() => {
   loadPersistence()
+  loadPhotos()
+  loadCustomExercises()
+  registerPhotoProtocol()
   registerPersistenceIpc()
   registerSessionCycleIpc()
+  registerDebugIpc()
+  registerPhotoIpc()
+  registerCustomExerciseIpc()
 
   createAppTray({
     isPaused: () => getSettings().paused,

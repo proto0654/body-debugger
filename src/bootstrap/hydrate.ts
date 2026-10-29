@@ -4,6 +4,8 @@ import { useProgressStore } from '@/stores/progress'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWeightStore } from '@/stores/weight'
 import { useReminderStore } from '@/stores/reminder'
+import { usePhotosStore } from '@/stores/photos'
+import { useCustomExercisesStore } from '@/stores/custom-exercises'
 
 export function applySnapshot(snapshot: DataSnapshot): void {
   useSettingsStore().hydrate(snapshot.settings)
@@ -24,9 +26,18 @@ export async function hydrateFromMain(): Promise<() => void> {
   const reminder = useReminderStore()
   reminder.apply(await api.getLoopState())
 
+  const photos = usePhotosStore()
+  await photos.refresh()
+
+  const customExercises = useCustomExercisesStore()
+  await customExercises.refresh()
+
   const unsubscribers = [
     api.onDataUpdated((next) => applySnapshot(next)),
-    api.onLoopStateChanged((next) => reminder.apply(next))
+    api.onLoopStateChanged((next) => reminder.apply(next)),
+    api.onPhotosUpdated?.((next) => photos.hydrate(next.photos)) ?? (() => undefined),
+    api.onExercisesUpdated?.((next) => customExercises.hydrate(next.exercises)) ??
+      (() => undefined)
   ]
 
   return () => {

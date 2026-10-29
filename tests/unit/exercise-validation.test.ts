@@ -68,10 +68,24 @@ describe('isValidExercise', () => {
   it.each([
     ['not-an-array', false],
     [['bag-50', 42], false],
+    [[''], false],
+    [['  '], false],
     [[], true],
     [['bag-50'], true]
   ])('validates equipment %j', (equipment, expected) => {
     expect(isValidExercise(payload({ equipment }))).toBe(expected)
+  })
+
+  it('validates group and focus tags from the shared model', () => {
+    expect(isValidExercise(payload({ group: 'upper' }))).toBe(true)
+    expect(isValidExercise(payload({ group: 'equipment' }))).toBe(true)
+    expect(isValidExercise(payload({ group: 'arms' }))).toBe(false)
+    expect(isValidExercise(payload({ group: 42 }))).toBe(false)
+
+    expect(isValidExercise(payload({ focus: ['mobility', 'strength'] }))).toBe(true)
+    expect(isValidExercise(payload({ focus: [] }))).toBe(true)
+    expect(isValidExercise(payload({ focus: ['cardio'] }))).toBe(false)
+    expect(isValidExercise(payload({ focus: 'mobility' }))).toBe(false)
   })
 
   it('validates optional string fields', () => {

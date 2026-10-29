@@ -5,12 +5,22 @@ import type {
   ExercisePickerMode,
   InventorySettings,
   SessionExtrasSettings,
-  SeverityLevel
+  AiSettings,
+  PhotoSettings,
+  SeverityLevel,
+  SoundSettings
 } from '@shared/types/settings'
 import type { UserFocus } from '@shared/types/progress'
 import type { WeightSettings } from '@shared/types/weight'
 import { normalizeWeightTarget } from '@shared/domain/weight'
+import {
+  DEFAULT_SOUND_SETTINGS,
+  isSoundPackId,
+  normalizeSoundSettings
+} from '@shared/domain/sounds'
 import { DEFAULT_CHARACTER_PACK } from '@shared/constants/character'
+import { isEquipmentId } from '@shared/constants/equipment'
+import { normalizeThemeId } from '@shared/constants/themes'
 
 export const useSettingsStore = defineStore('settings', () => {
   const severity = ref<SeverityLevel>('medium')
@@ -19,6 +29,9 @@ export const useSettingsStore = defineStore('settings', () => {
   const pickerMode = ref<ExercisePickerMode>('balance')
   const inventory = ref<InventorySettings>({ enabled: false, items: [] })
   const sessionExtras = ref<SessionExtrasSettings>({ enabled: false })
+  const ai = ref<AiSettings>({ enabled: false })
+  const photos = ref<PhotoSettings>({ enabled: false })
+  const sound = ref<SoundSettings>({ ...DEFAULT_SOUND_SETTINGS })
   const weight = ref<WeightSettings>({ enabled: false, targetKg: null })
   const themeId = ref('default')
   const characterPackId = ref(DEFAULT_CHARACTER_PACK)
@@ -41,6 +54,9 @@ export const useSettingsStore = defineStore('settings', () => {
       sessionExtras: {
         enabled: sessionExtras.value.enabled
       },
+      ai: { enabled: ai.value.enabled },
+      photos: { enabled: photos.value.enabled },
+      sound: { ...sound.value },
       weight: {
         enabled: weight.value.enabled,
         targetKg: weight.value.targetKg
@@ -67,11 +83,14 @@ export const useSettingsStore = defineStore('settings', () => {
     sessionExtras.value = {
       enabled: next.sessionExtras?.enabled ?? false
     }
+    ai.value = { enabled: next.ai?.enabled === true }
+    photos.value = { enabled: next.photos?.enabled === true }
+    sound.value = normalizeSoundSettings(next.sound)
     weight.value = {
       enabled: next.weight?.enabled ?? false,
       targetKg: next.weight?.targetKg ?? null
     }
-    themeId.value = next.themeId
+    themeId.value = normalizeThemeId(next.themeId)
     characterPackId.value = next.characterPackId
     reduceMotion.value = next.reduceMotion
     paused.value = next.paused
@@ -106,6 +125,66 @@ export const useSettingsStore = defineStore('settings', () => {
     await persist()
   }
 
+  async function setTheme(next: string): Promise<void> {
+    const normalized = normalizeThemeId(next)
+    if (next !== normalized || themeId.value === normalized) return
+    themeId.value = normalized
+    await persist()
+  }
+
+  async function setInventoryEnabled(next: boolean): Promise<void> {
+    if (inventory.value.enabled === next) return
+    inventory.value = { ...inventory.value, items: [...inventory.value.items], enabled: next }
+    await persist()
+  }
+
+  /** Unknown equipment ids are ignored; the order follows the catalog. */
+  async function toggleInventoryItem(id: string): Promise<void> {
+    if (!isEquipmentId(id)) return
+
+    const owned = inventory.value.items.includes(id)
+    inventory.value = {
+      enabled: inventory.value.enabled,
+      items: owned
+        ? inventory.value.items.filter((item) => item !== id)
+        : [...inventory.value.items, id]
+    }
+    await persist()
+  }
+
+  async function setAiEnabled(next: boolean): Promise<void> {
+    if (ai.value.enabled === next) return
+    ai.value = { enabled: next }
+    await persist()
+  }
+
+  async function setPhotosEnabled(next: boolean): Promise<void> {
+    if (photos.value.enabled === next) return
+    photos.value = { enabled: next }
+    await persist()
+  }
+
+  async function setSoundEnabled(next: boolean): Promise<void> {
+    if (sound.value.enabled === next) return
+    sound.value = { ...sound.value, enabled: next }
+    await persist()
+  }
+
+  /** Slider input; out-of-range values clamp instead of being rejected. */
+  async function setSoundVolume(next: number): Promise<void> {
+    const volume = normalizeSoundSettings({ ...sound.value, volume: next }).volume
+    if (sound.value.volume === volume) return
+    sound.value = { ...sound.value, volume }
+    await persist()
+  }
+
+  /** Unknown pack ids are ignored so a stale UI cannot break playback. */
+  async function setSoundPack(next: string): Promise<void> {
+    if (!isSoundPackId(next) || sound.value.packId === next) return
+    sound.value = { ...sound.value, packId: next }
+    await persist()
+  }
+
   /** Toggles the optional weight history card on the dashboard. */
   async function setWeightEnabled(next: boolean): Promise<void> {
     if (weight.value.enabled === next) return
@@ -130,6 +209,9 @@ export const useSettingsStore = defineStore('settings', () => {
     pickerMode,
     inventory,
     sessionExtras,
+    ai,
+    photos,
+    sound,
     weight,
     themeId,
     characterPackId,
@@ -142,6 +224,14 @@ export const useSettingsStore = defineStore('settings', () => {
     setSeverity,
     setReduceMotion,
     setSessionExtrasEnabled,
+    setTheme,
+    setInventoryEnabled,
+    setAiEnabled,
+    setPhotosEnabled,
+    toggleInventoryItem,
+    setSoundEnabled,
+    setSoundVolume,
+    setSoundPack,
     setWeightEnabled,
     setWeightTarget
   }

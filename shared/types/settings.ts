@@ -17,6 +17,26 @@ export interface SessionExtrasSettings {
   enabled: boolean
 }
 
+/** Optional sound layer (docs/SOUNDS.md). */
+/** Optional AI proposal layer (CONCEPT.md §9); off = no panel, no imports. */
+export interface AiSettings {
+  enabled: boolean
+}
+
+/** Optional progress-photo layer (CONCEPT.md §10). */
+export interface PhotoSettings {
+  enabled: boolean
+}
+
+export interface SoundSettings {
+  /** Master switch; off by default so the core cycle stays silent */
+  enabled: boolean
+  /** 0..1 */
+  volume: number
+  /** Shipped cue pack id */
+  packId: string
+}
+
 export interface AppSettings {
   severity: SeverityLevel
   /** Minutes between triggers (counted from last session completion) */
@@ -25,6 +45,9 @@ export interface AppSettings {
   pickerMode: ExercisePickerMode
   inventory: InventorySettings
   sessionExtras: SessionExtrasSettings
+  ai: AiSettings
+  photos: PhotoSettings
+  sound: SoundSettings
   weight: WeightSettings
   themeId: string
   characterPackId: string

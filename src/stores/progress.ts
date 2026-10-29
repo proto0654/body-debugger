@@ -43,18 +43,6 @@ export const useProgressStore = defineStore('progress', () => {
     hydrate(snapshot.progress)
   }
 
-  /** Stub — real bump uses domain/character-progress later; prefer main-side bump on session done. */
-  function bumpStreak(): void {
-    streak.value = {
-      current: streak.value.current + 1,
-      max: Math.max(streak.value.max, streak.value.current + 1)
-    }
-  }
-
-  function resetStreak(): void {
-    streak.value = { ...streak.value, current: 0 }
-  }
-
   return {
     streak,
     characterStage,
@@ -64,8 +52,6 @@ export const useProgressStore = defineStore('progress', () => {
     focus,
     asUserProgress,
     hydrate,
-    persist,
-    bumpStreak,
-    resetStreak
+    persist
   }
 })

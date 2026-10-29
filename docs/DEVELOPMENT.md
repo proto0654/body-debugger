@@ -21,7 +21,7 @@ npm install
 npm run dev
 ```
 
-`npm run dev` builds main / preload, starts the renderer dev server (port 5173, or the next free one) and launches Electron. Expected: an emerald tray icon, the dashboard window, and a popup after **Напоминание сейчас** (dashboard button or tray menu). Data is written to `.userdata/data/*.json`; delete `.userdata/` to reset progress.
+`npm run dev` builds main / preload, starts the renderer dev server (port 5173, or the next free one) and launches Electron. Expected: an emerald tray icon, the dashboard window, and a popup after **Напоминание сейчас** (dashboard button or tray menu). Data is written to `.userdata/data/*.json`, photos to `.userdata/photos/`; delete `.userdata/` to reset progress.
 
 If Electron boots as plain Node and crashes on `electron.app`, the shell exports `ELECTRON_RUN_AS_NODE=1` — clear it for the run (see Windows notes).
 
@@ -37,7 +37,8 @@ Heavy downloads stay on **E:**, never the system partition.
 | Electron zip cache | `E:/Electron/.cache/electron` (`electron_config_cache` / `ELECTRON_CACHE`) |
 | Unpacked runtime | `node_modules/electron/dist/` |
 | Chromium userData | `.userdata/` at repo root (`app.setPath` in `electron/main/index.ts`) |
-| App JSON (settings / progress / sessions) | `.userdata/data/*.json` (main persistence; gitignored with `.userdata/`) |
+| App JSON (settings / progress / sessions / weights / photos / AI) | `.userdata/data/*.json` (main persistence; gitignored with `.userdata/`) |
+| Progress photo files | `.userdata/photos/` (gitignored; metadata in `data/photos.json`) |
 
 Before / during Electron postinstall:
 
@@ -53,8 +54,8 @@ Do **not** download Electron into `%LOCALAPPDATA%\electron` or park the profile 
 ## Windows notes
 
 - App stays in the tray when all windows close.
-- Tray menu: **Дашборд**, **Напоминание сейчас**, **Пауза / Продолжить**, Quit. There is no settings screen yet — pause, severity, motion and session-details switches live on the dashboard.
-- Renderer routes: `#/dashboard`, `#/popup`.
+- Tray menu: **Дашборд**, **Напоминание сейчас**, **Пауза / Продолжить**, Quit. There is no settings screen yet — pause, severity, motion, details, photos, sounds, inventory, AI and themes live on the dashboard.
+- Renderer routes: `#/dashboard`, `#/popup`. A dev-only **Debug** tab appears on the dashboard (see [TESTING.md](TESTING.md#debug-panel-implemented)).
 - After a **Готово** in the popup, streak, sessions and character survive quit/relaunch (check `.userdata/data/`).
 - If the shell exports `ELECTRON_RUN_AS_NODE=1` (some editors/agents do), `electron.exe .` boots as plain Node and crashes on `electron.app`. Clear the variable for smoke runs.
 
@@ -119,10 +120,22 @@ python scripts/build-tray-icons.py   # needs Pillow
 
 The glyph is a placeholder "person stretching" mark. Replace the drawing in the script and re-run to change the tray identity; adding a state means new frames plus a `TRAY_FRAME_SPECS` entry in `electron/main/tray-icons.ts`. Frames are 32×32 PNGs — Windows scales them down for the 16 px notification area.
 
-## Sounds (assets only)
+## Sounds
 
-Default cue pack: `src/assets/sounds/default/*.mp3`. Playback and settings are not wired — see [SOUNDS.md](SOUNDS.md). When implementing, keep mute / DND respect and treat audio as an optional layer.
+Default cue pack: `src/assets/sounds/default/*.mp3`. Settings (`sound.enabled` / `volume` / `packId`) and the gated renderer player live in `shared/domain/sounds.ts` + `src/sounds.ts`; mute/DND rules: [SOUNDS.md](SOUNDS.md). Audio remains an optional layer: a failed play is logged, never surfaced.
+
+## Photos
+
+The popup sends bytes; main validates JPEG/PNG/WebP up to 8 MB and writes `.userdata/photos/<id>.<ext>` plus `data/photos.json`. The renderer loads `<img src="photo://<id>">`; main's protocol resolves only known ids. The photo layer is off by default and never blocks a session result.
+
+## AI proposals
+
+No network call is made. The dashboard panel accepts pasted AI JSON, validates it as an `Exercise`, and only writes `data/custom-exercises.json` after «Утвердить». The picker merges the shipped catalog with approved entries; shipped ids always win. Rules: `shared/domain/ai-proposal.ts`.
+
+## Themes
+
+`src/styles/index.css` defines `:root[data-theme='night']` / `[data-theme='warm']` token overrides. `App.vue` mirrors `settings.themeId` onto `<html>`; no component reads the theme directly. Unknown ids normalize to `default`.
 
 ## Testing / debug
 
-`npm test` runs the Vitest suite (domain, stores, JSON envelope, popup/portrait). `npm run typecheck` includes the test project (`tsconfig.test.json`). Layout, covered areas and gaps: [TESTING.md](TESTING.md). Manual hook for end-to-end checks: tray **Напоминание сейчас** (runs the real trigger cycle).
+`npm test` runs the Vitest suite (domain, stores, persistence, popup/portrait, photos, AI, stats, debug panel). `npm run typecheck` includes the test project (`tsconfig.test.json`). Layout, covered areas and gaps: [TESTING.md](TESTING.md). Manual hook for end-to-end checks: tray **Напоминание сейчас** (runs the real trigger cycle).

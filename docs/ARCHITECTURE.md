@@ -12,20 +12,26 @@ electron/main/tray-icons.ts # Frame sets per TrayState
 electron/resources/tray/    # Generated tray frames (idle / soon / standup / success / streak)
 electron/main/broadcast.ts  # Window broadcast helpers
 electron/main/persistence/  # JSON SoT (settings / progress / sessions / weights)
-electron/main/ipc/          # session-cycle + persistence channels
+electron/main/photos.ts     # Photo files + metadata (main-owned)
+electron/main/photo-protocol.ts # photo://<id> scheme for the renderer
+electron/main/custom-exercises.ts # Approved AI exercises
+electron/main/ipc/          # session-cycle, persistence, photos, AI, debug channels
 electron/preload/           # contextBridge → window.api
 src/                        # Vue renderer
-src/bootstrap/              # hydrate Pinia from main snapshot
+src/bootstrap/              # hydrate Pinia from main snapshot + optional layers
 src/motion.ts               # Motion preference (settings + OS) and popup exit timings
-src/styles/index.css        # Tailwind entry, keyframes, reduced-motion overrides
-src/stores/                 # sessions, progress, settings, character, reminder, weight
-src/components/             # UI (CharacterPortrait, weight history card)
+src/sounds.ts               # Cue URLs + gated renderer player
+src/photos.ts               # photo:// URL helper
+src/styles/index.css        # Tailwind entry, keyframes, theme tokens, reduced-motion overrides
+src/stores/                 # sessions, progress, settings, character, reminder, weight, photos, AI
+src/components/             # UI (character, weight, stats, photos, AI)
+src/debug/                  # Dev-only panel + scenario builders
 src/assets/character/       # Desk Hulk source sheets + cut frames
-src/assets/sounds/default/  # Optional cue pack (mp3); playback not wired
-shared/types/               # Exercise, Session, Character, Progress, Settings, Events, Persistence
-shared/domain/              # Pure rules: picker, character progress, character frames, severity, session extras, weight
-shared/validation/          # isValidExercise
-shared/constants/           # stage keys / labels, exercise catalog
+src/assets/sounds/default/  # Default cue pack (mp3)
+shared/types/               # Exercise, Session, Character, Progress, Settings, Photo, Events, Persistence
+shared/domain/              # Pure rules: picker, character, severity, extras, weight, sounds, photos, AI, streak, stats
+shared/validation/          # Exercise + Session payload guards
+shared/constants/           # stage keys, exercise/equipment catalogs, themes, popup geometry
 ```
 
 ## Persistence (main-owned)
@@ -40,6 +46,11 @@ On disk under `.userdata/data/` (see [DEVELOPMENT.md](DEVELOPMENT.md)):
 | `progress.json` | `UserProgress` |
 | `sessions.json` | `Session[]` |
 | `weights.json` | `WeightEntry[]` (optional layer) |
+| `custom-exercises.json` | Approved AI exercises (optional layer) |
+| `photos.json` | Photo metadata (optional layer) |
+
+Photo **files** live outside `data/` in `.userdata/photos/`; `photos.json` only stores
+`{ id, fileName, mimeType, sizeBytes, createdAt, sessionId? }`.
 
 Envelope: `{ version: 1, data }`. Missing/corrupt → defaults. Writes are temp-file + rename.
 Settings files written before a field existed are merged with the current defaults on load (`normalizeSettings`), so new optional switches never break an existing profile.
@@ -55,9 +66,9 @@ Hydrate: `src/bootstrap/hydrate.ts` (called from `src/main.ts` before mount).
 timer / idle / manual (trigger-loop)  →  tray:set-state(standup)
                                       →  popup window (main holds the active session)
 renderer pulls session:get-current-popup → { sessionId, exercise }
-[Готово | Отложить | Пропустить]      →  session:result (+ optional reps / feeling / weight)
-                                      →  append session JSON (+ streak bump and character recompute on done;
-                                         a done weight also lands in weights.json)
+[Готово | Отложить | Пропустить]      →  session:result (+ optional reps / feeling / weight / photoIds)
+                                      →  append session JSON (+ day-based streak and character recompute on done;
+                                         a done weight lands in weights.json; photo ids must exist in main)
                                       →  data:updated + session:updated + session:loop-changed
                                       →  tray success/soon/idle, next trigger rescheduled
 popup closed without an answer        →  skipped
@@ -136,6 +147,89 @@ The block is **off by default**. «Детали в попапе» on the dashboa
 
 The layer is **off by default** (`settings.weight.enabled`). «Вес» on the dashboard turns it on and reveals `WeightCard` with the current value, a sparkline, a manual entry form, a goal input and the last five measurements (deletable). A target outside the range is ignored, `null` clears it. Nothing in the core cycle reads weight history.
 
+### Streak
+
+`shared/domain/streak.ts` — day-based, not a raw session counter.
+
+| Rule | Behaviour |
+|------|-----------|
+| Current | Consecutive calendar days with ≥1 `done`; may end today or yesterday, otherwise 0 |
+| Max | Longest consecutive run in the whole history, never lowered |
+| Ignored | `skipped` / `snoozed` / `missed`, duplicate sessions on the same day |
+
+Main recomputes it together with the character on every `done`; `progress.json` stores the result.
+
+### Dashboard stats
+
+`shared/domain/stats.ts` — pure aggregation, no Vue and no persistence.
+
+| Function | Output |
+|----------|--------|
+| `buildHeatmap` | Last N local days (default 91), per-status counts, 0–3 intensity, Monday-first weeks with `null` padding |
+| `summarizeStats` | Done/skipped/snoozed/missed totals, active days, done in the last 7 days, average per active day, zone shares, group counts, top 5 exercises |
+
+`CalendarHeatmap` and `StatsPanel` render these (heatmap, seven-day bars, zone shares, top list); unknown exercise ids fall back to the raw id.
+
+### Sounds
+
+`shared/domain/sounds.ts` + `src/sounds.ts` — optional layer, off by default.
+
+| Rule | Behaviour |
+|------|-----------|
+| Settings | `sound { enabled, volume 0..1, packId }`, normalized on load; unknown pack → `default` |
+| Gate | Master switch, audible volume, paused reminders and quiet/DND context suppress playback |
+| Cues | `popup`, `done`, `skip`, `snooze`, `stage-up`, `streak`, `alert`, `error` map to bundled mp3 files |
+| Popup | Plays `popup` on mount; result cue on submit; a done session that raises the stage plays `stage-up` instead of `done` |
+| Failure | A rejected `audio.play()` is logged and swallowed; audio never breaks the core cycle |
+
+Stage-up is automatic; `streak` has a file and a debug preview but no automatic milestone trigger yet.
+
+### Progress photos
+
+`shared/domain/photos.ts`, `electron/main/photos.ts`, `electron/main/photo-protocol.ts`.
+
+| Rule | Behaviour |
+|------|-----------|
+| Input | Renderer sends bytes + MIME; JPEG/PNG/WebP only, 1 byte–8 MB |
+| Storage | Main writes `.userdata/photos/<uuid>.<ext>` + `data/photos.json`; renderer only sees metadata |
+| Serving | `photo://<id>` resolves only ids present in metadata; unknown → 404 |
+| Session | At most 6 `photoIds`; main drops ids that do not exist before writing the session |
+| UI | Popup attaches/removes photos inside the optional details block; dashboard shows a gallery with delete |
+
+The layer is off by default (`settings.photos.enabled`). `photoIds` are only carried by `done` sessions.
+
+### AI proposals
+
+`shared/domain/ai-proposal.ts`, `electron/main/custom-exercises.ts`.
+
+| Rule | Behaviour |
+|------|-----------|
+| Input | User pastes an AI answer; JSON may sit inside prose or a markdown fence |
+| Validation | The object must pass `isValidExercise` (required fields, difficulty, group, focus tags) |
+| Approval | Nothing is written until «Утвердить»; a shipped or already-approved id cannot be replaced |
+| Storage | `data/custom-exercises.json`; shipped catalog wins on id conflicts |
+| Picker | Main merges shipped + approved exercises for every trigger |
+| No AI | The layer is off by default and the app works without it; no network call is made |
+
+### Themes and inventory
+
+| Layer | Rules |
+|-------|-------|
+| Themes | `shared/constants/themes.ts`; `<html data-theme>` swaps Tailwind color tokens in `src/styles/index.css`; unknown id → `default` |
+| Inventory | `shared/constants/equipment.ts` lists bag / punching bag / band / dumbbells; owned ids gate equipment exercises in the picker |
+
+### Debug panel
+
+`src/debug/` + `electron/main/ipc/debug.ts` — dev-only, hidden when `app.isPackaged`.
+
+| Part | Behaviour |
+|------|-----------|
+| `isDebugEnabled` | Vite dev build or `VITE_DEBUG_PANEL=1`; the dashboard tab only appears then |
+| State view | Stage, branch, active emotion, active Focus, next pick, recent sessions |
+| Quick actions | Trigger popup, simulate each result, reset history, force stage/branch/build (via `data:save-progress`), force emotion, preview every cue |
+| Scenarios | `steady-week`, `many-skips`, `upper-body`, `frequent-snooze`, `forced-stage-up`, `inventory-emphasis` |
+| Safety | `debug:apply-scenario` re-validates sessions/settings, recomputes the character, writes through the normal JSON files, then broadcasts |
+
 ### Character progress
 
 `shared/domain/character-progress.ts`, recomputed in main on every `done` and stored in `progress.json`.
@@ -146,7 +240,7 @@ The layer is **off by default** (`settings.weight.enabled`). «Вес» on the d
 | Branch | Last 30 done sessions; each scores one point for its primary direction |
 | Direction order | Posture zone (neck / shoulders / upper back / lower back) → strength / striking (`power`) → mobility / balance (`mobility`) |
 | Neutral fallback | Fewer than 3 points for the leader, or the leader does not beat the runner-up by 20% |
-| Streak | `current` / `max` bumped on `done` in the same write |
+| Streak | Day-based `current` / `max` recomputed on `done` (see above) |
 
 `characterBuild` stays a user preference; visuals resolve from stage + branch + build + emotion.
 
@@ -195,6 +289,12 @@ Tray frames are generated by `scripts/build-tray-icons.py` (a placeholder stretc
 | `data:add-weight` | invoke | Append a manual measurement (`{ weightKg, at? }`), broadcast |
 | `data:remove-weight` | invoke | Delete a measurement by `{ id }`, broadcast |
 | `data:updated` | main → renderers | Snapshot after any write |
+| `photo:list` / `photo:add` / `photo:remove` | invoke | Photo metadata, byte upload (main validates + writes), delete |
+| `photos:updated` | main → renderers | Photo metadata after add/remove |
+| `exercise:list-custom` / `exercise:add-custom` / `exercise:remove-custom` | invoke | Approved AI exercises |
+| `exercise:updated` | main → renderers | Approved list after add/remove |
+| `debug:apply-scenario` | invoke | Dev-only: replace sessions/settings/progress with a validated scenario |
+| `window:open-dashboard` | invoke | Open / focus the dashboard |
 | `session:get-current-popup` | invoke | Active popup payload (`{ sessionId, exercise }` or `null`) |
 | `session:get-loop-state` | invoke | `{ paused, nextTriggerAt, intervalMinutes }` |
 | `session:loop-changed` | main → renderers | Same payload after every reschedule |
@@ -227,14 +327,17 @@ Preload: `electron/preload/index.ts`.
 | Dashboard: next reminder + pause + severity + motion + details switches | Yes |
 | Optional session details (reps / feeling / weight) | Yes — popup block + dashboard switch; ROADMAP #8 (partial) |
 | Weight history (sparkline, manual entries, goal) | Yes — dashboard card; sessions backfilled once; ROADMAP #8 (partial) |
-| Tailwind + stub views | Yes |
+| Tailwind + routed dashboard / popup views | Yes |
 | Desk Hulk source sheets + 33 cut frames under `src/assets/character/desk-hulk/` | Yes — [ROADMAP.md](ROADMAP.md) #6 |
 | CharacterPortrait (body / face frames + emoji fallback) | Yes |
 | Tray frame animation (pulse / sway / jump per state) | Yes — [ROADMAP.md](ROADMAP.md) #7 |
 | Motion preference (popup, character, tray) | Yes — dashboard switch + OS setting |
-| Default sound pack under `src/assets/sounds/default/` | Assets only |
-| Sound playback / mute / pack settings | Not yet — [SOUNDS.md](SOUNDS.md) |
-| Vitest suite / `src/debug/` panel | Suite yes; debug panel not yet — [TESTING.md](TESTING.md) |
+| Default sound pack + gated playback + mute/volume | Yes — [SOUNDS.md](SOUNDS.md) |
+| Progress photos (main files, popup attach, dashboard gallery) | Yes — ROADMAP #8 |
+| AI proposal validation + explicit approval + custom catalog | Yes — ROADMAP #8 |
+| Themes + inventory UI | Yes — ROADMAP #8 |
+| Dashboard heatmap + stats | Yes — ROADMAP #11 |
+| Vitest suite + dev-only debug panel | Yes — [TESTING.md](TESTING.md) |
 
 ## Where rules live
 
@@ -254,6 +357,13 @@ Preload: `electron/preload/index.ts`.
 | Tray frames per state | [electron/main/tray-icons.ts](../electron/main/tray-icons.ts) |
 | Character presentation | `src/components/character/` + `src/assets/character/` |
 | Sound cues / packs | [SOUNDS.md](SOUNDS.md) + `src/assets/sounds/` |
+| Sound settings + playback gate | `shared/domain/sounds.ts` + `src/sounds.ts` |
+| Progress photos (types, limits, file naming) | `shared/domain/photos.ts` |
+| AI proposal parsing / approval / merge | `shared/domain/ai-proposal.ts` |
+| Streak (day-based current / max) | `shared/domain/streak.ts` |
+| Dashboard heatmap / stats | `shared/domain/stats.ts` |
+| Theme ids + token overrides | `shared/constants/themes.ts` + `src/styles/index.css` |
+| Equipment catalog | `shared/constants/equipment.ts` |
 | Tests + debug panel | [TESTING.md](TESTING.md) |
 | IPC schema | `shared/types/events.ts` + `electron/main/ipc/` |
 | JSON persistence | `electron/main/persistence/` |
@@ -265,4 +375,7 @@ Preload: `electron/preload/index.ts`.
 2. Optional fields stay optional; core does not depend on AI/photos/sounds.
 3. Character progress from data; PNGs and sound packs are presentation only.
 4. External Exercise payloads must pass validation before entering the catalog.
-5. Durable state is owned by main; Pinia is a per-window projection.
+5. Approved AI exercises never overwrite shipped ids and require explicit confirmation.
+6. Photos are main-owned files; renderers get metadata and a `photo://` URL only.
+7. Optional layers fail closed: bad sound settings, photo bytes or proposals are dropped, not clamped into the core.
+8. Durable state is owned by main; Pinia is a per-window projection.

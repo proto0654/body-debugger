@@ -47,15 +47,25 @@ src/assets/sounds/
   silent/            # optional near-silent stubs (future)
 ```
 
-Settings (when wired): enabled flag + volume + selected pack id. See [ARCHITECTURE.md](ARCHITECTURE.md) / `shared/types/settings.ts` — sound fields are not in `AppSettings` yet.
+Settings live in `AppSettings.sound` (`shared/types/settings.ts`): `{ enabled, volume, packId }`.
+Defaults: off, volume `0.4`, pack `default`; an older settings file gets the block filled by
+`normalizeSettings`. See [ARCHITECTURE.md](ARCHITECTURE.md#sounds).
 
-## Implementation notes (planned)
+## Implementation
 
-- Prefer Web Audio API or lightweight `Audio` elements in the renderer
-- Preload the default pack on app / popup start
-- Swap packs by path / import map; keep event keys stable
-- Debug panel: play-each-cue buttons — see [TESTING.md](TESTING.md)
+- Renderer player: `src/sounds.ts` (`createSoundPlayer` + `useSoundPlayer`), lightweight `Audio` elements.
+- Pack URLs are imported through Vite (`?url`), so the default pack ships with the renderer bundle.
+- The player preloads the pack on popup start and logs+swallows an autoplay rejection.
+- Playback is gated by the master switch, volume > 0, `settings.paused` and a `quiet` context
+  (DND/call). The app does not detect OS DND yet; the gate is ready for it.
+- Event → cue map: `shared/domain/sounds.ts`; `missed` has no cue.
+- Popup: `popup` on mount, `done` / `skip` / `snooze` on submit, `stage-up` when a done session
+  raises the character stage.
+- Debug panel: every cue has a preview button that ignores the master switch — see [TESTING.md](TESTING.md).
+- `streak` has a bundled file and a preview button; no automatic milestone trigger yet.
+- Theme packs are future work: keep cue keys stable and swap the URL map by `packId`.
 
 ## Status
 
-Assets for the **default** pack are in-repo. Playback, settings fields, and theme packs are **not** implemented yet (roadmap optional layer).
+Default pack, settings, playback, gating and popup cues are **implemented**. Automatic `streak`
+milestones and theme sound packs are **not** wired yet.

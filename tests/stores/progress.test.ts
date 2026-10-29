@@ -44,17 +44,9 @@ describe('progress store', () => {
     })
   })
 
-  it('bumps the current streak and keep the max in sync', () => {
-    const store = useProgressStore()
-    store.hydrate(progress({ streak: { current: 4, max: 4 } }))
-    store.bumpStreak()
-    expect(store.streak).toEqual({ current: 5, max: 5 })
-  })
-
-  it('does not lower the max streak when the current one resets', () => {
+  it('keeps hydrated streak totals intact', () => {
     const store = useProgressStore()
     store.hydrate(progress({ streak: { current: 7, max: 9 } }))
-    store.resetStreak()
-    expect(store.streak).toEqual({ current: 0, max: 9 })
+    expect(store.streak).toEqual({ current: 7, max: 9 })
   })
 })

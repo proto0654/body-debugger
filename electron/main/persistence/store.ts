@@ -5,6 +5,9 @@ import type { Session } from '../../../shared/types/session'
 import type { WeightEntry } from '../../../shared/types/weight'
 import type { DataSnapshot } from '../../../shared/types/persistence'
 import { computeCharacterProgress } from '../../../shared/domain/character-progress'
+import { computeStreak } from '../../../shared/domain/streak'
+import { cloneSettings as copySettings } from '../../../shared/domain/settings'
+import { sanitizeSessions } from '../../../shared/validation/session'
 import {
   mergeSessionWeights,
   normalizeWeightEntry,
@@ -16,6 +19,7 @@ import {
   defaultSessions,
   defaultSettings,
   defaultWeights,
+  normalizeProgress,
   normalizeSettings
 } from './defaults'
 import { readJsonEnvelope, writeJsonEnvelope } from './json-file'
@@ -37,26 +41,7 @@ const state: PersistenceState = {
   loaded: false
 }
 
-function cloneSettings(settings: AppSettings): AppSettings {
-  return {
-    ...settings,
-    focus: {
-      primary: settings.focus.primary,
-      accents: [...settings.focus.accents]
-    },
-    inventory: {
-      enabled: settings.inventory.enabled,
-      items: [...settings.inventory.items]
-    },
-    sessionExtras: {
-      enabled: settings.sessionExtras.enabled
-    },
-    weight: {
-      enabled: settings.weight.enabled,
-      targetKg: settings.weight.targetKg
-    }
-  }
-}
+const cloneSettings = copySettings
 
 function cloneProgress(progress: UserProgress): UserProgress {
   return {
@@ -100,8 +85,8 @@ function writeWeights(): void {
 
 export function loadPersistence(): DataSnapshot {
   state.settings = normalizeSettings(readJsonEnvelope<Partial<AppSettings>>(getSettingsPath()))
-  state.progress = readJsonEnvelope<UserProgress>(getProgressPath()) ?? defaultProgress()
-  state.sessions = readJsonEnvelope<Session[]>(getSessionsPath()) ?? defaultSessions()
+  state.progress = normalizeProgress(readJsonEnvelope<UserProgress>(getProgressPath()))
+  state.sessions = sanitizeSessions(readJsonEnvelope<Session[]>(getSessionsPath()))
 
   const storedWeights = sanitizeStoredWeights(
     readJsonEnvelope<WeightEntry[]>(getWeightsPath())
@@ -124,13 +109,15 @@ export function getSnapshot(): DataSnapshot {
 }
 
 export function updateSettings(next: AppSettings): DataSnapshot {
-  state.settings = cloneSettings(next)
+  // IPC payload: re-normalize so an older renderer or a hand-edited value cannot
+  // write an invalid switch / theme / sound block.
+  state.settings = cloneSettings(normalizeSettings(next))
   writeJsonEnvelope(getSettingsPath(), state.settings)
   return getSnapshot()
 }
 
 export function updateProgress(next: UserProgress): DataSnapshot {
-  state.progress = cloneProgress(next)
+  state.progress = cloneProgress(normalizeProgress(next))
   writeJsonEnvelope(getProgressPath(), state.progress)
   return getSnapshot()
 }
@@ -203,20 +190,49 @@ function clearSessionWeight(sessionId: string): boolean {
 }
 
 
-/** Streak bump + character stage/branch recompute, written together on `done`. */
+/** Streak + character stage/branch recompute, written together on `done`. */
 export function applyDoneSession(): DataSnapshot {
   const character = computeCharacterProgress(state.sessions)
-  const current = state.progress.streak.current + 1
+  const streak = computeStreak(state.sessions)
 
   state.progress = {
     ...cloneProgress(state.progress),
     streak: {
-      current,
-      max: Math.max(state.progress.streak.max, current)
+      current: streak.current,
+      max: Math.max(state.progress.streak.max, streak.max)
     },
     characterStage: character.stage,
     characterBranch: character.branch
   }
+  writeJsonEnvelope(getProgressPath(), state.progress)
+  return getSnapshot()
+}
+
+/**
+ * Debug-only replacement of history + settings (docs/TESTING.md). Sessions are
+ * re-validated and the character is recomputed so a hand-written scenario can
+ * never leave inconsistent progress behind.
+ */
+export function applyDebugState(input: {
+  sessions: unknown
+  settings: Partial<AppSettings> | null | undefined
+  progress: Partial<UserProgress> | null | undefined
+}): DataSnapshot {
+  const sessions = sanitizeSessions(input.sessions)
+  const settings = normalizeSettings(input.settings)
+  const normalized = normalizeProgress(input.progress)
+  const character = computeCharacterProgress(sessions)
+
+  state.sessions = sessions
+  state.settings = cloneSettings(settings)
+  state.progress = {
+    ...cloneProgress(normalized),
+    characterStage: character.stage,
+    characterBranch: character.branch
+  }
+
+  writeJsonEnvelope(getSessionsPath(), state.sessions)
+  writeJsonEnvelope(getSettingsPath(), state.settings)
   writeJsonEnvelope(getProgressPath(), state.progress)
   return getSnapshot()
 }

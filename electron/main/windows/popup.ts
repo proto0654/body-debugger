@@ -29,9 +29,9 @@ export function createPopupWindow(): BrowserWindow {
   const { width: sw, height: sh } = display.workArea
   const width = POPUP_WIDTH
   // Reserve room for the collapsed details row so the popup does not jump.
-  const height = getSettings().sessionExtras.enabled
-    ? POPUP_EXTRAS_COLLAPSED_HEIGHT
-    : POPUP_BASE_HEIGHT
+  const settings = getSettings()
+  const hasDetails = settings.sessionExtras.enabled || settings.photos.enabled
+  const height = hasDetails ? POPUP_EXTRAS_COLLAPSED_HEIGHT : POPUP_BASE_HEIGHT
 
   popupWindow = new BrowserWindow({
     width,

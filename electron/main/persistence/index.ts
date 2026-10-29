@@ -7,6 +7,7 @@ export {
   applyDoneSession,
   addWeightEntry,
   removeWeightEntry,
+  applyDebugState,
   getSettings,
   getProgress
 } from './store'

@@ -94,6 +94,81 @@ describe('settings store', () => {
     expect(saveSettings.mock.calls[0][0]).toMatchObject({ sessionExtras: { enabled: true } })
   })
 
+  it('persists the AI proposal switch', async () => {
+    const settings = useSettingsStore()
+
+    await settings.setAiEnabled(true)
+
+    expect(settings.ai.enabled).toBe(true)
+    expect(saveSettings.mock.calls[0][0]).toMatchObject({ ai: { enabled: true } })
+  })
+
+  it('persists the photo layer switch', async () => {
+    const settings = useSettingsStore()
+
+    await settings.setPhotosEnabled(true)
+
+    expect(settings.photos.enabled).toBe(true)
+    expect(saveSettings.mock.calls[0][0]).toMatchObject({ photos: { enabled: true } })
+  })
+
+  it('persists a theme change and ignores an unknown theme', async () => {
+    const settings = useSettingsStore()
+
+    await settings.setTheme('night')
+    expect(settings.themeId).toBe('night')
+    expect(saveSettings.mock.calls[0][0]).toMatchObject({ themeId: 'night' })
+
+    await settings.setTheme('rave')
+    expect(settings.themeId).toBe('night')
+    expect(saveSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists the inventory switch and toggles owned items', async () => {
+    const settings = useSettingsStore()
+
+    await settings.setInventoryEnabled(true)
+    await settings.toggleInventoryItem('bag-50')
+
+    expect(settings.inventory).toEqual({ enabled: true, items: ['bag-50'] })
+    expect(saveSettings.mock.calls[0][0]).toMatchObject({ inventory: { enabled: true } })
+    expect(saveSettings.mock.calls[1][0]).toMatchObject({ inventory: { items: ['bag-50'] } })
+
+    await settings.toggleInventoryItem('bag-50')
+    expect(settings.inventory).toEqual({ enabled: true, items: [] })
+  })
+
+  it('ignores an unknown inventory item', async () => {
+    const settings = useSettingsStore()
+
+    await settings.toggleInventoryItem('treadmill')
+
+    expect(settings.inventory.items).toEqual([])
+    expect(saveSettings).not.toHaveBeenCalled()
+  })
+
+  it('persists the sound layer switch, volume and pack', async () => {
+    const settings = useSettingsStore()
+
+    await settings.setSoundEnabled(true)
+    await settings.setSoundVolume(0.35)
+
+    expect(settings.sound).toEqual({ enabled: true, volume: 0.35, packId: 'default' })
+    expect(saveSettings.mock.calls[0][0]).toMatchObject({ sound: { enabled: true } })
+    expect(saveSettings.mock.calls[1][0]).toMatchObject({ sound: { volume: 0.35 } })
+  })
+
+  it('clamps the sound volume and ignores an unknown pack', async () => {
+    const settings = useSettingsStore()
+
+    await settings.setSoundVolume(2)
+    expect(settings.sound.volume).toBe(1)
+
+    await settings.setSoundPack('rave')
+    expect(settings.sound.packId).toBe('default')
+    expect(saveSettings).toHaveBeenCalledTimes(1)
+  })
+
   it('persists the weight layer switch and goal', async () => {
     const settings = useSettingsStore()
 

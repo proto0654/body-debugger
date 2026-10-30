@@ -132,13 +132,19 @@ async function trigger(): Promise<void> {
 
 async function simulate(status: SessionStatus): Promise<void> {
   const exercise = nextPick.value
-  await window.api?.sessionResult({
-    sessionId: crypto.randomUUID(),
-    exerciseId: exercise.id,
-    status,
-    durationSec: exercise.durationSec
-  })
-  statusMessage.value = `Симуляция: ${statusLabels[status]} · ${exercise.title}`
+  const at = now.value.toISOString()
+  await send({
+    sessions: [...sessions.history, {
+      id: crypto.randomUUID(),
+      exerciseId: exercise.id,
+      status,
+      durationSec: exercise.durationSec,
+      triggeredAt: at,
+      completedAt: at
+    }],
+    settings: settings.asSettings(),
+    progress: progress.asUserProgress()
+  }, `Симуляция: ${statusLabels[status]} · ${exercise.title}`)
 }
 
 function playCue(cue: SoundCue): void {

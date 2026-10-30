@@ -59,7 +59,7 @@ Defaults: off, volume `0.4`, pack `default`; an older settings file gets the blo
 - Playback is gated by the master switch, volume > 0, `settings.paused` and a `quiet` context
   (DND/call). The app does not detect OS DND yet; the gate is ready for it.
 - Event → cue map: `shared/domain/sounds.ts`; `missed` has no cue.
-- Popup: `popup` on mount, `done` / `skip` / `snooze` on submit, `stage-up` when a done session
+- Popup: `popup` on mount, `done` / `skip` / `snooze` after a durable result acknowledgement, `stage-up` when a done session
   raises the character stage.
 - Debug panel: every cue has a preview button that ignores the master switch — see [TESTING.md](TESTING.md).
 - `streak` has a bundled file and a preview button; no automatic milestone trigger yet.

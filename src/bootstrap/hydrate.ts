@@ -27,10 +27,7 @@ export async function hydrateFromMain(): Promise<() => void> {
   reminder.apply(await api.getLoopState())
 
   const photos = usePhotosStore()
-  await photos.refresh()
-
   const customExercises = useCustomExercisesStore()
-  await customExercises.refresh()
 
   const unsubscribers = [
     api.onDataUpdated((next) => applySnapshot(next)),
@@ -39,6 +36,12 @@ export async function hydrateFromMain(): Promise<() => void> {
     api.onExercisesUpdated?.((next) => customExercises.hydrate(next.exercises)) ??
       (() => undefined)
   ]
+
+  // These layers may fail or remain pending without delaying the core renderer.
+  const optionalLoads = [['photos', photos.refresh()], ['exercises', customExercises.refresh()]] as const
+  for (const [layer, request] of optionalLoads) {
+    void request.catch((cause) => console.warn(`[hydrate] optional ${layer} unavailable`, cause))
+  }
 
   return () => {
     for (const unsubscribe of unsubscribers) unsubscribe()

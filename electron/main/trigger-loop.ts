@@ -10,6 +10,7 @@ import {
   type SessionLoopStatePayload,
   type SessionPopupPayload,
   type SessionResultPayload,
+  type SessionResultResponse,
   type SessionTriggerPayload,
   type SessionTriggerReason,
   type TrayState
@@ -136,14 +137,11 @@ function completeSession(
   origin: SessionOrigin,
   status: SessionStatus,
   extras: SessionCompletionExtras = {}
-): void {
-  if (awaiting?.sessionId === origin.sessionId) {
-    clearTimeout(awaiting.timeout)
-    awaiting = null
-  }
-
+): SessionResultResponse {
   // Photos must already exist in the main store; stale or forged ids are dropped.
-  const photoIds = normalizePhotoIds(extras.photoIds).filter((id) => getPhoto(id) !== null)
+  const photoIds = status === 'done'
+    ? normalizePhotoIds(extras.photoIds).filter((id) => getPhoto(id) !== null)
+    : []
   const session: Session = {
     id: origin.sessionId,
     exerciseId: origin.exerciseId,
@@ -152,19 +150,27 @@ function completeSession(
     triggeredAt: origin.triggeredAt,
     completedAt: new Date().toISOString(),
     // Untrusted renderer input: only in-range details are stored.
-    ...normalizeSessionExtras(extras),
+    ...(status === 'done' ? normalizeSessionExtras(extras) : {}),
     ...(photoIds.length > 0 ? { photoIds } : {})
   }
-  if (extras.skipReason) session.skipReason = extras.skipReason
+  if (typeof extras.skipReason === 'string') session.skipReason = extras.skipReason.slice(0, 500)
 
   try {
     appendSession(session)
-    if (status === 'done') applyDoneSession()
-    notifyDataUpdated()
   } catch (error) {
-    // Keep the reminder cycle alive even if the disk write fails.
     console.error('[trigger-loop] failed to persist session', error)
+    return { saved: false }
   }
+  if (awaiting?.sessionId === origin.sessionId) {
+    clearTimeout(awaiting.timeout)
+    awaiting = null
+  }
+  try {
+    if (status === 'done') applyDoneSession()
+  } catch (error) {
+    console.error('[trigger-loop] session saved; progress write failed', error)
+  }
+  notifyDataUpdated()
 
   const trayState = trayStateFor(status)
   setTrayState(trayState)
@@ -182,6 +188,7 @@ function completeSession(
   else nextTriggerAt = now + intervalMs()
 
   publishLoopState()
+  return { saved: true }
 }
 
 function originOfAwaiting(current: AwaitingResult): SessionOrigin {
@@ -198,34 +205,21 @@ function validDuration(value: unknown): number | undefined {
 }
 
 /** Renderer reported a result — the canonical write happens here. */
-export function handleSessionResult(payload: SessionResultPayload): void {
+export function handleSessionResult(payload: SessionResultPayload): SessionResultResponse {
   // Untrusted IPC: never write an unknown status or a session without identity.
   if (!payload || !SESSION_STATUSES.includes(payload.status)) {
     console.warn('[session:result] unknown status', payload?.status)
-    return
+    return { saved: false }
   }
-  if (!awaiting && (!payload.sessionId || !payload.exerciseId)) {
-    console.warn('[session:result] missing session identity')
-    return
+  const stored = getSnapshot().sessions.find((session) => session.id === payload.sessionId)
+  if (stored) {
+    return { saved: stored.exerciseId === payload.exerciseId && stored.status === payload.status }
   }
-
-  if (awaiting && awaiting.sessionId !== payload.sessionId) {
-    console.warn('[session:result] session id mismatch', {
-      expected: awaiting.sessionId,
-      received: payload.sessionId
-    })
+  if (!awaiting || awaiting.sessionId !== payload.sessionId || awaiting.exercise.id !== payload.exerciseId) {
+    console.warn('[session:result] no matching active session')
+    return { saved: false }
   }
-
-  const origin: SessionOrigin = awaiting
-    ? originOfAwaiting(awaiting)
-    : {
-        sessionId: payload.sessionId,
-        exerciseId: payload.exerciseId,
-        triggeredAt: new Date().toISOString(),
-        durationSec: payload.durationSec ?? 0
-      }
-
-  completeSession(origin, payload.status, {
+  return completeSession(originOfAwaiting(awaiting), payload.status, {
     durationSec: validDuration(payload.durationSec),
     skipReason: payload.skipReason,
     reps: payload.reps,
@@ -282,7 +276,7 @@ function trigger(reason: SessionTriggerReason): void {
 
 /** Manual trigger from the tray or the dashboard; works while paused. */
 export function triggerNow(reason: SessionTriggerReason = 'manual'): void {
-  if (awaiting) {
+  if (awaiting || getPopupWindow()) {
     getPopupWindow()?.focus()
     return
   }
@@ -290,7 +284,7 @@ export function triggerNow(reason: SessionTriggerReason = 'manual'): void {
 }
 
 function tick(): void {
-  if (!started || paused || awaiting || nextTriggerAt === null) return
+  if (!started || paused || awaiting || getPopupWindow() || nextTriggerAt === null) return
 
   const now = Date.now()
   const idleSec = powerMonitor.getSystemIdleTime()

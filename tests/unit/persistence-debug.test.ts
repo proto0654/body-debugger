@@ -41,9 +41,12 @@ function doneSession(id: string): Session {
 
 beforeEach(() => {
   holder.dir = mkdtempSync(join(tmpdir(), 'body-debugger-debug-'))
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-10-30T12:00:00.000Z'))
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   rmSync(holder.dir, { recursive: true, force: true })
 })
 
@@ -62,7 +65,7 @@ describe('store — debug scenario apply', () => {
     expect(snapshot.settings.themeId).toBe('default')
     expect(snapshot.progress.characterStage).toBe(1)
     expect(snapshot.progress.characterBranch).toBe('posture')
-    expect(snapshot.progress.streak).toEqual({ current: 5, max: 9 })
+    expect(snapshot.progress.streak).toEqual({ current: 1, max: 9 })
     expect(snapshot.progress.characterBuild).toBe('lean')
 
     expect(readJsonEnvelope<Session[]>(dataPath('sessions.json'))).toHaveLength(3)

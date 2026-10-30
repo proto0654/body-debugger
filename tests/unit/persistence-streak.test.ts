@@ -45,6 +45,15 @@ afterEach(() => {
 })
 
 describe('store — streak', () => {
+  it('expires the current streak when history is read after a gap', async () => {
+    const store = await loadStore()
+    store.appendSession(done(0, 'today'))
+    store.applyDoneSession()
+    vi.setSystemTime(new Date(2026, 10, 2, 12))
+
+    expect(store.getSnapshot().progress.streak).toEqual({ current: 0, max: 1 })
+  })
+
   it('counts unique consecutive days on done, not raw sessions', async () => {
     const store = await loadStore()
     store.appendSession(done(0, 'a'))

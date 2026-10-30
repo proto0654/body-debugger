@@ -58,7 +58,7 @@ Settings files written before a field existed are merged with the current defaul
 
 Module: `electron/main/persistence/`.  
 IPC: `electron/main/ipc/persistence.ts`.  
-Hydrate: `src/bootstrap/hydrate.ts` (called from `src/main.ts` before mount).
+Hydrate: `src/bootstrap/hydrate.ts` loads the core snapshot and subscribes before mount. Optional photos/exercises load in the background with independent error handling.
 
 ## Session cycle (events)
 
@@ -66,14 +66,19 @@ Hydrate: `src/bootstrap/hydrate.ts` (called from `src/main.ts` before mount).
 timer / idle / manual (trigger-loop)  →  tray:set-state(standup)
                                       →  popup window (main holds the active session)
 renderer pulls session:get-current-popup → { sessionId, exercise }
-[Готово | Отложить | Пропустить]      →  session:result (+ optional reps / feeling / weight / photoIds)
+[Начать] → local countdown; [Готово | Отложить | Пропустить] →  session:result (+ optional reps / feeling / weight / photoIds)
                                       →  append session JSON (+ day-based streak and character recompute on done;
                                          a done weight lands in weights.json; photo ids must exist in main)
                                       →  data:updated + session:updated + session:loop-changed
                                       →  tray success/soon/idle, next trigger rescheduled
+session:result acknowledgement         →  { saved: boolean }, then success feedback and close
 popup closed without an answer        →  skipped
 no answer for 5 minutes               →  missed (popup closed by main)
 ```
+
+Main accepts only the active session's matching session/exercise identity. Replaying the same stored result returns `{ saved: true }` without appending, rewarding or rescheduling again; a conflicting replay returns false. A failed session write leaves the active session retryable and never emits success. Optional weight/progress write failures are logged separately after the session is durable. A popup still showing its saved confirmation prevents opening another session in that window.
+
+The persisted JSON schema stays at version 1: no migration is needed. Character stage/branch are recovered from sessions on load, even if a progress checkpoint previously failed. Reverting this code does not require rewriting the profile; rollback preserves `sessions.json`, with derived progress recalculated by the current code.
 
 ### Trigger loop
 
@@ -117,20 +122,22 @@ Skipped / snoozed / missed sessions never count as training. Difficulty and
 | Build | `progress.characterBuild` (`lean` / `average` / `stocky`); presentation only, `neutral` means "not chosen" |
 | Storage | Interval, mode and Focus live in `settings.json`; build lives in `progress.json` |
 
-`#/dashboard?tab=settings` opens the tab directly (used by reloads and ready for a tray deep link; the tray «Настройки» item is still disabled).
+`#/dashboard?tab=settings` opens the tab directly. The tray «Настройки» item opens it in a new dashboard or sends `window:navigate-dashboard` to an existing window without reloading the renderer.
+
+`ComfortSettingsPanel.vue` owns severity, themes, reduced motion and optional switches; AI imports appear there. «Сегодня» contains the character hero, day counts, live streak and `characterJourney` (the same thresholds used by character progression), plus enabled weight/photo cards. Stage changes and completed breaks trigger a brief non-blocking banner. The Electron application menu is hidden by default. The dashboard height is capped at 900 px and the available work area minus 80 px; shorter screens keep normal scrolling.
 
 ### Popup severity
 
-`shared/domain/severity.ts` — rules only; the popup enforces them, main records any result.
+`shared/domain/severity.ts` — rules only; the popup enforces the timer/hold; main validates session identity and durable persistence. The timer is a self-report aid, not proof of physical activity.
 
 | Level | «Готово» |
 |-------|----------|
-| `soft` | enabled immediately, timer is only a hint |
+| `soft` | enabled immediately after «Начать», timer is only a hint |
 | `medium` (default) | unlocks at 80% of the exercise timer |
 | `hardcore` | same unlock + press-and-hold for 1.5 s |
 
 The popup shows a countdown (`mm:ss`), a progress bar and a one-line hint for the
-current level. Closing the popup without an answer is `skipped` at every level.
+current level. It stays at full duration until «Начать». Keyboard hold uses Space/Enter, ignores repeat keydowns and cancels on blur/release. A saved done result remains readable for 1000 ms even with reduced motion; skip/snooze exit quietly. A failed save shows a retryable error without optimistic history or a reward. Closing the popup without an answer is `skipped` at every level.
 Extra hardcore checks (CONCEPT §3) are not implemented yet.
 
 ### Optional session details
@@ -143,7 +150,7 @@ Extra hardcore checks (CONCEPT §3) are not implemented yet.
 | `feeling` | 1–5 | five chips |
 | `weightKg` | 20–300, one decimal | number (step 0.1) |
 
-The block is **off by default**. «Детали в попапе» on the dashboard sets `settings.sessionExtras.enabled`; the popup then shows a collapsed «Детали (необязательно)» row. Values outside the ranges are dropped, never clamped, and a result still resolves without details. Details are stored only for `done` sessions — snooze / skip / miss never carry them. Expanding the block grows the popup via `window:resize-popup` (heights in `shared/constants/popup.ts`) while the window stays anchored to the bottom-right corner. Saved values appear on the dashboard as a short «Последняя сессия» line.
+The block is **off by default**. «Детали в попапе» on «Настройки» sets `settings.sessionExtras.enabled`; the popup then shows a collapsed «Детали (необязательно)» row. Values outside the ranges are dropped, never clamped, and a result still resolves without details. Details are stored only for `done` sessions — snooze / skip / miss never carry them. Expanding the block grows the popup via `window:resize-popup` (heights in `shared/constants/popup.ts`) while the window stays anchored to the bottom-right corner. Values remain in session history; weight measurements also feed the optional weight card.
 
 ### Weight history
 
@@ -159,7 +166,7 @@ The block is **off by default**. «Детали в попапе» on the dashboa
 | Summary | Latest entry overall, change = latest − earliest inside the window, goal gap = latest − target |
 | Stored file | Re-validated on load; malformed entries are dropped |
 
-The layer is **off by default** (`settings.weight.enabled`). «Вес» on the dashboard turns it on and reveals `WeightCard` with the current value, a sparkline, a manual entry form, a goal input and the last five measurements (deletable). A target outside the range is ignored, `null` clears it. Nothing in the core cycle reads weight history.
+The layer is **off by default** (`settings.weight.enabled`). «История веса» on «Настройки» turns it on and reveals `WeightCard` with the current value, a sparkline, a manual entry form, a goal input and the last five measurements (deletable). A target outside the range is ignored, `null` clears it. Nothing in the core cycle reads weight history.
 
 ### Streak
 
@@ -171,7 +178,7 @@ The layer is **off by default** (`settings.weight.enabled`). «Вес» on the d
 | Max | Longest consecutive run in the whole history, never lowered |
 | Ignored | `skipped` / `snoozed` / `missed`, duplicate sessions on the same day |
 
-Main recomputes it together with the character on every `done`; `progress.json` stores the result.
+Main stores it on `done` and recomputes it when reading a snapshot; the historical maximum is preserved. The dashboard also recomputes from history every 30 seconds and on visibility changes, so midnight and long gaps work without another session.
 
 ### Dashboard stats
 
@@ -193,7 +200,7 @@ Main recomputes it together with the character on every `done`; `progress.json` 
 | Settings | `sound { enabled, volume 0..1, packId }`, normalized on load; unknown pack → `default` |
 | Gate | Master switch, audible volume, paused reminders and quiet/DND context suppress playback |
 | Cues | `popup`, `done`, `skip`, `snooze`, `stage-up`, `streak`, `alert`, `error` map to bundled mp3 files |
-| Popup | Plays `popup` on mount; result cue on submit; a done session that raises the stage plays `stage-up` instead of `done` |
+| Popup | Plays `popup` on mount; result cue after the durable acknowledgement; a done session that raises the stage plays `stage-up` instead of `done` |
 | Failure | A rejected `audio.play()` is logged and swallowed; audio never breaks the core cycle |
 
 Stage-up is automatic; `streak` has a file and a debug preview but no automatic milestone trigger yet.
@@ -276,7 +283,7 @@ Rules: `shared/domain/character-visual.ts` (pure). Frames: `src/assets/character
 | Stage tiers | Stages 0–1 → `stage-0`, 2–3 → `stage-2`, 4–5 → `stage-4` |
 | Branch pose | `power` / `mobility` replace the body from stage 4 (strong/peak form) |
 | Emotion | `emotion-*` busts feed the popup face; `surprised` uses the happy bust |
-| Fallback | exact build → `average` build → emoji |
+| Fallback | exact build → `average` build → emoji; an image load error also shows the emoji |
 
 `CharacterPortrait` renders `variant="body"` on the dashboard and `variant="face"` in the popup; `src/components/character/frames.ts` maps a winning key to the bundled URL. Source sheets stay in the repo as the only art source — never edit `frames/` by hand.
 
@@ -314,7 +321,8 @@ Tray frames are generated by `scripts/build-tray-icons.py` (a placeholder stretc
 | `session:get-current-popup` | invoke | Active popup payload (`{ sessionId, exercise }` or `null`) |
 | `session:get-loop-state` | invoke | `{ paused, nextTriggerAt, intervalMinutes }` |
 | `session:loop-changed` | main → renderers | Same payload after every reschedule |
-| `session:result` | invoke | Renderer reports done / snoozed / skipped, plus optional reps / feeling / weight |
+| `session:result` | invoke | Matching active result → `{ saved: boolean }`; exact retries are idempotent |
+| `window:navigate-dashboard` | main → renderer | Open «Настройки» in an existing dashboard |
 | `session:updated` | main → renderers | Resolved session + tray state |
 | `window:open-popup` / `window:close-popup` | invoke | Open / close the popup window |
 | `window:resize-popup` | invoke | Grow / shrink the popup for the optional details block |
@@ -340,8 +348,8 @@ Preload: `electron/preload/index.ts`.
 | Trigger loop (interval, idle, snooze, missed, pause) | Yes — [ROADMAP.md](ROADMAP.md) #2 |
 | Popup shows the triggered exercise (pulled from main) | Yes |
 | Popup severity (timer gate, hold to confirm) | Yes — [ROADMAP.md](ROADMAP.md) #5 |
-| Dashboard: next reminder + pause + severity + motion + details switches | Yes |
-| Core preferences (interval, picker mode, Focus, build) + «Настройки» tab | Yes — dashboard tab; tray entry still disabled |
+| Dashboard: character hero + day counts + next form; all switches on «Настройки» | Yes |
+| Core preferences (interval, picker mode, Focus, build) + «Настройки» tab | Yes — dashboard tab and tray deep link |
 | Optional session details (reps / feeling / weight) | Yes — popup block + dashboard switch; ROADMAP #8 (partial) |
 | Weight history (sparkline, manual entries, goal) | Yes — dashboard card; sessions backfilled once; ROADMAP #8 (partial) |
 | Tailwind + routed dashboard / popup views | Yes |

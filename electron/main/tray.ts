@@ -48,7 +48,7 @@ function buildContextMenu(): Menu {
     },
     {
       label: 'Настройки',
-      enabled: false
+      click: () => { createDashboardWindow('settings') }
     },
     { type: 'separator' },
     {

@@ -18,7 +18,7 @@ import type { ExercisePickerMode } from '@shared/types/settings'
 
 /**
  * Core preferences (CONCEPT.md §6–7): rhythm, picker mode, Focus and the
- * character build. Optional layers keep their switches on the «Сегодня» tab.
+ * character build. ComfortSettingsPanel owns the optional-layer switches.
  */
 const settings = useSettingsStore()
 const progress = useProgressStore()

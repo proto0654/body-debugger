@@ -19,6 +19,7 @@ import {
   type SessionLoopStatePayload,
   type SessionPopupPayload,
   type SessionResultPayload,
+  type SessionResultResponse,
   type TraySetStatePayload
 } from '../../shared/types/events'
 
@@ -28,8 +29,13 @@ const api = {
   closePopup: (): Promise<void> => ipcRenderer.invoke(IpcChannels.WindowClosePopup),
   resizePopup: (height: number): Promise<void> =>
     ipcRenderer.invoke(IpcChannels.WindowResizePopup, height),
-  sessionResult: (payload: SessionResultPayload): Promise<void> =>
+  sessionResult: (payload: SessionResultPayload): Promise<SessionResultResponse> =>
     ipcRenderer.invoke(IpcChannels.SessionResult, payload),
+  onNavigateDashboard: (handler: () => void): (() => void) => {
+    const listener = (): void => handler()
+    ipcRenderer.on(IpcChannels.WindowNavigateDashboard, listener)
+    return () => ipcRenderer.removeListener(IpcChannels.WindowNavigateDashboard, listener)
+  },
   getCurrentPopup: (): Promise<SessionPopupPayload | null> =>
     ipcRenderer.invoke(IpcChannels.SessionGetCurrentPopup),
   getLoopState: (): Promise<SessionLoopStatePayload> =>

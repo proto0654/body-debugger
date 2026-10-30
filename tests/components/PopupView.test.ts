@@ -31,7 +31,7 @@ const photoEntry = {
 }
 
 const api = {
-  sessionResult: vi.fn(async (_payload: SessionResultPayload) => undefined),
+  sessionResult: vi.fn(async (_payload: SessionResultPayload) => ({ saved: true })),
   closePopup: vi.fn(async () => undefined),
   resizePopup: vi.fn(async () => undefined),
   addPhoto: vi.fn(async () => photoEntry),
@@ -51,8 +51,9 @@ function findButton(wrapper: VueWrapper, label: string) {
   return button
 }
 
-function mountPopup(
+async function mountPopup(
   options: {
+    start?: boolean
     severity?: SeverityLevel
     reduceMotion?: boolean
     extras?: boolean
@@ -73,7 +74,9 @@ function mountPopup(
     makeExercise({ id: 'neck-circles', durationSec: 30 }),
     'session-1'
   )
-  return mount(PopupView, { global: { plugins: [pinia] } })
+  const popup = mount(PopupView, { global: { plugins: [pinia] } })
+  if (options.start !== false) await popup.get('[data-testid="start-exercise"]').trigger('click')
+  return popup
 }
 
 let wrapper: VueWrapper | null = null
@@ -98,8 +101,49 @@ afterEach(() => {
 })
 
 describe('PopupView — done flow', () => {
+  it('waits for an explicit start instead of consuming the timer on appearance', async () => {
+    wrapper = await mountPopup({ severity: 'medium', start: false })
+    vi.advanceTimersByTime(60_000)
+    await nextTick()
+    expect(wrapper.text()).toContain('00:30')
+    expect(wrapper.find('[data-testid="start-exercise"]').exists()).toBe(true)
+    expect(api.sessionResult).not.toHaveBeenCalled()
+
+    await wrapper.get('[data-testid="start-exercise"]').trigger('click')
+    vi.advanceTimersByTime(24_000)
+    await nextTick()
+    expect(findButton(wrapper, 'Готово').attributes('disabled')).toBeUndefined()
+  })
+
+  it('retains the session and offers a retry when saving fails', async () => {
+    wrapper = await mountPopup()
+    api.sessionResult.mockRejectedValueOnce(new Error('IPC unavailable'))
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+    expect(wrapper.get('[role="alert"]').text()).toContain('Не удалось сохранить')
+    expect(useSessionsStore().current?.id).toBe('session-1')
+    expect(useSessionsStore().history).toHaveLength(0)
+    expect(api.closePopup).not.toHaveBeenCalled()
+    expect(soundPlayer.play).not.toHaveBeenCalledWith('done')
+
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+    expect(wrapper.get('[role="status"]').text()).toContain('Разминка в зачёт')
+    expect(api.sessionResult).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not celebrate a rejected acknowledgement', async () => {
+    wrapper = await mountPopup()
+    api.sessionResult.mockResolvedValueOnce({ saved: false })
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+    expect(wrapper.find('[role="status"]').exists()).toBe(false)
+    expect(wrapper.get('[role="alert"]').text()).toContain('Не удалось сохранить')
+    expect(useSessionsStore().current?.id).toBe('session-1')
+  })
+
   it('reports the result, plays the exit animation and closes the window', async () => {
-    wrapper = mountPopup()
+    wrapper = await mountPopup()
     const done = findButton(wrapper, 'Готово')
 
     await done.trigger('click')
@@ -119,7 +163,7 @@ describe('PopupView — done flow', () => {
   })
 
   it('plays the stage-up cue when done unlocks a new stage', async () => {
-    wrapper = mountPopup()
+    wrapper = await mountPopup()
     useSessionsStore().hydrate([
       makeSession({ id: 'prior-1', exerciseId: 'neck-tilts', status: 'done' }),
       makeSession({ id: 'prior-2', exerciseId: 'neck-tilts', status: 'done' })
@@ -132,7 +176,7 @@ describe('PopupView — done flow', () => {
   })
 
   it('plays the plain done cue while the stage is unchanged', async () => {
-    wrapper = mountPopup()
+    wrapper = await mountPopup()
 
     await findButton(wrapper, 'Готово').trigger('click')
     await flushMicrotasks()
@@ -141,7 +185,7 @@ describe('PopupView — done flow', () => {
   })
 
   it('ignores a second click while the first one is in flight', async () => {
-    wrapper = mountPopup()
+    wrapper = await mountPopup()
     const done = findButton(wrapper, 'Готово')
 
     void done.trigger('click')
@@ -151,12 +195,16 @@ describe('PopupView — done flow', () => {
     expect(api.sessionResult).toHaveBeenCalledTimes(1)
   })
 
-  it('closes immediately when reduced motion is on', async () => {
-    wrapper = mountPopup({ reduceMotion: true })
+  it('keeps the saved confirmation readable with reduced motion', async () => {
+    wrapper = await mountPopup({ reduceMotion: true })
     await findButton(wrapper, 'Готово').trigger('click')
     await flushMicrotasks()
 
     expect(api.sessionResult).toHaveBeenCalledTimes(1)
+    expect(api.closePopup).not.toHaveBeenCalled()
+    expect(wrapper.get('[role="status"]').text()).toContain('Разминка в зачёт')
+    vi.advanceTimersByTime(POPUP_EXIT_MS.done)
+    await flushMicrotasks()
     expect(api.closePopup).toHaveBeenCalledTimes(1)
     expect(wrapper.classes()).not.toContain('popup-out-done')
     expect(wrapper.find('.popup-flash').exists()).toBe(false)
@@ -164,8 +212,21 @@ describe('PopupView — done flow', () => {
 })
 
 describe('PopupView — severity gate', () => {
+  it('supports a keyboard hold on hardcore and ignores repeated keydowns', async () => {
+    wrapper = await mountPopup({ severity: 'hardcore' })
+    vi.advanceTimersByTime(24_000)
+    await nextTick()
+    const done = findButton(wrapper, 'Готово')
+    await done.trigger('keydown', { key: ' ', code: 'Space', repeat: false })
+    vi.advanceTimersByTime(1000)
+    await done.trigger('keydown', { key: ' ', code: 'Space', repeat: true })
+    vi.advanceTimersByTime(500)
+    await flushMicrotasks()
+    expect(api.sessionResult).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps «Готово» locked on medium until 80% of the timer', async () => {
-    wrapper = mountPopup({ severity: 'medium' })
+    wrapper = await mountPopup({ severity: 'medium' })
     const done = findButton(wrapper, 'Готово')
     expect(done.attributes('disabled')).toBeDefined()
 
@@ -175,22 +236,22 @@ describe('PopupView — severity gate', () => {
     expect(done.attributes('disabled')).toBeUndefined()
   })
 
-  it('unlocks «Готово» immediately on soft', () => {
-    wrapper = mountPopup({ severity: 'soft' })
+  it('unlocks «Готово» immediately on soft', async () => {
+    wrapper = await mountPopup({ severity: 'soft' })
     expect(findButton(wrapper, 'Готово').attributes('disabled')).toBeUndefined()
   })
 })
 
 describe('PopupView — skip flow', () => {
   it('records a skip, shows the tired face and fades out quietly', async () => {
-    wrapper = mountPopup()
+    wrapper = await mountPopup()
     await findButton(wrapper, 'Пропустить').trigger('click')
     await flushMicrotasks()
 
     expect(api.sessionResult).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'skipped' })
     )
-    expect(useCharacterStore().emotion).toBe('tired')
+    expect(useCharacterStore().emotion).toBe('neutral')
     expect(wrapper.classes()).toContain('popup-out-quiet')
     expect(wrapper.find('.popup-flash').exists()).toBe(false)
 
@@ -201,13 +262,13 @@ describe('PopupView — skip flow', () => {
 })
 
 describe('PopupView — optional details', () => {
-  it('shows no details row while the optional layer is off', () => {
-    wrapper = mountPopup()
+  it('shows no details row while the optional layer is off', async () => {
+    wrapper = await mountPopup()
     expect(wrapper.find('[data-testid="extras-toggle"]').exists()).toBe(false)
   })
 
   it('keeps details collapsed by default and grows the window only when opened', async () => {
-    wrapper = mountPopup({ extras: true })
+    wrapper = await mountPopup({ extras: true })
     const toggle = wrapper.find('[data-testid="extras-toggle"]')
     expect(toggle.exists()).toBe(true)
     expect(wrapper.find('[data-testid="extras-panel"]').exists()).toBe(false)
@@ -222,7 +283,7 @@ describe('PopupView — optional details', () => {
   })
 
   it('submits reps, feeling and weight with the result', async () => {
-    wrapper = mountPopup({ extras: true })
+    wrapper = await mountPopup({ extras: true })
 
     await wrapper.find('[data-testid="extras-toggle"]').trigger('click')
     await wrapper.find('[data-testid="reps-input"]').setValue('12')
@@ -237,7 +298,7 @@ describe('PopupView — optional details', () => {
   })
 
   it('drops blank and out-of-range details instead of sending them', async () => {
-    wrapper = mountPopup({ extras: true })
+    wrapper = await mountPopup({ extras: true })
 
     await wrapper.find('[data-testid="extras-toggle"]').trigger('click')
     await wrapper.find('[data-testid="reps-input"]').setValue('0')
@@ -252,7 +313,7 @@ describe('PopupView — optional details', () => {
   })
 
   it('attaches a photo and sends its id with the result', async () => {
-    wrapper = mountPopup({ photos: true })
+    wrapper = await mountPopup({ photos: true })
     await wrapper.get('[data-testid="extras-toggle"]').trigger('click')
 
     const input = wrapper.get('[data-testid="photo-input"]')
@@ -273,7 +334,7 @@ describe('PopupView — optional details', () => {
   })
 
   it('removes an attached photo before submitting', async () => {
-    wrapper = mountPopup({ photos: true })
+    wrapper = await mountPopup({ photos: true })
     await wrapper.get('[data-testid="extras-toggle"]').trigger('click')
 
     const input = wrapper.get('[data-testid="photo-input"]')
@@ -290,7 +351,7 @@ describe('PopupView — optional details', () => {
   })
 
   it('never attaches details to a skip', async () => {
-    wrapper = mountPopup({ extras: true })
+    wrapper = await mountPopup({ extras: true })
 
     await wrapper.find('[data-testid="extras-toggle"]').trigger('click')
     await wrapper.find('[data-testid="reps-input"]').setValue('12')

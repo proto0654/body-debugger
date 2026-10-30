@@ -41,6 +41,21 @@ export interface CharacterProgress {
   branch: CharacterBranch
 }
 
+/** UI progress uses the same thresholds as the stored character stage. */
+export function characterJourney(sessions: readonly Session[]) {
+  const done = sessions.filter((session) => session.status === 'done').length
+  const stage = stageFor(done)
+  const start = STAGE_THRESHOLDS.find((step) => step.stage === stage)?.done ?? 0
+  const next = STAGE_THRESHOLDS.find((step) => step.stage > stage)
+  return {
+    stage,
+    done,
+    nextStage: next?.stage ?? null,
+    remaining: next ? next.done - done : 0,
+    ratio: next ? (done - start) / (next.done - start) : 1
+  }
+}
+
 type BranchTotals = Record<Exclude<CharacterBranch, 'neutral'>, number>
 
 function doneSessions(sessions: Session[]): Session[] {

@@ -43,8 +43,7 @@ export function registerSessionCycleIpc(): void {
   ipcMain.handle(IpcChannels.SessionGetLoopState, async () => getLoopState())
 
   ipcMain.handle(IpcChannels.SessionResult, async (_event, payload: SessionResultPayload) => {
-    console.log('[session:result]', payload)
-    handleSessionResult(payload)
+    return handleSessionResult(payload)
   })
 
   ipcMain.on(IpcChannels.TraySetState, (_event, payload: TraySetStatePayload) => {

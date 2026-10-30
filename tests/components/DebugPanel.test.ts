@@ -90,9 +90,9 @@ describe('DebugPanel', () => {
     await nextTick()
 
     expect(api.openPopup).toHaveBeenCalledTimes(1)
-    expect(api.sessionResult).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'done', exerciseId: expect.any(String) })
-    )
+    expect(api.applyDebugScenario).toHaveBeenCalledWith(expect.objectContaining({
+      sessions: [expect.objectContaining({ status: 'done', exerciseId: expect.any(String) })]
+    }))
   })
 
   it('clears history with an explicit reset', async () => {

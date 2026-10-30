@@ -21,7 +21,7 @@ npm install
 npm run dev
 ```
 
-`npm run dev` builds main / preload, starts the renderer dev server (port 5173, or the next free one) and launches Electron. Expected: an emerald tray icon, the dashboard window, and a popup after **Напоминание сейчас** (dashboard button or tray menu). Data is written to `.userdata/data/*.json`, photos to `.userdata/photos/`; delete `.userdata/` to reset progress.
+`npm run dev` builds main / preload, starts the renderer dev server (port 5173, or the next free one) and launches Electron. Expected: an emerald tray icon, the dashboard window, and a popup after **Размяться сейчас** (dashboard) or **Напоминание сейчас** (tray). Data is written to `.userdata/data/*.json`, photos to `.userdata/photos/`; delete `.userdata/` to reset progress.
 
 If Electron boots as plain Node and crashes on `electron.app`, the shell exports `ELECTRON_RUN_AS_NODE=1` — clear it for the run (see Windows notes).
 
@@ -54,9 +54,9 @@ Do **not** download Electron into `%LOCALAPPDATA%\electron` or park the profile 
 ## Windows notes
 
 - App stays in the tray when all windows close.
-- Tray menu: **Дашборд**, **Напоминание сейчас**, **Пауза / Продолжить**, Quit. The **Настройки** item is still disabled; preferences live on the dashboard.
-- Dashboard tabs: **Сегодня** (optional-layer switches, weight, photos, AI), **Календарь**, **Статистика**, **Настройки** (interval, picker mode, Focus, character build) plus a dev-only **Debug** tab — see [ARCHITECTURE.md](ARCHITECTURE.md#core-preferences).
-- Renderer routes: `#/dashboard`, `#/popup`; `#/dashboard?tab=settings` opens the settings tab directly (reloads, future tray deep links).
+- Tray menu: **Дашборд**, **Напоминание сейчас**, **Пауза / Продолжить**, Quit. **Настройки** opens the preferences tab directly, including in an existing dashboard.
+- Dashboard tabs: **Сегодня** (character, day totals, next form, weight and photos), **Календарь**, **Статистика**, **Настройки** (interval, picker mode, Focus, character build, comfort and optional-layer switches, AI imports) plus a dev-only **Debug** tab — see [ARCHITECTURE.md](ARCHITECTURE.md#core-preferences).
+- Renderer routes: `#/dashboard`, `#/popup`; `#/dashboard?tab=settings` opens the settings tab directly (direct links and the tray settings action).
 - After a **Готово** in the popup, streak, sessions and character survive quit/relaunch (check `.userdata/data/`).
 - If the shell exports `ELECTRON_RUN_AS_NODE=1` (some editors/agents do), `electron.exe .` boots as plain Node and crashes on `electron.app`. Clear the variable for smoke runs.
 
@@ -81,15 +81,15 @@ Rules live in [shared/domain/severity.ts](../shared/domain/severity.ts); switch 
 
 | Level | «Готово» |
 |-------|----------|
-| Мягкая | Enabled at once, timer is a hint |
+| Мягкая | Enabled after «Начать», timer is a hint |
 | Средняя (default) | Unlocks at 80% of the exercise timer |
 | Жёсткая | Same unlock + hold the button for 1.5 s |
 
-Closing the popup without an answer is recorded as `skipped` at every level.
+The timer waits for «Начать». A saved result shows feedback for one second; a failed write leaves the popup retryable. Duplicate results do not count twice. Closing the popup without an answer is recorded as `skipped` at every level.
 
 ## Session details
 
-Optional, off by default. «Детали в попапе» on the dashboard adds a collapsible
+Optional, off by default. «Детали в попапе» on «Настройки» adds a collapsible
 row to the popup (reps / feeling / weight). Ranges and normalization live in
 `shared/domain/session-extras.ts`; the popup grows through `window:resize-popup`
 with heights in `shared/constants/popup.ts`. Out-of-range values are dropped,
@@ -107,7 +107,7 @@ The script detects figures, drops the flat sheet background and writes individua
 
 ## Motion
 
-Keyframes and reduced-motion overrides live in `src/styles/index.css`; popup exit timings in `src/motion.ts` — keep the CSS durations and `POPUP_EXIT_MS` in sync. The «Анимации» switch on the dashboard persists `settings.reduceMotion`; the main process reads it for tray frames through `TrayHandlers.isReducedMotion`, so no IPC round trip is needed.
+Keyframes and reduced-motion overrides live in `src/styles/index.css`; popup exit timings in `src/motion.ts` — keep the CSS durations and `POPUP_EXIT_MS` in sync. The «Уменьшить анимации» switch on «Настройки» persists `settings.reduceMotion`; the main process reads it for tray frames through `TrayHandlers.isReducedMotion`, so no IPC round trip is needed.
 
 The OS `prefers-reduced-motion` setting is honoured in the renderer only; the main process cannot read it.
 

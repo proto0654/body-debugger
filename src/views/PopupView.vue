@@ -25,6 +25,7 @@ import {
 import { POPUP_EXIT_MS, useMotionPreference } from '@/motion'
 import { cueForSessionStatus, type SoundCue } from '@shared/domain/sounds'
 import { computeCharacterProgress } from '@shared/domain/character-progress'
+import { CHARACTER_STAGE_LABELS } from '@shared/constants/character'
 import { useSoundPlayer } from '@/sounds'
 import type { Feeling, SessionExtras, SessionStatus } from '@shared/types/session'
 import type { PhotoEntry } from '@shared/types/photo'
@@ -46,6 +47,11 @@ onBeforeUnmount(() => document.documentElement.classList.remove('window-popup'))
 const URGENT_MS = 10_000
 
 const busy = ref(false)
+const started = ref(false)
+const resolved = ref(false)
+const errorMessage = ref('')
+const successLabel = ref('Разминка в зачёт!')
+const successDetail = ref('Ещё один шаг к новой форме')
 // Start from the known session duration so a medium/hardcore popup never shows
 // an enabled «Готово» for the first frame; `onMounted` re-reads it after the
 // async session lookup.
@@ -73,13 +79,14 @@ let holdTimer: ReturnType<typeof setInterval> | null = null
 
 const severity = computed(() => settings.severity)
 const canFinishNow = computed(() =>
-  canFinish(severity.value, remainingMs.value, durationMs.value)
+  started.value && canFinish(severity.value, remainingMs.value, durationMs.value)
 )
 const timeLabel = computed(() => formatCountdown(remainingMs.value))
 const isUrgent = computed(
-  () => !leaving.value && remainingMs.value > 0 && remainingMs.value <= URGENT_MS
+  () => started.value && !leaving.value && remainingMs.value > 0 && remainingMs.value <= URGENT_MS
 )
 const shellClass = computed(() => {
+  if (reduced.value) return ''
   if (!leaving.value) return 'popup-in'
   return exitKind.value === 'done' ? 'popup-out-done' : 'popup-out-quiet'
 })
@@ -91,11 +98,19 @@ const progressPercent = computed(() => {
 
 const severityHint = computed(() => {
   if (!sessions.current) return 'Готовим упражнение…'
+  if (!started.value) return 'Таймер начнётся, когда будешь готов'
   if (severity.value === 'soft') return 'Мягкая строгость — можно завершить сразу'
   if (!canFinishNow.value) return '«Готово» откроется ближе к концу'
   if (severity.value === 'hardcore') return 'Удерживайте «Готово» до заполнения'
   return 'Можно завершать'
 })
+
+function startExercise(): void {
+  if (!sessions.current || busy.value || started.value) return
+  started.value = true
+  character.setEmotion('focused')
+  startTimer()
+}
 
 function startTimer(): void {
   const current = sessions.current
@@ -113,12 +128,13 @@ function startTimer(): void {
 
 /** Window height follows the details block: base → collapsed row → expanded panel. */
 function requestedPopupHeight(): number {
-  if (!detailsEnabled.value) return POPUP_BASE_HEIGHT
-  return extrasOpen.value ? POPUP_EXTRAS_HEIGHT : POPUP_EXTRAS_COLLAPSED_HEIGHT
+  const height = !detailsEnabled.value ? POPUP_BASE_HEIGHT
+    : extrasOpen.value ? POPUP_EXTRAS_HEIGHT : POPUP_EXTRAS_COLLAPSED_HEIGHT
+  return height + (errorMessage.value ? 36 : 0)
 }
 
 watch(
-  [detailsEnabled, extrasOpen],
+  [detailsEnabled, extrasOpen, errorMessage],
   () => {
     void window.api?.resizePopup?.(requestedPopupHeight())
   },
@@ -156,8 +172,14 @@ async function onPhotoPicked(event: Event): Promise<void> {
   input.value = ''
   if (!file) return
 
-  const entry = await photos.add(file, sessions.current?.id)
-  if (entry) attachedPhotos.value = [...attachedPhotos.value, entry]
+  try {
+    const entry = await photos.add(file, sessions.current?.id)
+    if (entry) attachedPhotos.value = [...attachedPhotos.value, entry]
+    else errorMessage.value = 'Фото не добавлено. Разминку можно завершить без него.'
+  } catch (cause) {
+    console.error('[popup] optional photo upload failed', cause)
+    errorMessage.value = 'Фото не добавлено. Разминку можно завершить без него.'
+  }
 }
 
 async function detachPhoto(id: string): Promise<void> {
@@ -175,7 +197,7 @@ function stopTimer(): void {
 }
 
 function startHold(): void {
-  if (busy.value || !canFinishNow.value) return
+  if (busy.value || !canFinishNow.value || holdTimer) return
 
   const startedAt = Date.now()
   holdProgress.value = 0
@@ -210,21 +232,29 @@ function onDoneClick(): void {
   void submit('done')
 }
 
+function onHoldKeyDown(event: KeyboardEvent): void {
+  if (severity.value !== 'hardcore') return
+  event.preventDefault()
+  if (!event.repeat) startHold()
+}
+
 onMounted(async () => {
-  if (!sessions.current) {
-    // Main owns the active session; the popup may load before or after the trigger.
-    const active = await window.api?.getCurrentPopup()
-    if (active) {
-      sessions.beginSession(active.exercise, active.sessionId)
-    } else {
-      sessions.beginSession()
+  try {
+    if (!sessions.current) {
+      // Main owns the active session; never invent a session when it is missing.
+      const active = await window.api?.getCurrentPopup()
+      if (active) sessions.beginSession(active.exercise, active.sessionId)
     }
+    durationMs.value = Math.max(0, (sessions.current?.durationSec ?? 0) * 1000)
+    remainingMs.value = durationMs.value
+    if (!sessions.current) errorMessage.value = 'Эта разминка уже закрыта. Вызовите новую из трея.'
+  } catch (cause) {
+    console.error('[popup] failed to load exercise', cause)
+    errorMessage.value = 'Не удалось загрузить разминку. Откройте её ещё раз из трея.'
   }
-  startTimer()
-  character.setEmotion('focused')
+  character.setEmotion('neutral')
   sounds.preload()
   sounds.play('popup')
-  if (photosEnabled.value) await photos.refresh()
 })
 
 onBeforeUnmount(() => {
@@ -233,51 +263,63 @@ onBeforeUnmount(() => {
 })
 
 async function submit(status: SessionStatus): Promise<void> {
-  if (busy.value) return
+  const current = sessions.current
+  if (busy.value || resolved.value || !current || (status === 'done' && !canFinishNow.value)) return
   busy.value = true
-  stopTimer()
+  errorMessage.value = ''
   stopHold()
-
-  if (status === 'done') {
-    character.setEmotion('happy')
-  } else if (status === 'skipped') {
-    character.setEmotion('tired')
-  }
-
-  // Details only describe a completed exercise; snooze / skip never carry them.
   const extras = status === 'done' ? collectExtras() : {}
-  const session = sessions.recordResult(status, extras)
-  sounds.play(sessionCue(status))
-  if (session && window.api) {
-    await window.api.sessionResult({
-      sessionId: session.id,
-      exerciseId: session.exerciseId,
-      status: session.status,
-      durationSec: session.durationSec,
+  const nextStage = computeCharacterProgress([
+    ...sessions.history.filter(session => session.id !== current.id), { ...current, status }
+  ]).stage
+  const stageUp = status === 'done' && nextStage > progress.characterStage
+  const cue: SoundCue | null = stageUp ? 'stage-up' : cueForSessionStatus(status)
+  try {
+    const response = await window.api?.sessionResult({
+      sessionId: current.id,
+      exerciseId: current.exerciseId,
+      status,
+      durationSec: current.durationSec,
       ...extras
     })
+    if (!response?.saved) throw new Error('Session was not saved')
+    resolved.value = true
+    sessions.clearCurrent()
+    stopTimer()
+    if (status === 'done') {
+      character.setEmotion('happy')
+      if (stageUp) {
+        successLabel.value = 'Новая форма!'
+        successDetail.value = CHARACTER_STAGE_LABELS[nextStage]
+      }
+    } else {
+      character.setEmotion('neutral')
+    }
+    sounds.play(cue)
     await playExit(status)
-    await window.api.closePopup()
+    await closeResolved()
+  } catch (cause) {
+    console.error('[popup] failed to save result', cause)
+    errorMessage.value = 'Не удалось сохранить. Попробуйте ещё раз.'
+  } finally {
+    busy.value = false
   }
-  busy.value = false
 }
 
-/**
- * A finished session can also unlock a stage; the stage-up cue replaces the
- * plain `done` cue in that case (SOUNDS.md event table).
- */
-function sessionCue(status: SessionStatus): SoundCue | null {
-  if (status !== 'done') return cueForSessionStatus(status)
-
-  const nextStage = computeCharacterProgress(sessions.history).stage
-  return nextStage > progress.characterStage ? 'stage-up' : 'done'
+async function closeResolved(): Promise<void> {
+  try { await window.api?.closePopup() }
+  catch (cause) {
+    console.error('[popup] result saved; failed to close window', cause)
+    leaving.value = false
+    errorMessage.value = 'Результат сохранён. Можно закрыть окно.'
+  }
 }
 
 /** Let the exit animation finish before the window closes (CONCEPT §13). */
 async function playExit(status: SessionStatus): Promise<void> {
-  if (reduced.value) return
   exitKind.value = status === 'done' ? 'done' : 'quiet'
   leaving.value = true
+  if (reduced.value && status !== 'done') return
   await new Promise((resolve) =>
     setTimeout(resolve, status === 'done' ? POPUP_EXIT_MS.done : POPUP_EXIT_MS.quiet)
   )
@@ -287,18 +329,27 @@ async function playExit(status: SessionStatus): Promise<void> {
 <template>
   <div class="relative flex h-full flex-col gap-2 p-3" :class="shellClass">
     <div
-      v-if="leaving && exitKind === 'done'"
+      v-if="leaving && exitKind === 'done' && !reduced"
       class="popup-flash pointer-events-none absolute inset-0 z-20"
     />
+    <div v-if="resolved && exitKind === 'done'" class="popup-success absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 rounded-xl p-4 text-center" role="status">
+      <div class="relative">
+        <CharacterPortrait variant="face" size="sm" :stage="character.state.stage" :branch="character.state.branch" :build="character.state.build" emotion="happy" />
+        <span class="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-xs text-slate-950" aria-hidden="true">✓</span>
+      </div>
+      <p class="text-lg font-semibold text-slate-50">{{ successLabel }}</p>
+      <p class="text-xs text-slate-400">{{ successDetail }}</p>
+      <button v-if="errorMessage" type="button" class="setting-chip" @click="closeResolved">Закрыть</button>
+    </div>
     <header class="flex items-start justify-between gap-2">
       <div class="min-w-0 flex-1">
         <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/90">
           Body Debugger
         </p>
-        <h1 class="truncate text-sm font-semibold text-slate-50">
+        <h1 class="line-clamp-2 text-sm font-semibold leading-snug text-slate-50">
           {{ sessions.currentExercise?.title ?? 'Упражнение' }}
         </h1>
-        <p class="mt-1 line-clamp-2 text-xs text-slate-400">
+        <p class="mt-1 line-clamp-3 text-xs text-slate-400">
           {{ sessions.currentExercise?.description ?? 'Один попап — одно упражнение.' }}
         </p>
       </div>
@@ -329,6 +380,8 @@ async function playExit(status: SessionStatus): Promise<void> {
         <p class="mt-1 truncate text-[10px] text-slate-500">{{ severityHint }}</p>
       </div>
     </div>
+
+    <p v-if="errorMessage" role="alert" class="text-[11px] text-red-300">{{ errorMessage }}</p>
 
     <section
       v-if="detailsEnabled"
@@ -440,6 +493,7 @@ async function playExit(status: SessionStatus): Promise<void> {
     </section>
 
     <div class="mt-auto flex items-center gap-2">
+      <button v-if="!sessions.current && !resolved" type="button" class="setting-chip" @click="closeResolved">Закрыть</button>
       <button
         type="button"
         class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
@@ -456,7 +510,10 @@ async function playExit(status: SessionStatus): Promise<void> {
       >
         Пропустить
       </button>
-      <button
+      <button v-if="!started"
+        type="button" class="ml-auto rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-slate-950 disabled:opacity-40"
+        :disabled="busy || !sessions.current" data-testid="start-exercise" @click="startExercise">Начать</button>
+      <button v-else
         type="button"
         class="relative ml-auto overflow-hidden rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400 disabled:hover:bg-slate-700"
         :disabled="busy || !sessions.current || !canFinishNow"
@@ -464,6 +521,12 @@ async function playExit(status: SessionStatus): Promise<void> {
         @pointerdown="onDoneDown"
         @pointerup="onDoneUp"
         @pointerleave="onDoneUp"
+        @pointercancel="onDoneUp"
+        @blur="onDoneUp"
+        @keydown.space="onHoldKeyDown"
+        @keydown.enter="onHoldKeyDown"
+        @keyup.space="onDoneUp"
+        @keyup.enter="onDoneUp"
       >
         <span
           v-if="holdProgress > 0"

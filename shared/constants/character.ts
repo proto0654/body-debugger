@@ -18,6 +18,13 @@ export const CHARACTER_STAGE_LABELS: Record<CharacterStage, string> = {
   5: 'Desk Hulk'
 }
 
+export const CHARACTER_BRANCH_LABELS: Record<CharacterBranch, string> = {
+  neutral: 'Баланс',
+  posture: 'Осанка',
+  power: 'Сила',
+  mobility: 'Подвижность'
+}
+
 export const CHARACTER_BRANCHES: CharacterBranch[] = [
   'neutral',
   'posture',

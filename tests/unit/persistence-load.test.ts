@@ -51,6 +51,16 @@ afterEach(() => {
 })
 
 describe('store — load hardening', () => {
+  it('recovers derived character progress when the checkpoint lags behind durable sessions', async () => {
+    writeFileSync(dataPath('sessions.json'), JSON.stringify({ version: 1, data:
+      [1, 2, 3].map(id => ({ ...validSession, id: `saved-${id}` }))
+    }))
+    const store = await loadStore()
+    expect(store.loadPersistence().progress).toMatchObject({
+      characterStage: 1, characterBranch: 'posture'
+    })
+  })
+
   it('drops malformed sessions from disk', async () => {
     writeFileSync(
       dataPath('sessions.json'),

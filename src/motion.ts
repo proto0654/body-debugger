@@ -5,7 +5,7 @@ import { useSettingsStore } from '@/stores/settings'
  * Popup exit durations in ms. The window stays open until the CSS exit
  * animation finishes — keep in sync with `popup-out-*` in `src/styles/index.css`.
  */
-export const POPUP_EXIT_MS = { done: 320, quiet: 180 } as const
+export const POPUP_EXIT_MS = { done: 1000, quiet: 180 } as const
 
 /**
  * Motion preference: the dashboard toggle («Уменьшить анимации») or the OS-level

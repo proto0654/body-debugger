@@ -113,7 +113,10 @@ beforeEach(() => {
     },
     focus: mocks.focusPopup
   }))
-  mocks.getPopupWindow.mockImplementation(() => ({ focus: mocks.focusPopup }))
+  mocks.getPopupWindow.mockImplementation(() =>
+    mocks.popupClosed.current ? { focus: mocks.focusPopup } : null
+  )
+  mocks.closePopupWindow.mockImplementation(() => { mocks.popupClosed.current = null })
   mocks.appendSession.mockClear()
   mocks.applyDoneSession.mockClear()
   mocks.closePopupWindow.mockClear()
@@ -134,6 +137,54 @@ afterEach(() => {
 })
 
 describe('trigger loop — manual trigger', () => {
+  it('rejects a result for a different active session', async () => {
+    loop = await loadLoop()
+    loop.triggerNow('manual')
+    const active = loop.getActivePopup()!
+
+    expect(loop.handleSessionResult({
+      sessionId: 'stale-session', exerciseId: active.exercise.id, status: 'done'
+    })).toEqual({ saved: false })
+    expect(mocks.appendSession).not.toHaveBeenCalled()
+    expect(loop.getActivePopup()?.sessionId).toBe(active.sessionId)
+  })
+
+  it('acknowledges a retry without recording or rewarding it twice', async () => {
+    loop = await loadLoop()
+    loop.triggerNow('manual')
+    const active = loop.getActivePopup()!
+    const payload = { sessionId: active.sessionId, exerciseId: active.exercise.id, status: 'done' as const }
+
+    expect(loop.handleSessionResult(payload)).toEqual({ saved: true })
+    expect(loop.handleSessionResult(payload)).toEqual({ saved: true })
+    expect(mocks.appendSession).toHaveBeenCalledTimes(1)
+    expect(mocks.applyDoneSession).toHaveBeenCalledTimes(1)
+    expect(loop.handleSessionResult({ ...payload, status: 'skipped' })).toEqual({ saved: false })
+    loop.triggerNow('manual')
+    expect(mocks.createPopupWindow).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects an unsolicited result when there is no active session', async () => {
+    loop = await loadLoop()
+    expect(loop.handleSessionResult({ sessionId: 'invented', exerciseId: 'neck-tilts', status: 'done' }))
+      .toEqual({ saved: false })
+    expect(mocks.appendSession).not.toHaveBeenCalled()
+  })
+
+  it('keeps the active session retryable after a failed disk write', async () => {
+    loop = await loadLoop()
+    loop.triggerNow('manual')
+    const active = loop.getActivePopup()!
+    mocks.appendSession.mockImplementationOnce(() => { throw new Error('disk full') })
+
+    expect(loop.handleSessionResult({
+      sessionId: active.sessionId, exerciseId: active.exercise.id, status: 'done'
+    })).toEqual({ saved: false })
+    expect(loop.getActivePopup()?.sessionId).toBe(active.sessionId)
+    expect(mocks.applyDoneSession).not.toHaveBeenCalled()
+    expect(mocks.setTrayState).not.toHaveBeenCalledWith('success')
+  })
+
   it('opens one popup and switches the tray to standup', async () => {
     loop = await loadLoop()
     loop.triggerNow('manual')

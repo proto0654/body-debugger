@@ -6,7 +6,7 @@ import type {
   CharacterEmotion,
   CharacterStage
 } from '@shared/types/character'
-import { CHARACTER_STAGE_LABELS } from '@shared/constants/character'
+import { CHARACTER_BRANCH_LABELS, CHARACTER_STAGE_LABELS } from '@shared/constants/character'
 import {
   characterBodyCandidates,
   characterFaceCandidates
@@ -20,7 +20,8 @@ const props = withDefaults(
     build?: CharacterBuild
     emotion?: CharacterEmotion
     emojiFallback?: string
-    size?: 'sm' | 'md' | 'lg'
+    size?: 'sm' | 'md' | 'lg' | 'xl'
+    showLabel?: boolean
     /** `body` = full sprite for the dashboard, `face` = emotion bust for the popup */
     variant?: 'body' | 'face'
   }>(),
@@ -31,11 +32,13 @@ const props = withDefaults(
     emotion: 'neutral',
     emojiFallback: '💪',
     size: 'md',
-    variant: 'body'
+    variant: 'body',
+    showLabel: true
   }
 )
 
 const sizeClass = computed(() => {
+  if (props.size === 'xl') return 'h-52 w-44 text-6xl'
   if (props.size === 'sm') return 'h-16 w-16 text-3xl'
   if (props.size === 'lg') return 'h-40 w-40 text-6xl'
   return 'h-24 w-24 text-5xl'
@@ -50,6 +53,8 @@ const frameUrl = computed(() =>
       : characterBodyCandidates(props.stage, props.branch, props.build)
   )
 )
+const imageFailed = ref(false)
+watch(frameUrl, () => { imageFailed.value = false })
 
 /** Short bounce when the character reacts to a finished exercise (CONCEPT §13). */
 const bouncing = ref(false)
@@ -58,7 +63,7 @@ let bounceTimer: ReturnType<typeof setTimeout> | null = null
 watch(
   () => props.emotion,
   (next) => {
-    if (next !== 'happy') return
+    if (next !== 'happy' && next !== 'surprised') return
     bouncing.value = true
     if (bounceTimer) clearTimeout(bounceTimer)
     bounceTimer = setTimeout(() => {
@@ -75,25 +80,29 @@ onBeforeUnmount(() => {
 <template>
   <div class="flex flex-col items-center gap-2">
     <div
-      class="relative overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-900/80 shadow-inner"
-      :class="[sizeClass, { 'portrait-bounce': bouncing, 'fade-rise': variant === 'body' }]"
-      :title="`${label} · ${branch} · ${build} · ${emotion}`"
+      class="character-portrait relative overflow-hidden rounded-2xl"
+      :class="[sizeClass, { 'portrait-bounce': bouncing, 'fade-rise': variant === 'body', 'portrait-proud': emotion === 'proud', 'portrait-hero': size === 'xl' }]"
+      :data-stage="stage"
+      role="img"
+      :aria-label="`${label} · ${CHARACTER_BRANCH_LABELS[branch]}`"
+      :title="`${label} · ${CHARACTER_BRANCH_LABELS[branch]}`"
     >
       <Transition name="frame-fade">
         <img
-          v-if="frameUrl"
+          v-if="frameUrl && !imageFailed"
           :key="frameUrl"
           :src="frameUrl"
           alt=""
           class="absolute inset-0 h-full w-full object-contain"
+          @error="imageFailed = true"
         />
       </Transition>
-      <div v-if="!frameUrl" class="relative flex h-full w-full items-center justify-center">
+      <div v-if="!frameUrl || imageFailed" class="relative flex h-full w-full items-center justify-center">
         <span aria-hidden="true">{{ emojiFallback }}</span>
       </div>
     </div>
-    <p v-if="variant === 'body'" class="text-xs text-slate-400">
-      stage {{ stage }} · {{ branch }}
+    <p v-if="variant === 'body' && showLabel" class="text-xs text-slate-400">
+      {{ label }} · {{ CHARACTER_BRANCH_LABELS[branch] }}
     </p>
   </div>
 </template>

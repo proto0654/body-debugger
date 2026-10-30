@@ -26,10 +26,10 @@ tests/
 
 | Area | What the suite pins down | Files |
 |------|--------------------------|-------|
-| Reminder loop | manual trigger, single popup, done / snoozed / skipped / missed, tray states, success blink, pause, idle hold + long-break restart, interval reschedule, photo id filtering | `tests/unit/trigger-loop.test.ts` (Electron mocked) |
+| Reminder loop | idempotent acknowledgement, mismatched identity rejection, retry after disk failure, manual trigger, single popup, done / snoozed / skipped / missed, tray states, success blink, pause, idle hold + long-break restart, interval reschedule, photo id filtering | `tests/unit/trigger-loop.test.ts` (Electron mocked) |
 | Picker | inventory gate, previous/today penalties, neglect cap, focus bonuses, four modes, deterministic roll edges | `tests/unit/exercise-picker.test.ts` |
 | Character progress | stage thresholds, branch window (last 30), 20% margin, status filtering | `tests/unit/character-progress.test.ts` |
-| Streak | unique days, today/yesterday grace, gaps, longest run, bad timestamps, main recompute | `tests/unit/streak.test.ts`, `tests/unit/persistence-streak.test.ts` |
+| Streak | expiration on later snapshot reads, unique days, today/yesterday grace, gaps, longest run, bad timestamps, main recompute | `tests/unit/streak.test.ts`, `tests/unit/persistence-streak.test.ts` |
 | Frame rules | stage tiers, branch pose from stage 4, build fallback, every resolved frame exists on disk | `tests/unit/character-visual.test.ts` |
 | Severity | 80% unlock boundary, timer-less exercises, `mm:ss` rounding | `tests/unit/severity.test.ts` |
 | Session details | ranges, weight rounding, blank / invalid input, popup toggle + resize, trigger-loop normalization | `tests/unit/session-extras.test.ts`, `tests/components/PopupView.test.ts` |
@@ -49,7 +49,9 @@ tests/
 | JSON persistence | atomic write, missing/corrupt/outdated envelope | `tests/unit/json-file.test.ts` |
 | Stores | settings, progress, sessions, weight, photos, approved AI, reminder labels | `tests/stores/` |
 | Popup / portrait | severity gate, done/skip exits, flash and crossfade, double-submit guard, reduced motion, emoji fallback, details + photos | `tests/components/` |
-| Dashboard | optional-layer switches, theme, photos, AI panel, calendar/stats tabs | `tests/components/DashboardView.test.ts` |
+| Dashboard | character hero, next-form progress, midnight refresh, optional switches on settings, theme, photos, AI panel, calendar/stats tabs | `tests/components/DashboardView.test.ts` |
+
+Optional hydration (`tests/stores/hydrate.test.ts`) also covers a failed photo query alongside a pending AI query: the core still starts and subscribes.
 
 Rules for new tests: no snapshots for logic, inject time (`now`) and randomness (seeded RNG), assert on behaviour rather than internal constants. Write the test against the documented rule **before** the implementation; if the fixture assumption is wrong, fix the test, never the rule.
 
@@ -63,7 +65,9 @@ Rules for new tests: no snapshots for logic, inject time (`now`) and randomness 
 ## Manual checklist
 
 - Tray: right-click menu, «Напоминание сейчас», pause / resume, animations (and «Уменьшить анимации» off / on).
-- Popup: one exercise, Medium gate at 80%, Hardcore hold, closing the popup = `skipped`.
+- Popup: one exercise; wait before «Начать» and confirm the timer stays full. Start, verify Medium at 80% and Hardcore with pointer/Space/Enter hold. Saved confirmation lasts one second; closing without an answer = `skipped`.
+- Reliability: failed save offers retry without a success reaction; repeated delivery cannot add another result or close a different session. Photo/AI loading failures must not block the core renderer.
+- Today: character hero, day count, live streak across midnight and the next attainable form; optional switches are on «Настройки». Tray «Настройки» must select it in both a new and an existing dashboard.
 - Popup details: turn «Детали в попапе» on, expand, save reps / feeling / weight; turn «Фото» on, attach a photo, submit, confirm the thumbnail appears in the popup and the photo in the dashboard gallery.
 - Settings: change the interval (500 reverts), switch the picker mode, set a primary direction plus accents, change the build, relaunch and confirm all four persist.
 - Sounds: turn «Звуки» on, set volume, get a popup / done / skip / snooze cue; the pause switch mutes cues.

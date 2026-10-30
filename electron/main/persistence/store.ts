@@ -87,6 +87,9 @@ export function loadPersistence(): DataSnapshot {
   state.settings = normalizeSettings(readJsonEnvelope<Partial<AppSettings>>(getSettingsPath()))
   state.progress = normalizeProgress(readJsonEnvelope<UserProgress>(getProgressPath()))
   state.sessions = sanitizeSessions(readJsonEnvelope<Session[]>(getSessionsPath()))
+  const character = computeCharacterProgress(state.sessions)
+  state.progress.characterStage = character.stage
+  state.progress.characterBranch = character.branch
 
   const storedWeights = sanitizeStoredWeights(
     readJsonEnvelope<WeightEntry[]>(getWeightsPath())
@@ -102,7 +105,7 @@ export function loadPersistence(): DataSnapshot {
 export function getSnapshot(): DataSnapshot {
   return {
     settings: cloneSettings(state.settings),
-    progress: cloneProgress(state.progress),
+    progress: getProgress(),
     sessions: state.sessions.map((s) => ({ ...s })),
     weights: cloneWeights(state.weights)
   }
@@ -123,9 +126,15 @@ export function updateProgress(next: UserProgress): DataSnapshot {
 }
 
 export function appendSession(session: Session): DataSnapshot {
-  state.sessions = [...state.sessions, { ...session }]
-  writeJsonEnvelope(getSessionsPath(), state.sessions)
-  recordSessionWeight(session)
+  if (state.sessions.some((existing) => existing.id === session.id)) return getSnapshot()
+  const sessions = [...state.sessions, { ...session }]
+  writeJsonEnvelope(getSessionsPath(), sessions)
+  state.sessions = sessions
+  try {
+    recordSessionWeight(session)
+  } catch (error) {
+    console.error('[persistence] session saved; optional weight write failed', error)
+  }
   return getSnapshot()
 }
 
@@ -242,5 +251,8 @@ export function getSettings(): AppSettings {
 }
 
 export function getProgress(): UserProgress {
-  return cloneProgress(state.progress)
+  const progress = cloneProgress(state.progress)
+  const streak = computeStreak(state.sessions)
+  progress.streak = { current: streak.current, max: Math.max(progress.streak.max, streak.max) }
+  return progress
 }

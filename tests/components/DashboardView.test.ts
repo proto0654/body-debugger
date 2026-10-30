@@ -4,7 +4,8 @@ import { createPinia, setActivePinia } from 'pinia'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import DashboardView from '@/views/DashboardView.vue'
 import { useSettingsStore } from '@/stores/settings'
-import { makeSettings } from '../fixtures'
+import { useSessionsStore } from '@/stores/sessions'
+import { makeSession, makeSettings } from '../fixtures'
 import type { DataSnapshot } from '@shared/types/persistence'
 import type { AppSettings } from '@shared/types/settings'
 
@@ -34,6 +35,9 @@ function mountDashboard(): VueWrapper {
 }
 
 async function clickIn(wrapper: VueWrapper, testId: string, label: string): Promise<void> {
+  if (!wrapper.find(`[data-testid="${testId}"]`).exists()) {
+    await wrapper.findAll('nav button').find(button => button.text() === 'Настройки')!.trigger('click')
+  }
   const controls = wrapper.get(`[data-testid="${testId}"]`)
   const button = controls
     .findAll('button')
@@ -58,10 +62,36 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  wrapper?.unmount()
+  wrapper = null
+  vi.useRealTimers()
   window.location.hash = ''
 })
 
 describe('DashboardView — optional layers', () => {
+  it('keeps today focused on the character and the next attainable form', () => {
+    wrapper = mountDashboard()
+    expect(wrapper.find('[data-testid="today-hero"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="character-journey"]').text()).toContain('Ещё 3 разминки')
+    expect(wrapper.find('[data-testid="inventory-controls"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('JSON')
+  })
+
+  it('refreshes day counts and streak after midnight without a new session', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 9, 30, 23, 59, 50))
+    wrapper = mountDashboard()
+    useSessionsStore().hydrate([makeSession({ exerciseId: 'neck-tilts', completedAt: new Date(2026, 9, 30, 12).toISOString() })])
+    await nextTick()
+    expect(wrapper.get('[data-testid="today-count"] strong').text()).toBe('1')
+    vi.advanceTimersByTime(30_000)
+    await nextTick()
+    expect(wrapper.get('[data-testid="today-count"] strong').text()).toBe('0')
+    vi.advanceTimersByTime(86_400_000)
+    await nextTick()
+    expect(wrapper.get('[data-testid="current-streak"] strong').text()).toBe('0')
+  })
+
   it('turns sounds on and reveals the volume slider', async () => {
     wrapper = mountDashboard()
     expect(wrapper.find('[data-testid="sound-volume"]').exists()).toBe(false)
@@ -96,6 +126,7 @@ describe('DashboardView — optional layers', () => {
 
     expect(saveSettings.mock.calls[0][0].photos.enabled).toBe(true)
     expect(listPhotos).toHaveBeenCalled()
+    await wrapper.findAll('nav button').find(button => button.text() === 'Сегодня')!.trigger('click')
     expect(wrapper.get('[data-testid="photo-gallery"]').text()).toContain('Фото пока нет')
   })
 

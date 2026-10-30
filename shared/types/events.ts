@@ -22,6 +22,7 @@ export const IpcChannels = {
   SessionUpdated: 'session:updated',
   TraySetState: 'tray:set-state',
   WindowOpenDashboard: 'window:open-dashboard',
+  WindowNavigateDashboard: 'window:navigate-dashboard',
   WindowClosePopup: 'window:close-popup',
   WindowOpenPopup: 'window:open-popup',
   WindowResizePopup: 'window:resize-popup',
@@ -72,6 +73,11 @@ export interface SessionResultPayload extends SessionExtras {
   status: SessionStatus
   durationSec?: number
   skipReason?: string
+}
+
+/** Only a durable main-process write may confirm a result to the popup. */
+export interface SessionResultResponse {
+  saved: boolean
 }
 
 export interface SessionUpdatedPayload {

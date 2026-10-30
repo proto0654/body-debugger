@@ -8,7 +8,7 @@ Post-skeleton milestones. Product detail: [CONCEPT.md](../CONCEPT.md).
 | 2 | Trigger loop | **Done** — interval from last completion, idle hold/reset, snooze, pause (tray + dashboard), `missed` timeout |
 | 3 | Exercise picker | **Done** — 34-exercise catalog + approved AI additions, zone/group penalties, neglect, Focus, inventory, four modes (`shared/domain/exercise-picker.ts`) |
 | 4 | Character progress | **Done** — stage from done-session thresholds, branch from the last 30 sessions (`shared/domain/character-progress.ts`) |
-| 5 | Severity + timer | **Done** — countdown + progress in popup; Soft unlocks immediately, Medium at 80%, Hardcore adds a 1.5 s hold |
+| 5 | Severity + timer | **Done** — countdown + progress in popup; explicit «Начать»; Soft unlocks after starting, Medium at 80%, Hardcore adds a 1.5 s hold |
 | 6 | Sprite cut | **Done** — `stage-{n}-{build}`, `pose-{branch}-{build}`, `emotion-{emotion}-{build}` under `frames/`; resolver + emoji fallback |
 | 7 | Micro-animations | **Done** — popup entrance/exit, urgent timer, emotion crossfade + bounce; tray frame animation; «Анимации» switch |
 | 8 | Optional layers | **Done** — session details, weight history, photos, inventory UI, AI proposals, themes |
@@ -17,5 +17,6 @@ Post-skeleton milestones. Product detail: [CONCEPT.md](../CONCEPT.md).
 | 11 | Dashboard depth | **Done** — 13-week calendar heatmap with day details, stats cards, seven-day chart, zone distribution, top exercises |
 | 12 | Core preferences UI | **Done** — «Настройки» tab: interval (5–240 + presets), picker mode, Focus (primary + accents), character build; normalized on load, interval changes reschedule the loop |
 
-All planned milestones are **done**. Future ideas, not scheduled: tray «Настройки» deep link,
-theme sound packs, Playwright E2E, custom character packs, data export.
+The prototype milestones above are implemented; they do not mean that every long-term idea in the concept is shipped. The current dashboard includes the tray settings deep link, a character-led «Сегодня» screen, next-form progress and durable result feedback.
+
+Remaining product gaps, not scheduled: six distinct body illustrations (currently three tiers), personal exercise-level progression and difficulty weighting, automatic AI analysis (currently manual import), external-event triggers, automatic streak audio/tray milestones, theme sound packs, custom character packs, data export and Playwright E2E.

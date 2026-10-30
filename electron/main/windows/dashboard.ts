@@ -1,5 +1,6 @@
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
+import { IpcChannels } from '../../../shared/types/events'
 
 let dashboardWindow: BrowserWindow | null = null
 
@@ -11,16 +12,19 @@ export function getDashboardWindow(): BrowserWindow | null {
   return dashboardWindow
 }
 
-export function createDashboardWindow(): BrowserWindow {
+export function createDashboardWindow(tab?: 'settings'): BrowserWindow {
   if (dashboardWindow && !dashboardWindow.isDestroyed()) {
     dashboardWindow.show()
     dashboardWindow.focus()
+    if (tab === 'settings') {
+      dashboardWindow.webContents.send(IpcChannels.WindowNavigateDashboard)
+    }
     return dashboardWindow
   }
 
   dashboardWindow = new BrowserWindow({
     width: 960,
-    height: 640,
+    height: Math.min(900, Math.max(480, screen.getPrimaryDisplay().workAreaSize.height - 80)),
     minWidth: 720,
     minHeight: 480,
     show: false,
@@ -33,6 +37,7 @@ export function createDashboardWindow(): BrowserWindow {
       sandbox: false
     }
   })
+  dashboardWindow.setMenuBarVisibility(false)
 
   dashboardWindow.on('ready-to-show', () => {
     dashboardWindow?.show()
@@ -43,10 +48,10 @@ export function createDashboardWindow(): BrowserWindow {
   })
 
   if (process.env.ELECTRON_RENDERER_URL) {
-    dashboardWindow.loadURL(`${process.env.ELECTRON_RENDERER_URL}#/dashboard`)
+    dashboardWindow.loadURL(`${process.env.ELECTRON_RENDERER_URL}#/dashboard${tab ? '?tab=settings' : ''}`)
   } else {
     dashboardWindow.loadFile(join(__dirname, '../renderer/index.html'), {
-      hash: '/dashboard'
+      hash: `/dashboard${tab ? '?tab=settings' : ''}`
     })
   }
 

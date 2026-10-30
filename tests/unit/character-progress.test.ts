@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import { computeCharacterProgress } from '@shared/domain/character-progress'
+import { characterJourney, computeCharacterProgress } from '@shared/domain/character-progress'
 import type { Exercise } from '@shared/types/exercise'
 import type { Session } from '@shared/types/session'
 import { daysAgo, makeExercise, makeSession } from '../fixtures'
@@ -32,6 +32,17 @@ function stageAt(doneCount: number) {
 }
 
 describe('computeCharacterProgress — stage', () => {
+  it('shows attainable progress and handles the final form without a phantom next stage', () => {
+    expect(characterJourney(doneSessions(['neck', 'neck']))).toMatchObject({
+      stage: 0, nextStage: 1, remaining: 1, ratio: 2 / 3
+    })
+    expect(characterJourney(doneSessions(Array(3).fill('neck')))).toMatchObject({
+      stage: 1, nextStage: 2, remaining: 5, ratio: 0
+    })
+    expect(characterJourney(doneSessions(Array(80).fill('neck')))).toMatchObject({
+      stage: 5, nextStage: null, remaining: 0, ratio: 1
+    })
+  })
   it.each([
     [0, 0],
     [2, 0],

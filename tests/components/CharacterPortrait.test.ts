@@ -25,8 +25,8 @@ describe('CharacterPortrait', () => {
     })
 
     expect(wrapper.get('img').attributes('src')).toMatch(/pose-power-lean\.png$/)
-    expect(wrapper.text()).toContain('stage 4 · power')
-    expect(wrapper.get('[title]').attributes('title')).toBe('Крепкий · power · lean · neutral')
+    expect(wrapper.text()).toContain('Крепкий · Сила')
+    expect(wrapper.get('[title]').attributes('title')).toBe('Крепкий · Сила')
   })
 
   it('renders the emotion bust for the popup face', () => {
@@ -78,5 +78,12 @@ describe('CharacterPortrait', () => {
 
     expect(wrapper.find('img').exists()).toBe(false)
     expect(wrapper.text()).toContain('🦾')
+  })
+
+  it('falls back when a bundled image fails to load', async () => {
+    const wrapper = mount(CharacterPortrait, { props: { emojiFallback: '💪' } })
+    await wrapper.get('img').trigger('error')
+    expect(wrapper.find('img').exists()).toBe(false)
+    expect(wrapper.text()).toContain('💪')
   })
 })

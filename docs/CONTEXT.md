@@ -6,7 +6,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 
 - Desktop **system-tray** app for IT workers: remind → one exercise popup → record result → update streak / character / stats.
 - Core principle: **one popup = one exercise**. Stats, character, weight, photos, AI, inventory are optional layers.
-- Current stage: **all roadmap milestones are done** — core cycle, weighted picker, character stage/branch, severity + timer, dashboard calendar/stats, and every optional layer (session details, weight, photos, inventory, sounds, AI proposals, themes).
+- Current stage: working product prototype with a complete core loop, optional local layers and a character-led dashboard. Remaining product limits are tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Communication
 
@@ -82,16 +82,17 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 - Keep the app runnable (`npm run dev` → tray + dashboard; data survives restart).
 - Trigger loop: interval from last completion, idle hold/reset, snooze, tray + dashboard pause, `missed` timeout.
 - Picker: 34-exercise catalog plus approved AI exercises, zone/group penalties, neglect bonus, Focus, inventory gate, four modes.
-- Character stage/branch and a **day-based streak** derive from history and are persisted on every `done`.
-- Severity: countdown + progress in the popup; Medium/Hardcore gate «Готово» (80% of the timer); Hardcore needs a hold.
-- Character art is cut per frame; emoji fallback. Motion respects the dashboard switch and the OS setting.
+- Character stage/branch and a **day-based streak** derive from history. Streak is recomputed on snapshot reads and in the dashboard clock, so a gap cannot leave an old active run visible.
+- Severity: explicit «Начать» starts the timer. Medium/Hardcore gate «Готово» at 80%; Hardcore accepts pointer or keyboard hold. Results are acknowledged after a durable session write and retries are idempotent.
+- Optional photo/AI hydration runs in the background and cannot block mounting the core renderer.
+- Character art is cut per frame; emoji fallback also handles a failed image load. Motion respects the dashboard switch and the OS setting.
 - Optional layers are live and off by default unless noted: session details, weight history, photos, inventory, sounds, AI proposals, themes.
-- Dashboard depth: 13-week calendar heatmap with day details, stats cards, seven-day activity chart, zone distribution and top exercises.
+- Dashboard: «Сегодня» foregrounds the large character, day totals, current streak and progress to the next form. «Настройки» owns all switches and AI imports. Calendar/stats remain separate; current-day values refresh while open.
 - Core preferences: the «Настройки» tab edits interval (5–240 min), picker mode, Focus and character build; values are normalized on load, and an interval change reschedules the loop.
 - Renderer CSP lists `photo:` in `img-src`, so progress photos load through the custom scheme.
 - Debug panel: dev-only, with state view, quick actions, six scenario presets and per-cue sound preview.
 - Tests: Vitest covers domain rules, stores, persistence, preferences, popup/portrait/weight/heatmap/stats/photo/AI components and the debug panel.
-- No planned roadmap milestones remain. Known gaps: Playwright E2E and real-Electron checks of tray/windows/IPC (manual smoke).
+- Known gaps: six distinct body illustrations, personal exercise-level progression, automatic AI analysis, export, external-event triggers and Playwright E2E. Window/tray integration still needs manual Electron smoke checks.
 
 ## Doc index
 

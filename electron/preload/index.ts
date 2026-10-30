@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { LabCommand, LabState } from '../../shared/domain/laboratory'
 import {
   IpcChannels,
   type DataAddWeightPayload,
@@ -24,6 +25,14 @@ import {
 } from '../../shared/types/events'
 
 const api = {
+  openLaboratory: (): Promise<void> => ipcRenderer.invoke(IpcChannels.LabOpen),
+  getLabState: (): Promise<LabState> => ipcRenderer.invoke(IpcChannels.LabGetState),
+  labCommand: (command: LabCommand): Promise<LabState> => ipcRenderer.invoke(IpcChannels.LabCommand, command),
+  onLabChanged: (handler: (state: LabState) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: LabState): void => handler(state)
+    ipcRenderer.on(IpcChannels.LabChanged, listener)
+    return () => ipcRenderer.removeListener(IpcChannels.LabChanged, listener)
+  },
   openDashboard: (): Promise<void> => ipcRenderer.invoke(IpcChannels.WindowOpenDashboard),
   openPopup: (): Promise<void> => ipcRenderer.invoke(IpcChannels.WindowOpenPopup),
   closePopup: (): Promise<void> => ipcRenderer.invoke(IpcChannels.WindowClosePopup),

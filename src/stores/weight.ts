@@ -1,3 +1,4 @@
+import { nowDate } from '@shared/domain/clock'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import {
@@ -19,7 +20,7 @@ export const useWeightStore = defineStore('weight', () => {
     entries.value = next.map((entry) => ({ ...entry }))
   }
 
-  function series(now: Date = new Date(), days = WEIGHT_HISTORY_DAYS): WeightPoint[] {
+  function series(now: Date = nowDate(), days = WEIGHT_HISTORY_DAYS): WeightPoint[] {
     return weightSeries(entries.value, { now, days })
   }
 

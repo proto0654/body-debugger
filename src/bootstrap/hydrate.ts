@@ -1,4 +1,5 @@
 import type { DataSnapshot } from '@shared/types/persistence'
+import { useRuntimeStore } from '@/stores/runtime'
 import { useSettingsStore } from '@/stores/settings'
 import { useProgressStore } from '@/stores/progress'
 import { useSessionsStore } from '@/stores/sessions'
@@ -8,6 +9,7 @@ import { usePhotosStore } from '@/stores/photos'
 import { useCustomExercisesStore } from '@/stores/custom-exercises'
 
 export function applySnapshot(snapshot: DataSnapshot): void {
+  useRuntimeStore().apply(snapshot.laboratory)
   useSettingsStore().hydrate(snapshot.settings)
   useProgressStore().hydrate(snapshot.progress)
   useSessionsStore().hydrate(snapshot.sessions)

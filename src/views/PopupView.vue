@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nowDate, nowMs } from '@shared/domain/clock'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import CharacterPortrait from '@/components/character/CharacterPortrait.vue'
 import ComicBubble from '@/components/character/ComicBubble.vue'
@@ -122,9 +123,9 @@ function startTimer(): void {
   if (timer) clearInterval(timer)
   if (durationMs.value <= 0) return
 
-  const startedAt = Date.now()
+  const startedAt = nowMs()
   timer = setInterval(() => {
-    remainingMs.value = Math.max(0, durationMs.value - (Date.now() - startedAt))
+    remainingMs.value = Math.max(0, durationMs.value - (nowMs() - startedAt))
   }, 250)
 }
 
@@ -275,7 +276,7 @@ async function submit(status: SessionStatus): Promise<void> {
     ...sessions.history.filter(session => session.id !== current.id), { ...current, status }
   ]).stage
   const stageUp = status === 'done' && nextStage > progress.characterStage
-  const today = localDateKey(new Date())
+  const today = localDateKey(nowDate())
   const firstDoneToday = !sessions.history.some(session => session.status === 'done' &&
     localDateKey(new Date(session.completedAt ?? session.triggeredAt)) === today)
   const reactionSequence = sessions.history.length + 1

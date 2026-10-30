@@ -1,5 +1,7 @@
 import { app, BrowserWindow } from 'electron'
-import { join } from 'path'
+import { getUserDataPath, isLabProcess } from './lab-environment'
+import { initializeLaboratory, stopLaboratory } from './laboratory'
+import { openLaboratoryWindow } from './windows/laboratory'
 import { createAppTray } from './tray'
 import { createDashboardWindow } from './windows/dashboard'
 import { registerSessionCycleIpc } from './ipc/session-cycle'
@@ -17,7 +19,10 @@ import { setPaused, startTriggerLoop, stopTriggerLoop, triggerNow } from './trig
 registerPhotoScheme()
 
 // Keep Chromium/Electron profile on the project drive (E:), not %APPDATA% on C:
-app.setPath('userData', join(app.getAppPath(), '.userdata'))
+app.setPath('userData', getUserDataPath())
+
+if (isLabProcess() && !app.requestSingleInstanceLock()) app.quit()
+app.on('second-instance', () => { if (isLabProcess()) openLaboratoryWindow() })
 
 // Windows: keep app alive in tray when all windows closed
 app.setAppUserModelId('com.bodydebugger.app')
@@ -27,6 +32,7 @@ if (process.platform === 'win32') {
 }
 
 app.whenReady().then(() => {
+  initializeLaboratory()
   loadPersistence()
   loadPhotos()
   loadCustomExercises()
@@ -48,6 +54,7 @@ app.whenReady().then(() => {
 
   // Open dashboard on first launch so Tailwind styles are visible immediately
   createDashboardWindow()
+  if (isLabProcess()) openLaboratoryWindow()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -57,6 +64,7 @@ app.whenReady().then(() => {
 })
 
 app.on('will-quit', () => {
+  stopLaboratory()
   stopTriggerLoop()
 })
 

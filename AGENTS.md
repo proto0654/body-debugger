@@ -37,7 +37,8 @@ Project docs and this file override global agent rules when they conflict.
 | Themes / equipment | `shared/constants/themes.ts`, `shared/constants/equipment.ts`, `src/styles/index.css` |
 | Core preferences (interval, picker mode, Focus, build) | `shared/domain/preferences.ts`, `shared/constants/focus.ts`, `src/components/settings/` |
 | Dashboard calendar + stats | `shared/domain/stats.ts`, `src/components/stats/` |
-| Debug panel + scenarios (dev-only) | `src/debug/`, `electron/main/ipc/debug.ts` |
+| Native laboratory (dev-only, isolated profile) | `src/debug/`, `shared/domain/laboratory.ts`, `electron/main/laboratory.ts` |
+| Application clock / laboratory time | `shared/domain/clock.ts`, `src/stores/runtime.ts` |
 | Preload bridge | `electron/preload/` |
 | Vue renderer | `src/` |
 | Pinia hydrate | `src/bootstrap/hydrate.ts` |
@@ -60,6 +61,7 @@ Project docs and this file override global agent rules when they conflict.
 
 ```bash
 npm run dev          # electron-vite: tray + dashboard
+npm run dev:lab      # isolated native visual laboratory + tray + dashboard
 npm run build
 npm run typecheck    # main + renderer + tests
 npm test             # Vitest suite

@@ -554,3 +554,20 @@ html[data-reduce-motion='true'] *::after {
     transition-delay: 0ms !important;
   }
 }
+
+/* Native laboratory controls share the app theme and remain usable at narrow window widths. */
+.lab-status { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--color-amber-400) 30%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--color-amber-400) 7%, transparent); color: var(--color-amber-300); font-size: 11px; }
+.lab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-amber-400); }
+.lab-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.lab-controls label { display: flex; flex-direction: column; gap: 5px; color: var(--color-slate-400); font-size: 11px; }
+.lab-controls select, .lab-controls input:not([type='checkbox']) { min-height: 34px; max-width: 190px; border: 1px solid var(--color-slate-700); border-radius: 8px; background: var(--color-slate-950); color: var(--color-white); padding: 6px 9px; font-size: 12px; }
+.lab-controls .lab-check { flex-direction: row; align-items: center; min-height: 34px; gap: 7px; }
+.lab-scenario { padding: 14px; border: 1px solid var(--color-slate-700); border-radius: 12px; text-align: left; background: var(--color-slate-900); transition: border-color .15s; }
+.lab-scenario:hover, .lab-scenario.selected { border-color: var(--color-amber-400); }
+.lab-preview { display: grid; grid-template-columns: 230px 1fr; gap: 24px; align-items: center; }
+.lab-range { accent-color: var(--color-amber-400); }
+.lab-event { display: flex; width: 100%; gap: 10px; border-radius: 7px; padding: 7px; text-align: left; color: var(--color-slate-300); font-size: 11px; }
+.lab-event.current { background: var(--color-slate-800); color: var(--color-amber-300); }
+.lab-event.future { opacity: .5; }
+.laboratory button:disabled { opacity: .45; cursor: wait; }
+@media (max-width: 760px) { .lab-preview { grid-template-columns: 1fr; } }

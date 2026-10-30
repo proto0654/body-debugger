@@ -1,3 +1,4 @@
+import { nowDate } from './clock'
 import { EXERCISE_CATALOG } from '../constants/exercises'
 import type { Exercise, ExerciseGroup } from '../types/exercise'
 import type { Session, SessionStatus } from '../types/session'
@@ -120,7 +121,7 @@ export function buildHeatmap(
 ): Heatmap {
   const requested = options.days ?? DEFAULT_HEATMAP_DAYS
   const days = Number.isFinite(requested) ? Math.max(1, Math.floor(requested)) : DEFAULT_HEATMAP_DAYS
-  const now = options.now ?? new Date()
+  const now = options.now ?? nowDate()
   const today = startOfDay(now)
   const windowStart = addDays(today, -(days - 1))
 
@@ -160,7 +161,7 @@ export function summarizeStats(
   sessions: readonly Session[],
   options: { catalog?: readonly Exercise[]; now?: Date } = {}
 ): StatsSummary {
-  const now = options.now ?? new Date()
+  const now = options.now ?? nowDate()
   const catalog = options.catalog ?? EXERCISE_CATALOG
   const catalogById = new Map(catalog.map((exercise) => [exercise.id, exercise]))
 

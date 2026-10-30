@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { getLaboratoryClock } from '../../../shared/domain/clock'
 import type { AppSettings } from '../../../shared/types/settings'
 import type { UserProgress } from '../../../shared/types/progress'
 import type { Session } from '../../../shared/types/session'
@@ -104,6 +105,7 @@ export function loadPersistence(): DataSnapshot {
 
 export function getSnapshot(): DataSnapshot {
   return {
+    ...(getLaboratoryClock() ? { laboratory: getLaboratoryClock() } : {}),
     settings: cloneSettings(state.settings),
     progress: getProgress(),
     sessions: state.sessions.map((s) => ({ ...s })),

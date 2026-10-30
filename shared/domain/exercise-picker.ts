@@ -1,3 +1,4 @@
+import { nowDate } from './clock'
 import { EXERCISE_CATALOG, FALLBACK_EXERCISE } from '../constants/exercises'
 import type { Exercise, ExerciseGroup } from '../types/exercise'
 import type { Session } from '../types/session'
@@ -239,7 +240,7 @@ function pickWeighted(scored: ScoredExercise[], random: () => number): Exercise 
 export function pickNextExercise(context: PickerContext): Exercise {
   const settings = context.settings
   const tuning = TUNING[settings.pickerMode] ?? TUNING.balance
-  const now = (context.now ?? new Date()).getTime()
+  const now = (context.now ?? nowDate()).getTime()
   const random = context.random ?? Math.random
   const catalog = context.catalog ?? EXERCISE_CATALOG
 

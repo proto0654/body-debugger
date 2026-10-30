@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nowDate } from '@shared/domain/clock'
 import { computed } from 'vue'
 import { EXERCISE_CATALOG } from '@shared/constants/exercises'
 import { buildHeatmap, summarizeStats, type DayActivity } from '@shared/domain/stats'
@@ -12,7 +13,7 @@ const props = withDefaults(
     catalog?: readonly Exercise[]
   }>(),
   {
-    now: () => new Date(),
+    now: () => nowDate(),
     catalog: () => EXERCISE_CATALOG
   }
 )

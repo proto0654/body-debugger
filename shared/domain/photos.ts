@@ -1,3 +1,4 @@
+import { nowDate } from './clock'
 import type { PhotoEntry } from '../types/photo'
 
 /**
@@ -60,7 +61,7 @@ export function buildPhotoEntry(input: PhotoEntryInput): PhotoEntry | null {
     return null
   }
 
-  const createdAt = timestamp(input.createdAt, input.now ?? new Date())
+  const createdAt = timestamp(input.createdAt, input.now ?? nowDate())
   if (!createdAt) return null
 
   const sessionId = nonEmpty(input.sessionId)

@@ -1,3 +1,4 @@
+import { nowDate } from '@shared/domain/clock'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { Session, SessionExtras, SessionStatus } from '@shared/types/session'
@@ -32,7 +33,7 @@ export const useSessionsStore = defineStore('sessions', () => {
       exerciseId: picked.id,
       status: 'missed',
       durationSec: picked.durationSec,
-      triggeredAt: new Date().toISOString()
+      triggeredAt: nowDate().toISOString()
     }
 
     current.value = session
@@ -54,7 +55,7 @@ export const useSessionsStore = defineStore('sessions', () => {
       ...current.value,
       ...extras,
       status,
-      completedAt: new Date().toISOString()
+      completedAt: nowDate().toISOString()
     }
 
     history.value = [...history.value, session]

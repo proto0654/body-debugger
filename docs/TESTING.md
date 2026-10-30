@@ -5,6 +5,7 @@ How we verify domain logic and run visual scenarios without fighting the tray. P
 ## Commands
 
 ```bash
+npm run dev:lab      # isolated native laboratory
 npm test             # vitest run — CI-style single pass
 npm run test:watch   # watch mode
 npm run typecheck    # node + renderer + tests (tsconfig.test.json)
@@ -42,7 +43,7 @@ tests/
 | Themes | ids unique, unknown → default, App mirrors `data-theme` | `tests/unit/themes.test.ts`, `tests/components/App.test.ts` |
 | Inventory UI | equipment catalog covers the exercise catalog, store toggle guards, dashboard chips | `tests/unit/equipment.test.ts`, `tests/stores/settings.test.ts`, `tests/components/DashboardView.test.ts` |
 | Calendar / stats | local-day buckets, Monday-first weeks, intensity cap, window size, status counts, seven-day bars, zone shares, top exercises | `tests/unit/stats.test.ts`, `tests/components/CalendarHeatmap.test.ts`, `tests/components/StatsPanel.test.ts` |
-| Debug panel | dev-only visibility, state view, quick actions, reset, all six scenarios, deterministic payloads, main apply | `tests/unit/debug-enabled.test.ts`, `tests/unit/debug-scenarios.test.ts`, `tests/unit/persistence-debug.test.ts`, `tests/components/DebugPanel.test.ts` |
+| Laboratory | isolated profile gate, six chronological stories, seeded calendars, import validation, virtual clock, rewind without future data, popup cancellation, main-owned playback, manual interruption, timeout, one-shot write failure and idempotent retry, saved runs, UI entry and commands | `tests/unit/lab-environment.test.ts`, `tests/unit/laboratory-scenarios.test.ts`, `tests/unit/laboratory-controller.test.ts`, `tests/unit/clock.test.ts`, `tests/components/LaboratoryPanel.test.ts`, `tests/components/DebugPanel.test.ts` |
 | Settings defaults | merge of an older settings file, nested arrays, sound/theme/AI/photo blocks | `tests/unit/persistence-defaults.test.ts` |
 | Core preferences | interval bounds / presets / rejection, picker mode guard, Focus normalization (dedupe, primary exclusion), store setters, «Настройки» tab + hash deep link, `photo:` CSP guard | `tests/unit/preferences.test.ts`, `tests/stores/settings.test.ts`, `tests/components/PreferencesPanel.test.ts`, `tests/components/DashboardView.test.ts`, `tests/unit/csp.test.ts` |
 | Exercise payloads | required/optional fields, bad numbers, group/focus tags, `assertExercise` | `tests/unit/exercise-validation.test.ts` |
@@ -77,7 +78,7 @@ Source mapping and regeneration: [character art library](../src/assets/character
 - Popup: one exercise; wait before «Начать» and confirm the timer stays full. Start, verify Medium at 80% and Hardcore with pointer/Space/Enter hold. Saved confirmation lasts one second; closing without an answer = `skipped`.
 - Reliability: failed save offers retry without a success reaction; repeated delivery cannot add another result or close a different session. Photo/AI loading failures must not block the core renderer.
 - Comic dialogue: ready/start/saved captions, a large happy/proud portrait after a real result, body restored after 3.5 s; calm skips/pause, all themes and reduced motion. Confirm details plus an error still fit 420 px.
-- Character condition: apply «Много пропусков», check the three build variants in settings and the 10/10 indicator. Simulate completions to see 8/6/4/2/0 points and restoration of the earned body. Snooze and pause alone must not worsen condition; relaunch must preserve it. Check transparent sprite edges on all themes.
+- Character condition: open the laboratory and choose «Форма → спад → восстановление». Seek to the neglect milestones, check the three build variants and the 10/10 indicator. Step through completions to see 8/6/4/2/0 points and restoration of the earned body. Snooze and pause alone must not worsen condition; relaunch must preserve it. Check transparent sprite edges on all themes.
 - Today: character hero, day count, live streak across midnight and the next attainable form; optional switches are on «Настройки». Tray «Настройки» must select it in both a new and an existing dashboard.
 - Popup details: turn «Детали в попапе» on, expand, save reps / feeling / weight; turn «Фото» on, attach a photo, submit, confirm the thumbnail appears in the popup and the photo in the dashboard gallery.
 - Settings: change the interval (500 reverts), switch the picker mode, set a primary direction plus accents, change the build, relaunch and confirm all four persist.
@@ -87,48 +88,66 @@ Source mapping and regeneration: [character art library](../src/assets/character
 - Themes: switch all three, relaunch, confirm the theme persists.
 - Weight: add/remove a measurement, set a goal, relaunch and confirm `weights.json`.
 - Calendar / stats: check today's cell details, a gap day, zone bars and top exercises.
-- Debug: open the «Debug» tab, apply each scenario, preview every cue, simulate each result, reset history.
+- Laboratory: launch from «Лаборатория» or `npm run dev:lab`; use the timeline, native popup presets and the checks below. Keep normal-profile files unchanged.
 - Persistence: streak, stage and sessions survive a relaunch (`.userdata/data/`).
 
-## Debug panel (implemented)
+## Native visual laboratory
 
-Dev-only. The dashboard shows a **Debug** tab when `import.meta.env.DEV` is true or
-`VITE_DEBUG_PANEL=1` is set. Main registers `debug:apply-scenario` only while
-`app.isPackaged` is false, so a production renderer cannot replace history.
+Start with `npm run dev:lab`, or open **«Лаборатория» → «Открыть лабораторию»** in the dev dashboard. The launcher starts a separate Electron process with `--body-debugger-lab`; a per-profile instance lock brings an existing laboratory forward. A separate control window leaves the real dashboard and popup available for inspection.
 
-**Quick actions**
+All laboratory stores and Chromium state live under `.userdata/laboratory/` on the project drive. Normal data stays under `.userdata/`. Main registers laboratory IPC only in an unpackaged app; mutation commands and the compatibility `debug:apply-scenario` channel also require the laboratory process. Setting a renderer debug flag cannot authorize normal-profile replacement.
 
-- Trigger popup now
-- Simulate `done` / `snoozed` / `skipped` / `missed`
-- Reset history + progress
-- Force stage / branch / build through `data:save-progress`
-- Force each character emotion
-- Play every sound cue (preview ignores the master switch, so each file is audible)
+### Character history
 
-**State view**
+Six stories are built in [shared/domain/laboratory.ts](../shared/domain/laboratory.ts):
 
-- Stage / branch / emotion / active Focus
-- Next pick (`pickNextExercise` with deterministic roll)
-- Last five sessions
+| Story | Checkpoints |
+|-------|-------------|
+| «От новичка до пика» | First completion, daily streaks, all earned stages, 80 completions |
+| «Форма → спад → восстановление» | 45 completions, ten skipped/missed results, five recovery completions; earned stage stays intact |
+| «Перерыв и возвращение» | Seven active days, seven empty days, return; streak expires without adding neglect |
+| «Смена направления» | Posture, power, mobility through the real last-30-completions rule |
+| «Всё откладываю» | Snooze followed by completion or missed result; snooze itself never adds neglect |
+| «Неровный месяц» | A resolved seeded month with active days, gaps, skips and recovery |
 
-**Preset scenarios** (`src/debug/scenarios.ts`)
+Choose event/day/milestone steps, scrub, select a date, jump to the beginning/end, or play at 0.5/1.5/3.5 seconds per event. Controls are owned by [electron/main/laboratory.ts](../electron/main/laboratory.ts), so closing a control view does not lose the run. Reopening the laboratory controls reads the current main-owned position.
 
-- Steady week of activity
-- Many skips in a row
-- Upper-body only
-- Frequent snooze
-- Forced stage-up
-- Inventory emphasis
+Seeking reconstructs only the event prefix up to the cursor, normalizes settings and progress, and recomputes earned stage/branch and streak. Future events do not enter the live calendar or statistics. The character, current metrics, explanation, frame candidates and calendar appear together. Checkpoint agreement verifies that the native persistence/projection path matches the domain calculation; it is not an independent oracle for the domain rules.
 
-**Safety**
+Scrubbing is silent. Playback permits reactions and optional audio without opening a popup for every historical event. A manually triggered real exercise stops playback immediately; its resolved result replaces the future timeline with a manual branch. Seeking returns to the selected prefix. Reload the scenario to regenerate its original future, or restore a previously saved variant.
 
-- Scenario sessions are validated with `sanitizeSessions`, settings with `normalizeSettings`.
-- Main recomputes the character from the seeded history; a hand-written stage cannot drift.
-- Writes go through the normal JSON files, then `data:updated` + loop reschedule run as usual.
+### Random calendars and saved runs
+
+Use 7/30/90 days, regular/uneven/frequent-skip activity, low/normal/high load, a direction, an end date and a 32-bit seed. Active days are correlated, weekends have a lower probability, and daily counts vary within a narrow range. Exercises are selected by the existing picker. Repeating the same parameters reproduces the same calendar under the current generator/catalog.
+
+«Сохранить вариант» writes the resolved plan and cursor to `data/laboratory-run.json` in the laboratory profile. «Восстановить» restores that explicit save. JSON export/import uses native dialogs and stores resolved events as well as generator parameters; replay does not regenerate historical picks after generator changes. Format version is 1. Imports are limited to 2 MB / 2,000 chronological events, known exercise IDs, valid session payloads and unique session identities. Dates and day boundaries use the current OS time zone; replay on another time zone can regroup calendar days. Changing domain rules intentionally changes their computed interpretation.
+
+«Сбросить тестовую историю» clears laboratory sessions/progress and resets settings. It preserves the explicit saved run and optional test media/measurements. It never deletes the normal profile.
+
+### Real popup and tray
+
+The «Попап и трей» section opens the real Electron window and uses the normal reminder/result/persistence path. Presets cover ordinary exercises, one completion before stage-up, Soft/Medium/Hardcore and optional session details. The current timeline position provides starting history.
+
+- Click «Начать» in the actual popup, then advance application time by a selected number of seconds; use +1 second around unlock boundaries.
+- Advance five minutes to inspect an unanswered popup becoming `missed`, or a snoozed reminder returning.
+- Simulate 90 seconds / ten minutes of system idle and returning, or use the real pause switch.
+- «Ошибка следующей записи» fails exactly one session write before persistence; retry in the popup must create one result and only then show success.
+- Sound previews deliberately bypass the master mute switch. Normal playback respects sound settings, pause and reduced motion.
+- Theme, build and motion/sound changes affect the isolated native dashboard/popup too. The appearance tab has local-only stage/branch/build/emotion/neglect overrides and a six-stage gallery; it does not edit history.
+
+### Time and cancellation
+
+[shared/domain/clock.ts](../shared/domain/clock.ts) defaults to real time. Laboratory snapshots carry runtime-only clock metadata; [src/stores/runtime.ts](../src/stores/runtime.ts) applies it before hydrating domain stores. Streak, picker, calendar, statistics, session timestamps, photos, weight and the popup exercise countdown share application time. A historical cursor freezes it; opening a real popup resumes it from the virtual anchor. Animation delays and Hardcore hold confirmation always use real elapsed time. Windows time is never modified.
+
+Before a seek/reset/preset, main cancels the outstanding result timeout and success-tray reset, clears the active session identity, then closes the discarded popup. Its close callback cannot record a skip. Automatic reminders are held while viewing the historical timeline. Native mode resumes scheduling; returning to the timeline cancels that native cycle.
+
+### Native checks still required
+
+Unit/controller/component tests mock Electron surfaces. Verify visually on target Windows configurations: tray animation/menu, real popup completion and retry, Soft/Medium/Hardcore, keyboard hold, details/errors fitting the window, reduced motion, audio, focus, Windows scaling and multiple monitors/taskbar positions. Launching the laboratory and loading a story are smoke checks, not full visual regression coverage.
 
 ## Principles
 
-1. Debug mode must not change default app behavior when off.
-2. Scenarios apply through main-owned persistence, never through renderer-only state.
-3. Domain logic stays testable without UI.
-4. Panel covers both logic and presentation in one place.
+1. Normal app behavior uses the real clock and existing persistence paths.
+2. Test mutations stay in a separate main-owned laboratory profile.
+3. Domain logic stays testable without UI; existing character and picker rules remain the source of truth.
+4. Native visual inspection complements deterministic tests and does not replace them.

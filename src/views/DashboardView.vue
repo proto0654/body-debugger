@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { nowDate } from '@shared/domain/clock'
+import { useRuntimeStore } from '@/stores/runtime'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import DebugPanel from '@/debug/DebugPanel.vue'
 import { isDebugEnabled } from '@/debug/is-debug-enabled'
@@ -28,7 +30,7 @@ import { useCustomExercisesStore } from '@/stores/custom-exercises'
 import type { CharacterStage } from '@shared/types/character'
 
 type TabId = 'today' | 'calendar' | 'stats' | 'settings' | 'debug'
-const debugEnabled = isDebugEnabled()
+const debugEnabled = isDebugEnabled() || !!useRuntimeStore().laboratory
 function initialTab(): TabId {
   const requested = /[?&]tab=([a-z]+)/.exec(window.location.hash)?.[1]
   if (requested === 'calendar' || requested === 'stats' || requested === 'settings') return requested
@@ -43,7 +45,8 @@ const reminder = useReminderStore()
 const sessions = useSessionsStore()
 const photos = usePhotosStore()
 const customExercises = useCustomExercisesStore()
-const now = ref(new Date())
+const runtime = useRuntimeStore()
+const now = ref(nowDate())
 const celebration = ref('')
 const reactionActive = ref(false)
 const actionError = ref('')
@@ -66,11 +69,12 @@ const stages: CharacterStage[] = [0, 1, 2, 3, 4, 5]
 const tabs = computed<{ id: TabId; label: string }[]>(() => [
   { id: 'today', label: 'Сегодня' }, { id: 'calendar', label: 'Календарь' },
   { id: 'stats', label: 'Статистика' }, { id: 'settings', label: 'Настройки' },
-  ...(debugEnabled ? [{ id: 'debug' as const, label: 'Debug' }] : [])
+  ...(debugEnabled ? [{ id: 'debug' as const, label: 'Лаборатория' }] : [])
 ])
 const dateLabel = computed(() => now.value.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'long' }))
 
-function refreshClock(): void { now.value = new Date() }
+function refreshClock(): void { now.value = nowDate() }
+watch(() => runtime.revision, refreshClock, { flush: 'sync' })
 onMounted(() => {
   resetReaction()
   clock = setInterval(refreshClock, 30_000)
@@ -99,6 +103,11 @@ function showReaction(event: CharacterReactionEvent, message = '', showFace = tr
 
 watch([() => journey.value.stage, todayDone, () => streak.value.current, () => sessions.lastSession?.id],
   ([stage, done, days, lastId], [oldStage, oldDone, oldDays, oldId]) => {
+    if (runtime.laboratory?.silent) {
+      clearTimeout(reactionTimer)
+      resetReaction()
+      return
+    }
     if (stage > oldStage) {
       showReaction('stage-up', `Новая форма: ${CHARACTER_STAGE_LABELS[stage]}`)
     } else if (done > oldDone) {
@@ -136,6 +145,7 @@ async function triggerReminder(): Promise<void> {
         {{ settings.paused ? 'Продолжить' : 'Пауза' }}
       </button>
     </header>
+    <p v-if="runtime.laboratory" class="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-amber-200" data-testid="lab-banner">ЛАБОРАТОРИЯ · Тестовый профиль · {{ dateLabel }}. Обычная история изолирована.</p>
     <nav class="dashboard-tabs" aria-label="Разделы приложения">
       <button v-for="item in tabs" :key="item.id" type="button" :aria-pressed="tab === item.id"
         :class="{ 'is-active': tab === item.id }" @click="tab = item.id">{{ item.label }}</button>

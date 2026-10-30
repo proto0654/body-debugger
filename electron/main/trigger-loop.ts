@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { nowDate, nowMs } from '../../shared/domain/clock'
 import { powerMonitor } from 'electron'
 import { getAvailableCatalog } from './custom-exercises'
 import { pickNextExercise } from '../../shared/domain/exercise-picker'
@@ -64,6 +65,7 @@ interface AwaitingResult {
   exercise: Exercise
   triggeredAt: string
   timeout: NodeJS.Timeout
+  deadline: number
 }
 
 /** Identity of a session being resolved — from the open popup or from the renderer. */
@@ -86,6 +88,34 @@ let ticker: NodeJS.Timeout | null = null
 let nextTriggerAt: number | null = null
 let awayStartedAt: number | null = null
 let awaiting: AwaitingResult | null = null
+let successTimer: NodeJS.Timeout | null = null
+
+interface LoopSimulation {
+  hold: boolean
+  idleSeconds: number | null
+  failNextWrite: boolean
+  onTriggered?: () => void
+  onResolved?: (session: Session) => void
+}
+const simulation: LoopSimulation = { hold: false, idleSeconds: null, failNextWrite: false }
+
+/** Only the isolated laboratory controller supplies these runtime dependencies. */
+export function configureLoopSimulation(next: Partial<LoopSimulation>): void {
+  Object.assign(simulation, next)
+}
+
+/** Cancel before closing: a scrub must never turn a discarded popup into a skipped session. */
+export function cancelLoopForLaboratory(): void {
+  if (awaiting) clearTimeout(awaiting.timeout)
+  awaiting = null
+  if (successTimer) clearTimeout(successTimer)
+  successTimer = null
+  simulation.failNextWrite = false
+  awayStartedAt = null
+  nextTriggerAt = null
+  closePopupWindow()
+  setTrayState('idle')
+}
 
 function intervalMs(): number {
   return Math.max(1, Math.round(getSettings().intervalMinutes)) * 60_000
@@ -148,7 +178,7 @@ function completeSession(
     status,
     durationSec: extras.durationSec ?? origin.durationSec,
     triggeredAt: origin.triggeredAt,
-    completedAt: new Date().toISOString(),
+    completedAt: nowDate().toISOString(),
     // Untrusted renderer input: only in-range details are stored.
     ...(status === 'done' ? normalizeSessionExtras(extras) : {}),
     ...(photoIds.length > 0 ? { photoIds } : {})
@@ -156,6 +186,10 @@ function completeSession(
   if (typeof extras.skipReason === 'string') session.skipReason = extras.skipReason.slice(0, 500)
 
   try {
+    if (simulation.failNextWrite) {
+      simulation.failNextWrite = false
+      throw new Error('Laboratory: simulated session write failure')
+    }
     appendSession(session)
   } catch (error) {
     console.error('[trigger-loop] failed to persist session', error)
@@ -176,18 +210,21 @@ function completeSession(
   setTrayState(trayState)
   broadcastToWindows(IpcChannels.SessionUpdated, { session, trayState })
   if (trayState === 'success') {
-    setTimeout(() => {
+    if (successTimer) clearTimeout(successTimer)
+    successTimer = setTimeout(() => {
       if (getTrayState() === 'success') setTrayState('idle')
+      successTimer = null
     }, 1500)
   }
 
-  const now = Date.now()
+  const now = nowMs()
   awayStartedAt = null
   if (paused) nextTriggerAt = null
   else if (status === 'snoozed') nextTriggerAt = now + SNOOZE_MINUTES * 60_000
   else nextTriggerAt = now + intervalMs()
 
   publishLoopState()
+  simulation.onResolved?.(session)
   return { saved: true }
 }
 
@@ -245,7 +282,8 @@ function pickForCycle(): Exercise {
   return pickNextExercise({
     catalog: getAvailableCatalog(),
     recentSessions: getSnapshot().sessions,
-    settings: getSettings()
+    settings: getSettings(),
+    now: nowDate()
   })
 }
 
@@ -254,12 +292,13 @@ function trigger(reason: SessionTriggerReason): void {
   if (awaiting) return
 
   const sessionId = randomUUID()
-  const triggeredAt = new Date().toISOString()
+  const triggeredAt = nowDate().toISOString()
 
   awaiting = {
     sessionId,
     exercise: pickForCycle(),
     triggeredAt,
+    deadline: nowMs() + MISSED_AFTER_MS,
     timeout: setTimeout(() => handleMissed(sessionId), MISSED_AFTER_MS)
   }
   nextTriggerAt = null
@@ -272,6 +311,7 @@ function trigger(reason: SessionTriggerReason): void {
   const payload: SessionTriggerPayload = { reason, at: triggeredAt }
   console.log('[session:trigger]', payload, awaiting.exercise.id, sessionId)
   publishLoopState()
+  simulation.onTriggered?.()
 }
 
 /** Manual trigger from the tray or the dashboard; works while paused. */
@@ -284,10 +324,11 @@ export function triggerNow(reason: SessionTriggerReason = 'manual'): void {
 }
 
 function tick(): void {
-  if (!started || paused || awaiting || getPopupWindow() || nextTriggerAt === null) return
+  if (awaiting && nowMs() >= awaiting.deadline) handleMissed(awaiting.sessionId)
+  if (!started || simulation.hold || paused || awaiting || getPopupWindow() || nextTriggerAt === null) return
 
-  const now = Date.now()
-  const idleSec = powerMonitor.getSystemIdleTime()
+  const now = nowMs()
+  const idleSec = simulation.idleSeconds ?? powerMonitor.getSystemIdleTime()
 
   if (idleSec >= AWAY_IDLE_SEC) {
     awayStartedAt ??= now - idleSec * 1000
@@ -311,6 +352,8 @@ function tick(): void {
   if (nextTriggerAt <= now) trigger('timer')
 }
 
+export function tickTriggerLoop(): void { tick() }
+
 export function startTriggerLoop(): void {
   if (started) return
   started = true
@@ -322,7 +365,7 @@ export function startTriggerLoop(): void {
   refreshTrayMenu()
 
   if (!paused) {
-    nextTriggerAt = Math.max(dueFrom(Date.now()), Date.now() + STARTUP_GRACE_MS)
+    nextTriggerAt = Math.max(dueFrom(nowMs()), nowMs() + STARTUP_GRACE_MS)
   }
 
   ticker = setInterval(tick, TICK_MS)
@@ -334,6 +377,8 @@ export function stopTriggerLoop(): void {
   ticker = null
   if (awaiting) clearTimeout(awaiting.timeout)
   awaiting = null
+  if (successTimer) clearTimeout(successTimer)
+  successTimer = null
   started = false
 }
 
@@ -359,7 +404,7 @@ export function syncLoopFromSettings(): void {
   refreshTrayMenu()
   refreshTrayAnimation()
 
-  const now = Date.now()
+  const now = nowMs()
   if (awaiting) {
     // The open popup resolves first; its completion schedules the next trigger.
   } else if (paused) {

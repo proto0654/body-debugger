@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+import type { LabCommand, LabState } from '@shared/domain/laboratory'
 
 import type {
   DataAddWeightPayload,
@@ -30,6 +31,10 @@ declare module '*.vue' {
 }
 
 export interface BodyDebuggerApi {
+  openLaboratory: () => Promise<void>
+  getLabState: () => Promise<LabState>
+  labCommand: (command: LabCommand) => Promise<LabState>
+  onLabChanged: (handler: (state: LabState) => void) => () => void
   openDashboard: () => Promise<void>
   openPopup: () => Promise<void>
   closePopup: () => Promise<void>

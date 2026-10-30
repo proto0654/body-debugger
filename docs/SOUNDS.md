@@ -61,7 +61,7 @@ Defaults: off, volume `0.4`, pack `default`; an older settings file gets the blo
 - Event → cue map: `shared/domain/sounds.ts`; `missed` has no cue.
 - Popup: `popup` on mount, `done` / `skip` / `snooze` after a durable result acknowledgement, `stage-up` when a done session
   raises the character stage.
-- Debug panel: every cue has a preview button that ignores the master switch — see [TESTING.md](TESTING.md).
+- Laboratory «Попап и трей»: every cue has a preview button that ignores the master switch — see [TESTING.md](TESTING.md).
 - `streak` has a bundled file and a preview button; no automatic milestone trigger yet.
 - Theme packs are future work: keep cue keys stable and swap the URL map by `packId`.
 

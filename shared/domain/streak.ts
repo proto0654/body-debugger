@@ -1,3 +1,4 @@
+import { nowDate } from './clock'
 import type { Session } from '../types/session'
 import type { Streak } from '../types/progress'
 
@@ -26,7 +27,7 @@ function doneDayIndexes(sessions: readonly Session[]): Set<number> {
 
 export function computeStreak(
   sessions: readonly Session[],
-  now: Date = new Date()
+  now: Date = nowDate()
 ): Streak {
   const days = doneDayIndexes(sessions)
   if (days.size === 0) return { current: 0, max: 0 }

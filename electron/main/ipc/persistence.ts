@@ -15,6 +15,7 @@ import {
 } from '../persistence'
 import { broadcastToWindows } from '../broadcast'
 import { syncLoopFromSettings } from '../trigger-loop'
+import { rememberLabPreferences } from '../laboratory'
 
 export function registerPersistenceIpc(): void {
   ipcMain.handle(IpcChannels.DataGetSnapshot, async () => getSnapshot())
@@ -24,11 +25,13 @@ export function registerPersistenceIpc(): void {
     broadcastToWindows(IpcChannels.DataUpdated, snapshot)
     // Interval / pause changes must reach the reminder schedule.
     syncLoopFromSettings()
+    rememberLabPreferences()
     return snapshot
   })
 
   ipcMain.handle(IpcChannels.DataSaveProgress, async (_event, payload: DataSaveProgressPayload) => {
     const snapshot = updateProgress(payload)
+    rememberLabPreferences()
     broadcastToWindows(IpcChannels.DataUpdated, snapshot)
     return snapshot
   })

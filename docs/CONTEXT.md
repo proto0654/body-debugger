@@ -43,7 +43,8 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | AI proposal parsing + approval | `shared/domain/ai-proposal.ts`, `electron/main/custom-exercises.ts`, `src/components/ai/` |
 | Themes + equipment catalogs | `shared/constants/themes.ts`, `shared/constants/equipment.ts` |
 | Dashboard aggregation (heatmap / stats) | `shared/domain/stats.ts`, `src/components/stats/` |
-| Debug panel + scenarios | `src/debug/`, `electron/main/ipc/debug.ts` |
+| Native laboratory | `src/debug/`, `shared/domain/laboratory.ts`, `electron/main/laboratory.ts` |
+| App clock / renderer runtime metadata | `shared/domain/clock.ts`, `src/stores/runtime.ts` |
 | Preload API | `electron/preload/index.ts` |
 | Renderer entry | `src/main.ts`, `src/App.vue`, `src/router.ts` |
 | Hydrate bootstrap | `src/bootstrap/hydrate.ts` |
@@ -76,7 +77,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | What code already reflects | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | How to run / caches | [DEVELOPMENT.md](DEVELOPMENT.md) |
 | Optional sound cues + packs | [SOUNDS.md](SOUNDS.md) |
-| Unit / store tests + debug panel | [TESTING.md](TESTING.md) |
+| Tests + native laboratory | [TESTING.md](TESTING.md) |
 | Next work | [ROADMAP.md](ROADMAP.md) |
 
 ## Current focus
@@ -95,8 +96,8 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 - Dashboard: «Сегодня» foregrounds the large character, day totals, current streak and progress to the next form. «Настройки» owns all switches and AI imports. Calendar/stats remain separate; current-day values refresh while open.
 - Core preferences: the «Настройки» tab edits interval (5–240 min), picker mode, Focus and character build; values are normalized on load, and an interval change reschedules the loop.
 - Renderer CSP lists `photo:` in `img-src`, so progress photos load through the custom scheme.
-- Debug panel: dev-only, with state view, quick actions, six scenario presets and per-cue sound preview.
-- Tests: Vitest covers domain rules, stores, persistence, preferences, popup/portrait/weight/heatmap/stats/photo/AI components and the debug panel.
+- Native laboratory: `npm run dev:lab` or the dev dashboard «Лаборатория» entry starts a separate profile under `.userdata/laboratory/`. Main owns six chronological stories, timeline playback/rewind, seeded 7/30/90-day calendars, saved/exported runs and native popup/idle/write-failure controls. Shared app time follows the virtual cursor; animation/hold time stays real. See [TESTING.md](TESTING.md).
+- Tests: Vitest covers domain rules, stores, persistence, preferences, popup/portrait/weight/heatmap/stats/photo/AI components and the isolated native laboratory.
 - Known gaps: six distinct body illustrations for the default Desk Hulk (still three tiers), a runtime selector/resolver for the nine additional art-ready packs, personal exercise-level progression, automatic AI analysis, export, external-event triggers and Playwright E2E. Window/tray integration still needs manual Electron smoke checks.
 
 ## Doc index
@@ -107,7 +108,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Structure, IPC, persistence |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Dev commands, E: caches |
 | [SOUNDS.md](SOUNDS.md) | Optional sound layer + default pack |
-| [TESTING.md](TESTING.md) | Vitest suite (commands, coverage, gaps) + debug panel plan |
+| [TESTING.md](TESTING.md) | Vitest suite + native laboratory workflow and limits |
 | [ROADMAP.md](ROADMAP.md) | Post-skeleton milestones |
 | [../CONCEPT.md](../CONCEPT.md) | Product SoT |
 | [../AGENTS.md](../AGENTS.md) | Agent entry |

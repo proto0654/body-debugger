@@ -1,3 +1,4 @@
+import { nowDate } from './clock'
 import type { Session } from '../types/session'
 import type { WeightEntry } from '../types/weight'
 import { parseFiniteNumber } from './parse-number'
@@ -64,7 +65,7 @@ export function normalizeWeightTarget(value: unknown): number | null {
 /** Returns null when any required field is unusable. */
 export function normalizeWeightEntry(
   input: WeightEntryInput,
-  now: Date = new Date()
+  now: Date = nowDate()
 ): NormalizedWeightEntry | null {
   const weightKg = parseFiniteNumber(input.weightKg)
   if (weightKg === null || !isWithinRange(weightKg)) return null

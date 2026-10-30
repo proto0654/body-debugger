@@ -2,6 +2,7 @@ import { app, Menu, Tray } from 'electron'
 import type { TrayState } from '../../shared/types/events'
 import { trayFrameSpec, trayFrames } from './tray-icons'
 import { createDashboardWindow } from './windows/dashboard'
+import { isLabProcess } from './lab-environment'
 
 /** Main-process actions the tray menu can invoke; wired in `electron/main/index.ts`. */
 export interface TrayHandlers {
@@ -62,7 +63,7 @@ function buildContextMenu(): Menu {
 
 function updateTooltip(): void {
   if (!tray) return
-  tray.setToolTip(paused ? 'Body Debugger — пауза' : TRAY_LABELS[trayState])
+  tray.setToolTip(`${isLabProcess() ? 'Лаборатория · ' : ''}${paused ? 'Body Debugger — пауза' : TRAY_LABELS[trayState]}`)
 }
 
 function stopFrameTimer(): void {

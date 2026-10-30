@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { nowDate } from '@shared/domain/clock'
+import { useRuntimeStore } from '@/stores/runtime'
 import { computed, ref, watch } from 'vue'
 import WeightSparkline from './WeightSparkline.vue'
 import { useSettingsStore } from '@/stores/settings'
@@ -13,10 +15,11 @@ import {
 const settings = useSettingsStore()
 const weight = useWeightStore()
 
-/** Snapshot of "now": the card is a dashboard view, not a live clock. */
-const now = new Date()
+/** Refresh with main snapshots, including laboratory timeline changes. */
+const runtime = useRuntimeStore()
+const now = computed(() => { runtime.revision; return nowDate() })
 
-const series = computed(() => weight.series(now))
+const series = computed(() => weight.series(now.value))
 const latest = computed(() => weight.latest)
 const recent = computed(() => weight.recent(5))
 const change = computed(() => weightChangeKg(series.value))

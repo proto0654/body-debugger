@@ -4,6 +4,7 @@
 
 ```bash
 npm run dev          # tray + dashboard (electron-vite)
+npm run dev:lab      # isolated native visual laboratory
 npm run build
 npm run preview
 npm run typecheck    # main + preload + shared (tsc), renderer and tests (vue-tsc)
@@ -55,8 +56,8 @@ Do **not** download Electron into `%LOCALAPPDATA%\electron` or park the profile 
 
 - App stays in the tray when all windows close.
 - Tray menu: **Дашборд**, **Напоминание сейчас**, **Пауза / Продолжить**, Quit. **Настройки** opens the preferences tab directly, including in an existing dashboard.
-- Dashboard tabs: **Сегодня** (character, day totals, next form, weight and photos), **Календарь**, **Статистика**, **Настройки** (interval, picker mode, Focus, character build, comfort and optional-layer switches, AI imports) plus a dev-only **Debug** tab — see [ARCHITECTURE.md](ARCHITECTURE.md#core-preferences).
-- Renderer routes: `#/dashboard`, `#/popup`; `#/dashboard?tab=settings` opens the settings tab directly (direct links and the tray settings action).
+- Dashboard tabs: **Сегодня** (character, day totals, next form, weight and photos), **Календарь**, **Статистика**, **Настройки** (interval, picker mode, Focus, character build, comfort and optional-layer switches, AI imports) plus the dev-only **Лаборатория** entry — see [ARCHITECTURE.md](ARCHITECTURE.md#core-preferences).
+- Renderer routes: `#/dashboard`, `#/popup`, `#/laboratory` (controls in an isolated laboratory process); `#/dashboard?tab=settings` opens the settings tab directly (direct links and the tray settings action).
 - After a **Готово** in the popup, streak, sessions and character survive quit/relaunch (check `.userdata/data/`).
 - If the shell exports `ELECTRON_RUN_AS_NODE=1` (some editors/agents do), `electron.exe .` boots as plain Node and crashes on `electron.app`. Clear the variable for smoke runs.
 
@@ -139,6 +140,8 @@ No network call is made. The dashboard panel accepts pasted AI JSON, validates i
 
 `src/styles/index.css` defines `:root[data-theme='night']` / `[data-theme='warm']` token overrides. `App.vue` mirrors `settings.themeId` onto `<html>`; no component reads the theme directly. Unknown ids normalize to `default`.
 
-## Testing / debug
+## Testing / native laboratory
 
-`npm test` runs the Vitest suite (domain, stores, persistence, popup/portrait, photos, AI, stats, debug panel). `npm run typecheck` includes the test project (`tsconfig.test.json`). Layout, covered areas and gaps: [TESTING.md](TESTING.md). Manual hook for end-to-end checks: tray **Напоминание сейчас** (runs the real trigger cycle).
+`npm test` runs the Vitest suite (domain, stores, persistence, popup/portrait, photos, AI, stats, laboratory). `npm run typecheck` includes the test project (`tsconfig.test.json`). Layout, covered areas and gaps: [TESTING.md](TESTING.md). For native visual checks run `npm run dev:lab`, or choose **«Лаборатория» → «Открыть лабораторию»** in a dev dashboard. The separate Electron process uses `.userdata/laboratory/`, including media and Chromium cache. The normal profile is untouched. Timeline, replay, random calendars and popup/idle/error controls: [TESTING.md](TESTING.md).
+
+The laboratory launcher removes `ELECTRON_RUN_AS_NODE` from the child environment entirely; an empty value still enables Node mode in Electron. For a direct terminal launch, clear the variable as described in the Windows notes. Laboratory IPC remains unavailable in packaged builds.

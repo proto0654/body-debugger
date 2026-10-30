@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import CharacterPortrait from '@/components/character/CharacterPortrait.vue'
+import ComicBubble from '@/components/character/ComicBubble.vue'
 import { useSessionsStore } from '@/stores/sessions'
 import { useCharacterStore } from '@/stores/character'
 import { useProgressStore } from '@/stores/progress'
@@ -26,6 +27,7 @@ import { POPUP_EXIT_MS, useMotionPreference } from '@/motion'
 import { cueForSessionStatus, type SoundCue } from '@shared/domain/sounds'
 import { computeCharacterProgress } from '@shared/domain/character-progress'
 import { CHARACTER_STAGE_LABELS } from '@shared/constants/character'
+import { localDateKey } from '@shared/domain/stats'
 import { useSoundPlayer } from '@/sounds'
 import type { Feeling, SessionExtras, SessionStatus } from '@shared/types/session'
 import type { PhotoEntry } from '@shared/types/photo'
@@ -108,7 +110,7 @@ const severityHint = computed(() => {
 function startExercise(): void {
   if (!sessions.current || busy.value || started.value) return
   started.value = true
-  character.setEmotion('focused')
+  character.react('active', sessions.history.length)
   startTimer()
 }
 
@@ -252,7 +254,7 @@ onMounted(async () => {
     console.error('[popup] failed to load exercise', cause)
     errorMessage.value = 'Не удалось загрузить разминку. Откройте её ещё раз из трея.'
   }
-  character.setEmotion('neutral')
+  character.react('ready', sessions.history.length)
   sounds.preload()
   sounds.play('popup')
 })
@@ -273,6 +275,10 @@ async function submit(status: SessionStatus): Promise<void> {
     ...sessions.history.filter(session => session.id !== current.id), { ...current, status }
   ]).stage
   const stageUp = status === 'done' && nextStage > progress.characterStage
+  const today = localDateKey(new Date())
+  const firstDoneToday = !sessions.history.some(session => session.status === 'done' &&
+    localDateKey(new Date(session.completedAt ?? session.triggeredAt)) === today)
+  const reactionSequence = sessions.history.length + 1
   const cue: SoundCue | null = stageUp ? 'stage-up' : cueForSessionStatus(status)
   try {
     const response = await window.api?.sessionResult({
@@ -287,13 +293,13 @@ async function submit(status: SessionStatus): Promise<void> {
     sessions.clearCurrent()
     stopTimer()
     if (status === 'done') {
-      character.setEmotion('happy')
+      character.react(stageUp ? 'stage-up' : firstDoneToday ? 'first-done' : 'done', reactionSequence)
       if (stageUp) {
         successLabel.value = 'Новая форма!'
         successDetail.value = CHARACTER_STAGE_LABELS[nextStage]
       }
     } else {
-      character.setEmotion('neutral')
+      character.react(status === 'snoozed' ? 'snoozed' : 'skipped', reactionSequence)
     }
     sounds.play(cue)
     await playExit(status)
@@ -334,13 +340,16 @@ async function playExit(status: SessionStatus): Promise<void> {
     />
     <div v-if="resolved && exitKind === 'done'" class="popup-success absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 rounded-xl p-4 text-center" role="status">
       <div class="relative">
-        <CharacterPortrait variant="face" size="sm" :stage="character.state.stage" :branch="character.state.branch" :build="character.state.build" emotion="happy" />
+        <CharacterPortrait variant="face" size="md" :stage="character.state.stage" :branch="character.state.branch" :build="character.state.build" :emotion="character.emotion" />
         <span class="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-xs text-slate-950" aria-hidden="true">✓</span>
       </div>
-      <p class="text-lg font-semibold text-slate-50">{{ successLabel }}</p>
+      <p class="sr-only">{{ successLabel }}</p>
+      <ComicBubble compact :caption="character.reaction.caption" :tone="character.reaction.tone" />
       <p class="text-xs text-slate-400">{{ successDetail }}</p>
       <button v-if="errorMessage" type="button" class="setting-chip" @click="closeResolved">Закрыть</button>
     </div>
+    <ComicBubble v-if="!resolved" compact :key="character.reaction.caption"
+      :caption="character.reaction.caption" :tone="character.reaction.tone" class="popup-speech" />
     <header class="flex items-start justify-between gap-2">
       <div class="min-w-0 flex-1">
         <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/90">
@@ -385,7 +394,7 @@ async function playExit(status: SessionStatus): Promise<void> {
 
     <section
       v-if="detailsEnabled"
-      class="rounded-lg border border-slate-800 bg-slate-900/70"
+      class="min-h-0 overflow-y-auto rounded-lg border border-slate-800 bg-slate-900/70"
       data-testid="extras"
     >
       <button

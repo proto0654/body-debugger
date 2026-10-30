@@ -5,9 +5,11 @@ import { mount, type VueWrapper } from '@vue/test-utils'
 import DashboardView from '@/views/DashboardView.vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useSessionsStore } from '@/stores/sessions'
+import { useCharacterStore } from '@/stores/character'
 import { makeSession, makeSettings } from '../fixtures'
 import type { DataSnapshot } from '@shared/types/persistence'
 import type { AppSettings } from '@shared/types/settings'
+import type { Session } from '@shared/types/session'
 
 const progress = {
   streak: { current: 3, max: 5 },
@@ -27,10 +29,11 @@ const openPopup = vi.fn(async () => undefined)
 const listPhotos = vi.fn(async () => [])
 const listCustomExercises = vi.fn(async () => [])
 
-function mountDashboard(): VueWrapper {
+function mountDashboard(history: Session[] = []): VueWrapper {
   const pinia = createPinia()
   setActivePinia(pinia)
   useSettingsStore().hydrate(makeSettings())
+  useSessionsStore().hydrate(history)
   return mount(DashboardView, { global: { plugins: [pinia] } })
 }
 
@@ -69,6 +72,44 @@ afterEach(() => {
 })
 
 describe('DashboardView — optional layers', () => {
+  it('shows the proud portrait when a new day extends an existing streak', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 9, 30, 12))
+    const prior = Array.from({ length: 6 }, (_, index) => makeSession({
+      exerciseId: 'neck-tilts', completedAt: new Date(2026, 9, 29 - index, 12).toISOString()
+    }))
+    wrapper = mountDashboard(prior)
+    useSessionsStore().hydrate([...prior, makeSession({ exerciseId: 'neck-tilts', completedAt: new Date().toISOString() })])
+    await nextTick()
+    expect(wrapper.get('[data-testid="character-scene"] img').attributes('src')).toMatch(/emotion-proud-average/)
+    expect(wrapper.get('.hero-speech').attributes('data-tone')).toBe('milestone')
+  })
+
+  it('shows a large emotional portrait and a comic caption on completion, then restores the body', async () => {
+    vi.useFakeTimers()
+    wrapper = mountDashboard()
+    const scene = wrapper.get('[data-testid="character-scene"]')
+    expect(scene.get('img').attributes('src')).toMatch(/stage-0-average/)
+    useSessionsStore().hydrate([makeSession({ exerciseId: 'neck-tilts', completedAt: new Date().toISOString() })])
+    await nextTick()
+    expect(scene.get('img').attributes('src')).toMatch(/emotion-happy-average/)
+    expect(wrapper.get('.hero-speech').text()).toBe(useCharacterStore().reaction.caption)
+    expect(wrapper.get('.hero-speech').attributes('data-tone')).toBe('cheer')
+    vi.advanceTimersByTime(3500)
+    await nextTick()
+    expect(scene.get('img').attributes('src')).toMatch(/stage-0-average/)
+    expect(wrapper.get('.hero-speech').attributes('data-tone')).toBe('calm')
+  })
+
+  it('keeps a skipped session calm without switching to a punitive portrait', async () => {
+    wrapper = mountDashboard()
+    useSessionsStore().hydrate([makeSession({ exerciseId: 'neck-tilts', status: 'skipped' })])
+    await nextTick()
+    expect(useCharacterStore().emotion).toBe('neutral')
+    expect(wrapper.get('.hero-speech').attributes('data-tone')).toBe('calm')
+    expect(wrapper.get('[data-testid="character-scene"] img').attributes('src')).toMatch(/stage-0-average/)
+  })
+
   it('keeps today focused on the character and the next attainable form', () => {
     wrapper = mountDashboard()
     expect(wrapper.find('[data-testid="today-hero"]').exists()).toBe(true)

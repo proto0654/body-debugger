@@ -85,6 +85,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 - Character stage/branch and a **day-based streak** derive from history. Streak is recomputed on snapshot reads and in the dashboard clock, so a gap cannot leave an old active run visible.
 - Severity: explicit «Начать» starts the timer. Medium/Hardcore gate «Готово» at 80%; Hardcore accepts pointer or keyboard hold. Results are acknowledged after a durable session write and retries are idempotent.
 - Optional photo/AI hydration runs in the background and cannot block mounting the core renderer.
+- Comic reactions: `shared/domain/character-reaction.ts` owns contextual captions/emotions; `ComicBubble.vue` renders them. The dashboard briefly switches the stage body to a large emotional portrait, then restores it.
 - Character art is cut per frame; emoji fallback also handles a failed image load. Motion respects the dashboard switch and the OS setting.
 - Optional layers are live and off by default unless noted: session details, weight history, photos, inventory, sounds, AI proposals, themes.
 - Dashboard: «Сегодня» foregrounds the large character, day totals, current streak and progress to the next form. «Настройки» owns all switches and AI imports. Calendar/stats remain separate; current-day values refresh while open.

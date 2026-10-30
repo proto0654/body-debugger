@@ -7,11 +7,20 @@ import type {
 } from '@shared/types/character'
 import { DEFAULT_CHARACTER_PACK } from '@shared/constants/character'
 import { characterBodyCandidates } from '@shared/domain/character-visual'
+import { characterReaction, type CharacterReactionEvent } from '@shared/domain/character-reaction'
 import { useProgressStore } from './progress'
 import { useSettingsStore } from './settings'
 
 export const useCharacterStore = defineStore('character', () => {
-  const emotion = ref<CharacterEmotion>('neutral')
+  const reaction = ref(characterReaction('welcome'))
+  const emotion = computed(() => reaction.value.emotion)
+  const reactionCounts: Partial<Record<CharacterReactionEvent, number>> = {}
+
+  function react(event: CharacterReactionEvent, sequence?: number): void {
+    const nextSequence = sequence ?? reactionCounts[event] ?? 0
+    reaction.value = characterReaction(event, nextSequence, reaction.value.caption)
+    reactionCounts[event] = (Number.isSafeInteger(nextSequence) ? nextSequence : 0) + 1
+  }
 
   const state = computed<CharacterState>(() => {
     const progress = useProgressStore()
@@ -38,11 +47,13 @@ export const useCharacterStore = defineStore('character', () => {
   })
 
   function setEmotion(next: CharacterEmotion): void {
-    emotion.value = next
+    reaction.value = { ...reaction.value, emotion: next }
   }
 
   return {
     emotion,
+    reaction,
+    react,
     state,
     visualKey,
     setEmotion

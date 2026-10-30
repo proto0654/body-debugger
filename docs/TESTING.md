@@ -51,6 +51,8 @@ tests/
 | Popup / portrait | severity gate, done/skip exits, flash and crossfade, double-submit guard, reduced motion, emoji fallback, details + photos | `tests/components/` |
 | Dashboard | character hero, next-form progress, midnight refresh, optional switches on settings, theme, photos, AI panel, calendar/stats tabs | `tests/components/DashboardView.test.ts` |
 
+Comic reactions are covered by `tests/unit/character-reaction.test.ts`, the character store, `ComicBubble` and dashboard/popup tests: caption variation, immediate-repeat prevention, calm skips, a large happy/proud portrait, restoration to the stage body and no progress mutation.
+
 Optional hydration (`tests/stores/hydrate.test.ts`) also covers a failed photo query alongside a pending AI query: the core still starts and subscribes.
 
 Rules for new tests: no snapshots for logic, inject time (`now`) and randomness (seeded RNG), assert on behaviour rather than internal constants. Write the test against the documented rule **before** the implementation; if the fixture assumption is wrong, fix the test, never the rule.
@@ -67,6 +69,7 @@ Rules for new tests: no snapshots for logic, inject time (`now`) and randomness 
 - Tray: right-click menu, «Напоминание сейчас», pause / resume, animations (and «Уменьшить анимации» off / on).
 - Popup: one exercise; wait before «Начать» and confirm the timer stays full. Start, verify Medium at 80% and Hardcore with pointer/Space/Enter hold. Saved confirmation lasts one second; closing without an answer = `skipped`.
 - Reliability: failed save offers retry without a success reaction; repeated delivery cannot add another result or close a different session. Photo/AI loading failures must not block the core renderer.
+- Comic dialogue: ready/start/saved captions, a large happy/proud portrait after a real result, body restored after 3.5 s; calm skips/pause, all themes and reduced motion. Confirm details plus an error still fit 420 px.
 - Today: character hero, day count, live streak across midnight and the next attainable form; optional switches are on «Настройки». Tray «Настройки» must select it in both a new and an existing dashboard.
 - Popup details: turn «Детали в попапе» on, expand, save reps / feeling / weight; turn «Фото» on, attach a photo, submit, confirm the thumbnail appears in the popup and the photo in the dashboard gallery.
 - Settings: change the interval (500 reverts), switch the picker mode, set a primary direction plus accents, change the build, relaunch and confirm all four persist.

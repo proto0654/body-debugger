@@ -85,7 +85,7 @@ Rules live in [shared/domain/severity.ts](../shared/domain/severity.ts); switch 
 | Средняя (default) | Unlocks at 80% of the exercise timer |
 | Жёсткая | Same unlock + hold the button for 1.5 s |
 
-The timer waits for «Начать». A saved result shows feedback for one second; a failed write leaves the popup retryable. Duplicate results do not count twice. Closing the popup without an answer is recorded as `skipped` at every level.
+The 320×260 popup includes a compact comic caption; expanded details use 380 px (plus 36 px for errors, capped at 420). The timer waits for «Начать». A saved result shows feedback for one second; a failed write leaves the popup retryable. Duplicate results do not count twice. Closing the popup without an answer is recorded as `skipped` at every level.
 
 ## Session details
 

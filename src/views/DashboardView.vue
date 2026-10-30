@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import DebugPanel from '@/debug/DebugPanel.vue'
 import { isDebugEnabled } from '@/debug/is-debug-enabled'
 import CharacterPortrait from '@/components/character/CharacterPortrait.vue'
+import ComicBubble from '@/components/character/ComicBubble.vue'
 import WeightCard from '@/components/weight/WeightCard.vue'
 import CalendarHeatmap from '@/components/stats/CalendarHeatmap.vue'
 import StatsPanel from '@/components/stats/StatsPanel.vue'
@@ -19,6 +20,7 @@ import { CHARACTER_BRANCH_LABELS, CHARACTER_STAGE_LABELS } from '@shared/constan
 import { EXERCISE_CATALOG } from '@shared/constants/exercises'
 import { mergeCatalogs } from '@shared/domain/ai-proposal'
 import { characterJourney } from '@shared/domain/character-progress'
+import type { CharacterReactionEvent } from '@shared/domain/character-reaction'
 import { computeStreak } from '@shared/domain/streak'
 import { localDateKey } from '@shared/domain/stats'
 import { useCustomExercisesStore } from '@/stores/custom-exercises'
@@ -42,6 +44,7 @@ const photos = usePhotosStore()
 const customExercises = useCustomExercisesStore()
 const now = ref(new Date())
 const celebration = ref('')
+const reactionActive = ref(false)
 const actionError = ref('')
 let clock: ReturnType<typeof setInterval> | undefined
 let reactionTimer: ReturnType<typeof setTimeout> | undefined
@@ -68,6 +71,7 @@ const dateLabel = computed(() => now.value.toLocaleDateString('ru-RU', { day: 'n
 
 function refreshClock(): void { now.value = new Date() }
 onMounted(() => {
+  resetReaction()
   clock = setInterval(refreshClock, 30_000)
   document.addEventListener('visibilitychange', refreshClock)
   unsubscribeNavigation = window.api?.onNavigateDashboard?.(() => { tab.value = 'settings' })
@@ -78,17 +82,37 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', refreshClock)
   unsubscribeNavigation?.()
 })
-watch([() => journey.value.stage, todayDone, () => streak.value.current], ([stage, done, days], [oldStage, oldDone, oldDays]) => {
-  if (stage > oldStage) celebration.value = `Новая форма: ${CHARACTER_STAGE_LABELS[stage]}`
-  else if (done > oldDone) celebration.value = days > oldDays && days > 1
-    ? `${days} дней в ритме. Продолжаем!` : done === 1 ? 'Первая разминка сегодня. Начало положено!' : 'Ещё один перерыв в пользу себя.'
-  else return
-  character.setEmotion(stage > oldStage ? 'surprised' : 'happy')
+function resetReaction(): void {
+  reactionActive.value = false
+  celebration.value = ''
+  character.react(settings.paused ? 'paused' : 'welcome', journey.value.done)
+}
+
+function showReaction(event: CharacterReactionEvent, message = '', showFace = true): void {
   clearTimeout(reactionTimer)
-  reactionTimer = setTimeout(() => {
-    celebration.value = ''
-    character.setEmotion(streak.value.current >= 7 ? 'proud' : 'neutral')
-  }, 3500)
+  character.react(event, sessions.history.length)
+  celebration.value = message
+  reactionActive.value = showFace
+  reactionTimer = setTimeout(resetReaction, showFace ? 3500 : 2500)
+}
+
+watch([() => journey.value.stage, todayDone, () => streak.value.current, () => sessions.lastSession?.id],
+  ([stage, done, days, lastId], [oldStage, oldDone, oldDays, oldId]) => {
+    if (stage > oldStage) {
+      showReaction('stage-up', `Новая форма: ${CHARACTER_STAGE_LABELS[stage]}`)
+    } else if (done > oldDone) {
+      if (days > oldDays && days > 1) showReaction('streak', `Дней подряд: ${days}. Продолжаем!`)
+      else showReaction(done === 1 ? 'first-done' : 'done', done === 1
+        ? 'Первая разминка сегодня. Начало положено!' : 'Ещё один перерыв в пользу себя.')
+    } else if (lastId !== oldId) {
+      const status = sessions.lastSession?.status
+      if (status === 'skipped' || status === 'snoozed') showReaction(status, '', false)
+    }
+  }
+)
+watch(() => settings.paused, () => {
+  clearTimeout(reactionTimer)
+  resetReaction()
 })
 async function triggerReminder(): Promise<void> {
   actionError.value = ''
@@ -121,7 +145,8 @@ async function triggerReminder(): Promise<void> {
       <section class="today-hero" data-testid="today-hero">
         <div class="hero-copy">
           <p class="brand-label text-slate-400">{{ dateLabel }}</p>
-          <h2 class="hero-headline">Встань на минуту.<br /><span>Вернись в тонусе.</span></h2>
+          <ComicBubble :key="character.reaction.caption" class="hero-speech" heading tail="right"
+            :caption="character.reaction.caption" :tone="character.reaction.tone" />
           <p class="mt-4 max-w-sm text-sm leading-relaxed text-slate-400">
             {{ journey.done === 0 ? 'Одна короткая разминка — уже начало. Твой герой растёт с каждым выполнением.' : 'Маленькие перерывы складываются в привычку. Твой герой растёт вместе с тобой.' }}
           </p>
@@ -133,9 +158,9 @@ async function triggerReminder(): Promise<void> {
           <p class="mt-3 text-xs text-emerald-400">{{ journey.nextStage === null ? 'Пиковая форма достигнута' : `${remainingLabel} до формы «${CHARACTER_STAGE_LABELS[journey.nextStage]}»` }}</p>
           <p v-if="actionError" class="mt-2 text-xs text-red-300" role="alert">{{ actionError }}</p>
         </div>
-        <div class="hero-character">
+        <div class="hero-character" :class="{ 'hero-character--speaking': reactionActive }" data-testid="character-scene">
           <span class="character-badge">ФОРМА {{ character.state.stage + 1 }} / 6</span>
-          <CharacterPortrait size="xl" :show-label="false" :stage="character.state.stage" :branch="character.state.branch"
+          <CharacterPortrait size="xl" :variant="reactionActive ? 'face' : 'body'" :show-label="false" :stage="character.state.stage" :branch="character.state.branch"
             :build="character.state.build" :emotion="character.emotion" />
           <p class="mt-1 text-lg font-semibold text-white">{{ CHARACTER_STAGE_LABELS[character.state.stage] }}</p>
           <p class="mt-1 text-xs text-emerald-400">{{ CHARACTER_BRANCH_LABELS[character.state.branch] }}</p>

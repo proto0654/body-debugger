@@ -6,7 +6,7 @@ import type {
   CharacterEmotion,
   CharacterStage
 } from '@shared/types/character'
-import { CHARACTER_BRANCH_LABELS, CHARACTER_STAGE_LABELS } from '@shared/constants/character'
+import { CHARACTER_BRANCH_LABELS, CHARACTER_EMOTION_LABELS, CHARACTER_STAGE_LABELS } from '@shared/constants/character'
 import {
   characterBodyCandidates,
   characterFaceCandidates
@@ -81,10 +81,11 @@ onBeforeUnmount(() => {
   <div class="flex flex-col items-center gap-2">
     <div
       class="character-portrait relative overflow-hidden rounded-2xl"
-      :class="[sizeClass, { 'portrait-bounce': bouncing, 'fade-rise': variant === 'body', 'portrait-proud': emotion === 'proud', 'portrait-hero': size === 'xl' }]"
+      :class="[sizeClass, { 'portrait-bounce': bouncing, 'fade-rise': variant === 'body', 'portrait-proud': emotion === 'proud', 'portrait-hero': size === 'xl', 'portrait-expression': variant === 'face' && size === 'xl' }]"
       :data-stage="stage"
+      :data-emotion="emotion"
       role="img"
-      :aria-label="`${label} · ${CHARACTER_BRANCH_LABELS[branch]}`"
+      :aria-label="`${label} · ${CHARACTER_BRANCH_LABELS[branch]} · ${CHARACTER_EMOTION_LABELS[emotion]}`"
       :title="`${label} · ${CHARACTER_BRANCH_LABELS[branch]}`"
     >
       <Transition name="frame-fade">

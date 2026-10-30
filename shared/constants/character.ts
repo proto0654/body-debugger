@@ -1,4 +1,4 @@
-import type { CharacterBranch, CharacterBuild, CharacterStage } from '../types/character'
+import type { CharacterBranch, CharacterBuild, CharacterEmotion, CharacterStage } from '../types/character'
 
 export const CHARACTER_STAGE_KEYS: Record<CharacterStage, string> = {
   0: 'start',
@@ -23,6 +23,15 @@ export const CHARACTER_BRANCH_LABELS: Record<CharacterBranch, string> = {
   posture: 'Осанка',
   power: 'Сила',
   mobility: 'Подвижность'
+}
+
+export const CHARACTER_EMOTION_LABELS: Record<CharacterEmotion, string> = {
+  neutral: 'Спокоен',
+  focused: 'Сосредоточен',
+  happy: 'Доволен',
+  proud: 'Гордится',
+  tired: 'Устал',
+  surprised: 'Удивлён'
 }
 
 export const CHARACTER_BRANCHES: CharacterBranch[] = [

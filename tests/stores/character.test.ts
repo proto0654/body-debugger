@@ -25,6 +25,21 @@ function hydrateProgress(overrides: Partial<UserProgress> = {}): void {
 }
 
 describe('character store', () => {
+  it('changes captions and emotions without changing durable progress', () => {
+    hydrateProgress({ characterStage: 2 })
+    const store = useCharacterStore()
+    const before = useProgressStore().asUserProgress()
+    store.react('done')
+    const firstCaption = store.reaction.caption
+    store.react('done')
+    expect(store.reaction.caption).not.toBe(firstCaption)
+    expect(store.emotion).toBe('happy')
+    expect(useProgressStore().asUserProgress()).toEqual(before)
+    store.react('skipped')
+    expect(store.emotion).toBe('neutral')
+    expect(store.reaction.tone).toBe('calm')
+  })
+
   it('derives the state from progress and settings', () => {
     hydrateProgress({ characterStage: 3, characterBranch: 'power', characterBuild: 'stocky' })
     useSettingsStore().hydrate(makeSettings({ characterPackId: 'custom-pack' }))
@@ -61,6 +76,7 @@ describe('character store', () => {
 
     expect(store.emotion).toBe('happy')
     expect(store.state.emotion).toBe('happy')
+    expect(store.reaction.emotion).toBe('happy')
     expect(useProgressStore().characterStage).toBe(2)
   })
 })

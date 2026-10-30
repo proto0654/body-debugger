@@ -285,7 +285,15 @@ Rules: `shared/domain/character-visual.ts` (pure). Frames: `src/assets/character
 | Emotion | `emotion-*` busts feed the popup face; `surprised` uses the happy bust |
 | Fallback | exact build → `average` build → emoji; an image load error also shows the emoji |
 
-`CharacterPortrait` renders `variant="body"` on the dashboard and `variant="face"` in the popup; `src/components/character/frames.ts` maps a winning key to the bundled URL. Source sheets stay in the repo as the only art source — never edit `frames/` by hand.
+`CharacterPortrait` normally renders `variant="body"` on the dashboard and switches to a large `variant="face"` for 3.5 seconds after a completion or milestone; the popup uses `variant="face"`; `src/components/character/frames.ts` maps a winning key to the bundled URL. Source sheets stay in the repo as the only art source — never edit `frames/` by hand.
+
+### Comic reactions
+
+`shared/domain/character-reaction.ts` owns event → emotion/tone/caption rules. `useCharacterStore.react` keeps the caption and emotion together without writing progress. Session-history length seeds variation across separate popup windows; a previous-caption guard prevents immediate repeats. Reaction counters are UI-only and are not persisted.
+
+`ComicBubble.vue` renders text safely as text, with a heading variant for the hero and a compact variant for the popup. CSS paper, ink and milestone tokens support all themes. Cheer/milestone captions pop briefly; calm invitations, pause and skips do not. Global reduced-motion rules suppress those animations.
+
+The dashboard restores the stage body after a reaction and keeps skips/snoozes calm. The popup changes ready → focused on explicit start, then chooses first-done/done/stage-up only after durable acknowledgement. No caption is treated as proof of physical activity. Geometry reserves a 40 px dialogue row: 260 px base, 290 px collapsed details, 380 px expanded, plus 36 px for errors (max 420).
 
 ### Motion
 
@@ -295,8 +303,8 @@ CONCEPT §13 micro-animations. Each surface owns its own effect:
 |---------|--------|
 | Tray | `electron/main/tray-icons.ts` maps every `TrayState` to frames + interval; `tray.ts` swaps them on a timer. `success` plays once (jump + flash), `soon` / `standup` / `streak` loop |
 | Popup | `.popup-in` entrance, `.timer-urgent` pulse in the last 10 s, then on `done`: flash + happy crossfade + `.popup-out-done`; skip / snooze use `.popup-out-quiet`. The window stays open for `POPUP_EXIT_MS` while the exit runs |
-| Character | `CharacterPortrait` crossfades sprite frames (`<Transition name="frame-fade">`), bounces on the happy emotion, and fades in on the dashboard |
-| Dashboard | «Анимации» switch under «Строгость»; the portrait fades in on mount |
+| Character | `CharacterPortrait` crossfades sprite frames (`<Transition name="frame-fade">`), bounces on happy/surprised reactions, and fades in on the dashboard |
+| Dashboard | Large reaction portrait with contextual comic speech, then restoration of the stage body; reduced-motion switch on «Настройки» |
 
 Reduced motion: `src/motion.ts` combines `settings.reduceMotion` with the OS `prefers-reduced-motion`. `App.vue` mirrors it into `data-reduce-motion` on `<html>`; `src/styles/index.css` then collapses animation/transition durations. Timed effects check the preference in code — the tray uses the app setting only, because the main process cannot read the media query.
 
@@ -343,7 +351,7 @@ Preload: `electron/preload/index.ts`.
 | Exercise catalog (34 exercises, zones, equipment, focus tags) | Yes |
 | Weighted picker (penalties, neglect, Focus, modes) | Yes — [ROADMAP.md](ROADMAP.md) #3 |
 | Tray + menu (Dashboard / Trigger now / Pause / Quit) | Yes |
-| Popup (320×220, up to 340 with details) + Dashboard windows | Yes |
+| Popup (320×260, 380 with details, up to 420 for errors) + Dashboard windows | Yes |
 | IPC cycle + persistence wiring | Yes |
 | Trigger loop (interval, idle, snooze, missed, pause) | Yes — [ROADMAP.md](ROADMAP.md) #2 |
 | Popup shows the triggered exercise (pulled from main) | Yes |

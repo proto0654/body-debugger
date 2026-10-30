@@ -101,6 +101,18 @@ afterEach(() => {
 })
 
 describe('PopupView — done flow', () => {
+  it('pairs the ready and active captions with the matching portrait', async () => {
+    wrapper = await mountPopup({ start: false })
+    const readyCaption = wrapper.get('.popup-speech').text()
+    expect(useCharacterStore().emotion).toBe('neutral')
+    await wrapper.get('[data-testid="start-exercise"]').trigger('click')
+    expect(wrapper.get('.popup-speech').text()).not.toBe(readyCaption)
+    expect(useCharacterStore().emotion).toBe('focused')
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+    expect(wrapper.get('[role="status"] .comic-bubble').attributes('data-tone')).toBe('cheer')
+  })
+
   it('waits for an explicit start instead of consuming the timer on appearance', async () => {
     wrapper = await mountPopup({ severity: 'medium', start: false })
     vi.advanceTimersByTime(60_000)

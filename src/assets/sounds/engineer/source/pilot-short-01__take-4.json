@@ -1,0 +1,72 @@
+{
+  "batchId": "pilot-short-01",
+  "characterId": "engineer",
+  "takeNumber": 4,
+  "sourceSha256": "37dd79df1ca5fd0c67c6940af51f248ea84317a48dbe003bbee162dbe4bb6307",
+  "sourceFile": "src/assets/sounds/engineer/source/pilot-short-01__take-4.mp3",
+  "sourceDurationSec": 7.88898,
+  "separator": "[long pause]",
+  "minSilenceSec": 0.8,
+  "silenceThresholdDb": -40,
+  "clipIds": [
+    "engineer__ready__01",
+    "engineer__done__01",
+    "engineer__skipped__01"
+  ],
+  "takes": [
+    {
+      "clipId": "engineer__ready__01",
+      "takeNumber": 4,
+      "voiceId": "GxI6dl6RU7TnsyNAMqgR",
+      "model": "eleven_v4",
+      "inputText": "[sarcastic] Вставай. Нужен тест.\n[long pause]\n[pleased] Движение есть. Работает.\n[long pause]\n[sarcastic] Слив.",
+      "clipText": "[sarcastic] Вставай. Нужен тест.",
+      "generatedOn": "2026-10-30",
+      "sourceFile": "src/assets/sounds/engineer/source/pilot-short-01__take-4.mp3",
+      "deliveryFile": "src/assets/sounds/engineer/engineer__ready__01__take-4.mp3",
+      "sourceFormat": "mp3",
+      "measuredDurationSec": 2.021134,
+      "segmentStartSec": 0.09415,
+      "segmentEndSec": 2.115283,
+      "boundaryReviewRequired": false,
+      "reviewStatus": "pending",
+      "notes": "Listening review pending."
+    },
+    {
+      "clipId": "engineer__done__01",
+      "takeNumber": 4,
+      "voiceId": "GxI6dl6RU7TnsyNAMqgR",
+      "model": "eleven_v4",
+      "inputText": "[sarcastic] Вставай. Нужен тест.\n[long pause]\n[pleased] Движение есть. Работает.\n[long pause]\n[sarcastic] Слив.",
+      "clipText": "[pleased] Движение есть. Работает.",
+      "generatedOn": "2026-10-30",
+      "sourceFile": "src/assets/sounds/engineer/source/pilot-short-01__take-4.mp3",
+      "deliveryFile": "src/assets/sounds/engineer/engineer__done__01__take-4.mp3",
+      "sourceFormat": "mp3",
+      "measuredDurationSec": 2.0261,
+      "segmentStartSec": 3.797438,
+      "segmentEndSec": 5.823537,
+      "boundaryReviewRequired": false,
+      "reviewStatus": "pending",
+      "notes": "Listening review pending."
+    },
+    {
+      "clipId": "engineer__skipped__01",
+      "takeNumber": 4,
+      "voiceId": "GxI6dl6RU7TnsyNAMqgR",
+      "model": "eleven_v4",
+      "inputText": "[sarcastic] Вставай. Нужен тест.\n[long pause]\n[pleased] Движение есть. Работает.\n[long pause]\n[sarcastic] Слив.",
+      "clipText": "[sarcastic] Слив.",
+      "generatedOn": "2026-10-30",
+      "sourceFile": "src/assets/sounds/engineer/source/pilot-short-01__take-4.mp3",
+      "deliveryFile": "src/assets/sounds/engineer/engineer__skipped__01__take-4.mp3",
+      "sourceFormat": "mp3",
+      "measuredDurationSec": 0.801134,
+      "segmentStartSec": 6.96161,
+      "segmentEndSec": 7.762744,
+      "boundaryReviewRequired": false,
+      "reviewStatus": "pending",
+      "notes": "Listening review pending."
+    }
+  ]
+}

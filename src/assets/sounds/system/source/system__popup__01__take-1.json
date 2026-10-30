@@ -1,0 +1,23 @@
+{
+  "takeNumber": 1,
+  "model": "eleven_text_to_sound_v2",
+  "inputText": "A single compact comic UI reminder sound: a soft rubber-tipped knock on a warm wooden surface with a small elastic rebound. Friendly and tactile, dry and close, quick attack and short decay. No speech, music, ambience, sirens or shrill tones. About 0.5 seconds.",
+  "generatedOn": "2026-10-30",
+  "sourceFile": "src/assets/sounds/system/source/system__popup__01__take-1.wav",
+  "deliveryFile": "src/assets/sounds/system/system__popup__01__take-1.mp3",
+  "sourceFormat": "wav",
+  "sourceSha256": "637f84ee4a627604e29b451d969c9eabc45fcdf7c2df70679cb1e86b27363489",
+  "sourceDurationSec": 0.4865,
+  "measuredDurationSec": 0.336979,
+  "segmentStartSec": 0,
+  "segmentEndSec": 0.336135,
+  "requestedDurationSec": 0.5,
+  "variation": 1,
+  "historyId": "66R9qzhiMo166Liqtr5Z",
+  "loop": false,
+  "promptInfluence": 0.3,
+  "promptEnhancement": false,
+  "sharedToExplore": false,
+  "reviewStatus": "pending",
+  "notes": "First variation; listening review pending."
+}

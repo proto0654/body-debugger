@@ -1,0 +1,23 @@
+{
+  "takeNumber": 1,
+  "model": "eleven_text_to_sound_v2",
+  "inputText": "A single dry comic UI start click: a small wooden toggle snapping neatly into place. Precise, tactile and quiet, close-miked, with an immediate attack and very short tail. No voice, music, background ambience, alarm or high-pitched beep. About 0.2 seconds.",
+  "generatedOn": "2026-10-30",
+  "sourceFile": "src/assets/sounds/system/source/system__start__01__take-1.wav",
+  "deliveryFile": "src/assets/sounds/system/system__start__01__take-1.mp3",
+  "sourceFormat": "wav",
+  "sourceSha256": "618cec0cb028a4700375072cad175c5f5459c2991252e54c4423b385c791082c",
+  "sourceDurationSec": 8.0,
+  "measuredDurationSec": 5.985354,
+  "segmentStartSec": 0.787615,
+  "segmentEndSec": 6.772979,
+  "requestedDurationSec": null,
+  "variation": 1,
+  "historyId": "0zxJ4tzbWk4uSjmR8319",
+  "loop": false,
+  "promptInfluence": 0.3,
+  "promptEnhancement": false,
+  "sharedToExplore": false,
+  "reviewStatus": "rejected",
+  "notes": "Outside duration budget. Retain source and regenerate at explicit short duration."
+}

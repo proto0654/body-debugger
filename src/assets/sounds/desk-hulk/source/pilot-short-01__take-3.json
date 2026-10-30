@@ -1,0 +1,49 @@
+{
+  "batchId": "pilot-short-01",
+  "characterId": "desk-hulk",
+  "takeNumber": 3,
+  "sourceSha256": "21f5606d087b5d5f53cd1870877ef53c01048f39ae937bd04e7aa00dded72418",
+  "sourceFile": "src/assets/sounds/desk-hulk/source/pilot-short-01__take-3.mp3",
+  "sourceDurationSec": 5.877551,
+  "separator": "[long pause]",
+  "clipIds": [
+    "desk-hulk__ready__01",
+    "desk-hulk__done__01"
+  ],
+  "takes": [
+    {
+      "clipId": "desk-hulk__ready__01",
+      "takeNumber": 3,
+      "voiceId": "QNU3QKXr1vjhbmTwRf69",
+      "model": "eleven_v4",
+      "inputText": "[sarcastic] Отпусти кресло. Вставай.\n[long pause]\n[pleased] Есть! Кресло проиграло.",
+      "clipText": "[sarcastic] Отпусти кресло. Вставай.",
+      "generatedOn": "2026-10-30",
+      "sourceFile": "src/assets/sounds/desk-hulk/source/pilot-short-01__take-3.mp3",
+      "deliveryFile": "src/assets/sounds/desk-hulk/desk-hulk__ready__01__take-3.mp3",
+      "sourceFormat": "mp3",
+      "measuredDurationSec": 2.105624,
+      "segmentStartSec": 0.098821,
+      "segmentEndSec": 2.204444,
+      "reviewStatus": "pending",
+      "notes": "Listening review pending."
+    },
+    {
+      "clipId": "desk-hulk__done__01",
+      "takeNumber": 3,
+      "voiceId": "QNU3QKXr1vjhbmTwRf69",
+      "model": "eleven_v4",
+      "inputText": "[sarcastic] Отпусти кресло. Вставай.\n[long pause]\n[pleased] Есть! Кресло проиграло.",
+      "clipText": "[pleased] Есть! Кресло проиграло.",
+      "generatedOn": "2026-10-30",
+      "sourceFile": "src/assets/sounds/desk-hulk/source/pilot-short-01__take-3.mp3",
+      "deliveryFile": "src/assets/sounds/desk-hulk/desk-hulk__done__01__take-3.mp3",
+      "sourceFormat": "mp3",
+      "measuredDurationSec": 2.239048,
+      "segmentStartSec": 3.531474,
+      "segmentEndSec": 5.770522,
+      "reviewStatus": "rejected",
+      "notes": "Outside duration budget; rewrite/regenerate, do not speed up."
+    }
+  ]
+}

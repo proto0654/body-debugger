@@ -1,0 +1,23 @@
+{
+  "takeNumber": 1,
+  "model": "eleven_text_to_sound_v2",
+  "inputText": "A single compact comic UI success sound: a soft rubber pop followed immediately by a tiny bright wooden accent that gently rises in pitch. Warm, playful, dry and close, fast attack and short decay. No speech, music, ambience, applause or piercing tones. About 0.5 seconds.",
+  "generatedOn": "2026-10-30",
+  "sourceFile": "src/assets/sounds/system/source/system__done__01__take-1.wav",
+  "deliveryFile": "src/assets/sounds/system/system__done__01__take-1.mp3",
+  "sourceFormat": "wav",
+  "sourceSha256": "66a42f6e2d22085a48c28fbe2d7fbb990dda99ade249fe9f95f5ffdc7f3cee30",
+  "sourceDurationSec": 0.4865,
+  "measuredDurationSec": 0.476542,
+  "segmentStartSec": 0,
+  "segmentEndSec": 0.476552,
+  "requestedDurationSec": 0.5,
+  "variation": 1,
+  "historyId": "QG9Pnu0u1f2O3GIWhSQE",
+  "loop": false,
+  "promptInfluence": 0.3,
+  "promptEnhancement": false,
+  "sharedToExplore": false,
+  "reviewStatus": "pending",
+  "notes": "First variation; listening review pending."
+}

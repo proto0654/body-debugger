@@ -32,4 +32,11 @@ export const CHARACTER_BUILDS: CharacterBuild[] = [
   'neutral'
 ]
 
+export const CHARACTER_BUILD_LABELS: Record<CharacterBuild, string> = {
+  lean: 'Худой',
+  average: 'Обычный',
+  stocky: 'Плотный',
+  neutral: 'Не выбран'
+}
+
 export const DEFAULT_CHARACTER_PACK = 'desk-hulk'

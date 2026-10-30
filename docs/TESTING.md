@@ -43,6 +43,7 @@ tests/
 | Calendar / stats | local-day buckets, Monday-first weeks, intensity cap, window size, status counts, seven-day bars, zone shares, top exercises | `tests/unit/stats.test.ts`, `tests/components/CalendarHeatmap.test.ts`, `tests/components/StatsPanel.test.ts` |
 | Debug panel | dev-only visibility, state view, quick actions, reset, all six scenarios, deterministic payloads, main apply | `tests/unit/debug-enabled.test.ts`, `tests/unit/debug-scenarios.test.ts`, `tests/unit/persistence-debug.test.ts`, `tests/components/DebugPanel.test.ts` |
 | Settings defaults | merge of an older settings file, nested arrays, sound/theme/AI/photo blocks | `tests/unit/persistence-defaults.test.ts` |
+| Core preferences | interval bounds / presets / rejection, picker mode guard, Focus normalization (dedupe, primary exclusion), store setters, «Настройки» tab + hash deep link, `photo:` CSP guard | `tests/unit/preferences.test.ts`, `tests/stores/settings.test.ts`, `tests/components/PreferencesPanel.test.ts`, `tests/components/DashboardView.test.ts`, `tests/unit/csp.test.ts` |
 | Exercise payloads | required/optional fields, bad numbers, group/focus tags, `assertExercise` | `tests/unit/exercise-validation.test.ts` |
 | Catalog | 34 entries, unique ids/titles, valid focus tags, inventory equipment | `tests/unit/exercise-catalog.test.ts` |
 | JSON persistence | atomic write, missing/corrupt/outdated envelope | `tests/unit/json-file.test.ts` |
@@ -63,7 +64,8 @@ Rules for new tests: no snapshots for logic, inject time (`now`) and randomness 
 
 - Tray: right-click menu, «Напоминание сейчас», pause / resume, animations (and «Уменьшить анимации» off / on).
 - Popup: one exercise, Medium gate at 80%, Hardcore hold, closing the popup = `skipped`.
-- Popup details: turn «Детали в попапе» on, expand, save reps / feeling / weight; turn «Фото» on, attach a photo, submit, confirm it appears in the dashboard gallery.
+- Popup details: turn «Детали в попапе» on, expand, save reps / feeling / weight; turn «Фото» on, attach a photo, submit, confirm the thumbnail appears in the popup and the photo in the dashboard gallery.
+- Settings: change the interval (500 reverts), switch the picker mode, set a primary direction plus accents, change the build, relaunch and confirm all four persist.
 - Sounds: turn «Звуки» on, set volume, get a popup / done / skip / snooze cue; the pause switch mutes cues.
 - Inventory: turn it on, select «Мешок 50 кг», confirm bag exercises start appearing.
 - AI: turn «AI-предложения» on, paste an invalid JSON (error) and a valid one (preview → approve → appears under «Утверждённые» and can be picked).

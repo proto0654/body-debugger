@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { ExerciseLevels, Streak, UserFocus, UserProgress } from '@shared/types/progress'
 import type { CharacterBranch, CharacterBuild, CharacterStage } from '@shared/types/character'
+import { CHARACTER_BUILDS } from '@shared/constants/character'
 
 export const useProgressStore = defineStore('progress', () => {
   const streak = ref<Streak>({ current: 0, max: 0 })
@@ -43,6 +44,13 @@ export const useProgressStore = defineStore('progress', () => {
     hydrate(snapshot.progress)
   }
 
+  /** Build is a user preference (CONCEPT.md §5); unknown values are ignored. */
+  async function setCharacterBuild(next: CharacterBuild): Promise<void> {
+    if (!CHARACTER_BUILDS.includes(next) || characterBuild.value === next) return
+    characterBuild.value = next
+    await persist()
+  }
+
   return {
     streak,
     characterStage,
@@ -52,6 +60,7 @@ export const useProgressStore = defineStore('progress', () => {
     focus,
     asUserProgress,
     hydrate,
-    persist
+    persist,
+    setCharacterBuild
   }
 })

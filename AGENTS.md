@@ -35,6 +35,7 @@ Project docs and this file override global agent rules when they conflict.
 | Progress photos (rules, main store, protocol, UI) | `shared/domain/photos.ts`, `electron/main/photos.ts`, `electron/main/photo-protocol.ts`, `src/components/photos/` |
 | AI proposals (parsing, approval, store, UI) | `shared/domain/ai-proposal.ts`, `electron/main/custom-exercises.ts`, `src/components/ai/` |
 | Themes / equipment | `shared/constants/themes.ts`, `shared/constants/equipment.ts`, `src/styles/index.css` |
+| Core preferences (interval, picker mode, Focus, build) | `shared/domain/preferences.ts`, `shared/constants/focus.ts`, `src/components/settings/` |
 | Dashboard calendar + stats | `shared/domain/stats.ts`, `src/components/stats/` |
 | Debug panel + scenarios (dev-only) | `src/debug/`, `electron/main/ipc/debug.ts` |
 | Preload bridge | `electron/preload/` |

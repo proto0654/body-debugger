@@ -2,8 +2,15 @@ import { DEFAULT_CHARACTER_PACK } from '../../../shared/constants/character'
 import { DEFAULT_SOUND_SETTINGS, normalizeSoundSettings } from '../../../shared/domain/sounds'
 import { normalizeThemeId } from '../../../shared/constants/themes'
 import { normalizeWeightTarget } from '../../../shared/domain/weight'
+import {
+  DEFAULT_INTERVAL_MINUTES,
+  DEFAULT_PICKER_MODE,
+  isPickerMode,
+  normalizeFocus,
+  normalizeIntervalMinutes
+} from '../../../shared/domain/preferences'
 import type { AppSettings } from '../../../shared/types/settings'
-import type { FocusDirection, UserProgress } from '../../../shared/types/progress'
+import type { UserProgress } from '../../../shared/types/progress'
 import type {
   CharacterBranch,
   CharacterBuild,
@@ -15,9 +22,9 @@ import type { WeightEntry } from '../../../shared/types/weight'
 export function defaultSettings(): AppSettings {
   return {
     severity: 'medium',
-    intervalMinutes: 45,
+    intervalMinutes: DEFAULT_INTERVAL_MINUTES,
     focus: { primary: null, accents: [] },
-    pickerMode: 'balance',
+    pickerMode: DEFAULT_PICKER_MODE,
     inventory: { enabled: false, items: [] },
     sessionExtras: { enabled: false },
     ai: { enabled: false },
@@ -45,13 +52,9 @@ export function normalizeSettings(stored: Partial<AppSettings> | null | undefine
   return {
     ...base,
     ...stored,
-    focus: {
-      ...base.focus,
-      ...stored.focus,
-      accents: Array.isArray(stored.focus?.accents)
-        ? [...stored.focus.accents]
-        : [...base.focus.accents]
-    },
+    intervalMinutes: normalizeIntervalMinutes(stored.intervalMinutes) ?? base.intervalMinutes,
+    pickerMode: isPickerMode(stored.pickerMode) ? stored.pickerMode : base.pickerMode,
+    focus: normalizeFocus(stored.focus?.primary, stored.focus?.accents),
     inventory: {
       ...base.inventory,
       ...stored.inventory,
@@ -77,14 +80,6 @@ export function normalizeSettings(stored: Partial<AppSettings> | null | undefine
 const STAGES: readonly CharacterStage[] = [0, 1, 2, 3, 4, 5]
 const BRANCHES: readonly CharacterBranch[] = ['neutral', 'posture', 'power', 'mobility']
 const BUILDS: readonly CharacterBuild[] = ['lean', 'average', 'stocky', 'neutral']
-const FOCUS_DIRECTIONS: readonly FocusDirection[] = [
-  'mobility',
-  'light_athletics',
-  'strength',
-  'body_belts',
-  'striking',
-  'balance'
-]
 
 function count(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
@@ -99,14 +94,6 @@ export function normalizeProgress(stored: Partial<UserProgress> | null | undefin
 
   const current = count(stored.streak?.current)
   const max = Math.max(current, count(stored.streak?.max))
-  const primary = FOCUS_DIRECTIONS.includes(stored.focus?.primary as FocusDirection)
-    ? (stored.focus?.primary as FocusDirection)
-    : null
-  const rawAccents = Array.isArray(stored.focus?.accents) ? stored.focus.accents : []
-  const accents = rawAccents.filter(
-    (accent, index, all): accent is FocusDirection =>
-      FOCUS_DIRECTIONS.includes(accent) && all.indexOf(accent) === index
-  )
 
   const rawLevels =
     stored.exerciseLevels && typeof stored.exerciseLevels === 'object'
@@ -131,7 +118,7 @@ export function normalizeProgress(stored: Partial<UserProgress> | null | undefin
       ? (stored.characterBuild as CharacterBuild)
       : base.characterBuild,
     exerciseLevels: levels,
-    focus: { primary, accents }
+    focus: normalizeFocus(stored.focus?.primary, stored.focus?.accents)
   }
 }
 

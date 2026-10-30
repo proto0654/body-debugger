@@ -10,9 +10,17 @@ import type {
   SeverityLevel,
   SoundSettings
 } from '@shared/types/settings'
-import type { UserFocus } from '@shared/types/progress'
+import type { FocusDirection, UserFocus } from '@shared/types/progress'
 import type { WeightSettings } from '@shared/types/weight'
 import { normalizeWeightTarget } from '@shared/domain/weight'
+import {
+  DEFAULT_INTERVAL_MINUTES,
+  DEFAULT_PICKER_MODE,
+  isPickerMode,
+  isSameFocus,
+  normalizeFocus,
+  normalizeIntervalMinutes
+} from '@shared/domain/preferences'
 import {
   DEFAULT_SOUND_SETTINGS,
   isSoundPackId,
@@ -24,9 +32,9 @@ import { normalizeThemeId } from '@shared/constants/themes'
 
 export const useSettingsStore = defineStore('settings', () => {
   const severity = ref<SeverityLevel>('medium')
-  const intervalMinutes = ref(45)
+  const intervalMinutes = ref(DEFAULT_INTERVAL_MINUTES)
   const focus = ref<UserFocus>({ primary: null, accents: [] })
-  const pickerMode = ref<ExercisePickerMode>('balance')
+  const pickerMode = ref<ExercisePickerMode>(DEFAULT_PICKER_MODE)
   const inventory = ref<InventorySettings>({ enabled: false, items: [] })
   const sessionExtras = ref<SessionExtrasSettings>({ enabled: false })
   const ai = ref<AiSettings>({ enabled: false })
@@ -70,12 +78,9 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function hydrate(next: AppSettings): void {
     severity.value = next.severity
-    intervalMinutes.value = next.intervalMinutes
-    focus.value = {
-      primary: next.focus.primary,
-      accents: [...next.focus.accents]
-    }
-    pickerMode.value = next.pickerMode
+    intervalMinutes.value = normalizeIntervalMinutes(next.intervalMinutes) ?? DEFAULT_INTERVAL_MINUTES
+    focus.value = normalizeFocus(next.focus.primary, next.focus.accents)
+    pickerMode.value = isPickerMode(next.pickerMode) ? next.pickerMode : DEFAULT_PICKER_MODE
     inventory.value = {
       enabled: next.inventory.enabled,
       items: [...next.inventory.items]
@@ -110,6 +115,41 @@ export const useSettingsStore = defineStore('settings', () => {
   async function setSeverity(next: SeverityLevel): Promise<void> {
     if (severity.value === next) return
     severity.value = next
+    await persist()
+  }
+
+  /** Whole minutes inside the documented bounds; invalid input is ignored. */
+  async function setIntervalMinutes(next: number): Promise<void> {
+    const minutes = normalizeIntervalMinutes(next)
+    if (minutes === null || minutes === intervalMinutes.value) return
+    intervalMinutes.value = minutes
+    await persist()
+  }
+
+  async function setPickerMode(next: ExercisePickerMode): Promise<void> {
+    if (!isPickerMode(next) || pickerMode.value === next) return
+    pickerMode.value = next
+    await persist()
+  }
+
+  /** `null` clears the primary direction; accents never repeat it. */
+  async function setFocusPrimary(next: FocusDirection | null): Promise<void> {
+    const focusNext = normalizeFocus(next, focus.value.accents)
+    if (isSameFocus(focus.value, focusNext)) return
+    focus.value = focusNext
+    await persist()
+  }
+
+  async function toggleFocusAccent(direction: FocusDirection): Promise<void> {
+    if (focus.value.primary === direction) return
+
+    const accents = focus.value.accents.includes(direction)
+      ? focus.value.accents.filter((accent) => accent !== direction)
+      : [...focus.value.accents, direction]
+    const focusNext = normalizeFocus(focus.value.primary, accents)
+    if (isSameFocus(focus.value, focusNext)) return
+
+    focus.value = focusNext
     await persist()
   }
 
@@ -222,6 +262,10 @@ export const useSettingsStore = defineStore('settings', () => {
     persist,
     togglePause,
     setSeverity,
+    setIntervalMinutes,
+    setPickerMode,
+    setFocusPrimary,
+    toggleFocusAccent,
     setReduceMotion,
     setSessionExtrasEnabled,
     setTheme,

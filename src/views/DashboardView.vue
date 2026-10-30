@@ -8,6 +8,7 @@ import CalendarHeatmap from '@/components/stats/CalendarHeatmap.vue'
 import StatsPanel from '@/components/stats/StatsPanel.vue'
 import PhotoGallery from '@/components/photos/PhotoGallery.vue'
 import AiProposalPanel from '@/components/ai/AiProposalPanel.vue'
+import PreferencesPanel from '@/components/settings/PreferencesPanel.vue'
 import { usePhotosStore } from '@/stores/photos'
 import { useProgressStore } from '@/stores/progress'
 import { useCharacterStore } from '@/stores/character'
@@ -23,9 +24,21 @@ import { useCustomExercisesStore } from '@/stores/custom-exercises'
 import { SEVERITY_LABELS, SEVERITY_ORDER } from '@shared/domain/severity'
 import type { SeverityLevel } from '@shared/types/settings'
 
-type TabId = 'today' | 'calendar' | 'stats' | 'debug'
+type TabId = 'today' | 'calendar' | 'stats' | 'settings' | 'debug'
 
-const tab = ref<TabId>('today')
+const debugEnabled = isDebugEnabled()
+
+/** `#/dashboard?tab=settings` opens a specific tab (reloads and future tray deep links). */
+function initialTab(): TabId {
+  const requested = /[?&]tab=([a-z]+)/.exec(window.location.hash)?.[1]
+  if (requested === 'calendar' || requested === 'stats' || requested === 'settings') {
+    return requested
+  }
+  if (requested === 'debug' && debugEnabled) return 'debug'
+  return 'today'
+}
+
+const tab = ref<TabId>(initialTab())
 const progress = useProgressStore()
 const character = useCharacterStore()
 const settings = useSettingsStore()
@@ -38,12 +51,11 @@ const statsCatalog = computed(() =>
   mergeCatalogs(EXERCISE_CATALOG, customExercises.entries)
 )
 
-const debugEnabled = isDebugEnabled()
-
 const tabs = computed<{ id: TabId; label: string }[]>(() => [
   { id: 'today', label: 'Сегодня' },
   { id: 'calendar', label: 'Календарь' },
   { id: 'stats', label: 'Статистика' },
+  { id: 'settings', label: 'Настройки' },
   ...(debugEnabled ? [{ id: 'debug' as const, label: 'Debug' }] : [])
 ])
 
@@ -416,6 +428,8 @@ async function setVolume(event: Event): Promise<void> {
       <h2 class="mb-3 text-sm font-semibold text-white">Статистика</h2>
       <StatsPanel :sessions="sessions.history" :catalog="statsCatalog" />
     </section>
+
+    <PreferencesPanel v-else-if="tab === 'settings'" />
 
     <DebugPanel v-else />
 

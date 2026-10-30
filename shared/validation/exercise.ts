@@ -1,16 +1,8 @@
+import { isFocusDirection } from '../constants/focus'
 import type { Exercise, ExerciseDifficulty, ExerciseGroup } from '../types/exercise'
-import type { FocusDirection } from '../types/progress'
 
 const DIFFICULTIES: ExerciseDifficulty[] = [1, 2, 3, 4, 5]
 const GROUPS: ExerciseGroup[] = ['upper', 'lower', 'full', 'equipment']
-const FOCUS_DIRECTIONS: FocusDirection[] = [
-  'mobility',
-  'light_athletics',
-  'strength',
-  'body_belts',
-  'striking',
-  'balance'
-]
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
@@ -49,7 +41,7 @@ export function isValidExercise(value: unknown): value is Exercise {
   if (e.focus !== undefined) {
     if (
       !Array.isArray(e.focus) ||
-      !e.focus.every((direction) => FOCUS_DIRECTIONS.includes(direction as FocusDirection))
+      !e.focus.every((direction) => isFocusDirection(direction))
     ) {
       return false
     }

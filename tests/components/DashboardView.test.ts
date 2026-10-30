@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { mount, type VueWrapper } from '@vue/test-utils'
@@ -55,6 +55,10 @@ beforeEach(() => {
     configurable: true,
     value: { saveSettings, openPopup, listPhotos, listCustomExercises }
   })
+})
+
+afterEach(() => {
+  window.location.hash = ''
 })
 
 describe('DashboardView — optional layers', () => {
@@ -114,5 +118,21 @@ describe('DashboardView — optional layers', () => {
 
     await nav.find((button) => button.text() === 'Статистика')!.trigger('click')
     expect(wrapper.find('[data-testid="stats-panel"]').exists()).toBe(true)
+  })
+
+  it('opens the preferences tab', async () => {
+    wrapper = mountDashboard()
+    const nav = wrapper.findAll('nav button')
+
+    await nav.find((button) => button.text() === 'Настройки')!.trigger('click')
+
+    expect(wrapper.find('[data-testid="preferences-panel"]').exists()).toBe(true)
+  })
+
+  it('opens the tab requested in the hash', () => {
+    window.location.hash = '#/dashboard?tab=settings'
+    wrapper = mountDashboard()
+
+    expect(wrapper.find('[data-testid="preferences-panel"]').exists()).toBe(true)
   })
 })

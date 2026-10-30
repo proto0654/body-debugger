@@ -50,6 +50,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Stores | `src/stores/` |
 | Reminder schedule store (UI mirror) | `src/stores/reminder.ts` |
 | Domain rules (picker, character, severity, session extras, weight) | `shared/domain/` |
+| Core preferences (interval, picker mode, Focus, build) | `shared/domain/preferences.ts`, `shared/constants/focus.ts`, `src/components/settings/` |
 | Exercise catalog (34) | `shared/constants/exercises.ts` |
 | Shared types | `shared/types/` |
 | Exercise validation | `shared/validation/exercise.ts` |
@@ -86,8 +87,10 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 - Character art is cut per frame; emoji fallback. Motion respects the dashboard switch and the OS setting.
 - Optional layers are live and off by default unless noted: session details, weight history, photos, inventory, sounds, AI proposals, themes.
 - Dashboard depth: 13-week calendar heatmap with day details, stats cards, seven-day activity chart, zone distribution and top exercises.
+- Core preferences: the «Настройки» tab edits interval (5–240 min), picker mode, Focus and character build; values are normalized on load, and an interval change reschedules the loop.
+- Renderer CSP lists `photo:` in `img-src`, so progress photos load through the custom scheme.
 - Debug panel: dev-only, with state view, quick actions, six scenario presets and per-cue sound preview.
-- Tests: Vitest covers domain rules, stores, persistence, popup/portrait/weight/heatmap/stats/photo/AI components and the debug panel.
+- Tests: Vitest covers domain rules, stores, persistence, preferences, popup/portrait/weight/heatmap/stats/photo/AI components and the debug panel.
 - No planned roadmap milestones remain. Known gaps: Playwright E2E and real-Electron checks of tray/windows/IPC (manual smoke).
 
 ## Doc index

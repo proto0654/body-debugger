@@ -15,6 +15,7 @@ Post-skeleton milestones. Product detail: [CONCEPT.md](../CONCEPT.md).
 | 9 | Sounds | **Done** — default pack playback, mute + volume, pause/DND gate, popup/result/stage-up cues; theme packs later — [SOUNDS.md](SOUNDS.md) |
 | 10 | Tests + debug panel | **Done** — Vitest suite for domain, stores, persistence, components; dev-only debug panel with state, quick actions, six scenarios and cue preview — [TESTING.md](TESTING.md) |
 | 11 | Dashboard depth | **Done** — 13-week calendar heatmap with day details, stats cards, seven-day chart, zone distribution, top exercises |
+| 12 | Core preferences UI | **Done** — «Настройки» tab: interval (5–240 + presets), picker mode, Focus (primary + accents), character build; normalized on load, interval changes reschedule the loop |
 
-All planned milestones are **done**. Future ideas, not scheduled: theme sound packs, Playwright E2E,
-custom character packs, data export.
+All planned milestones are **done**. Future ideas, not scheduled: tray «Настройки» deep link,
+theme sound packs, Playwright E2E, custom character packs, data export.

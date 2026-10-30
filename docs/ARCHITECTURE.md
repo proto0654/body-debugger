@@ -105,6 +105,20 @@ no answer for 5 minutes               →  missed (popup closed by main)
 Skipped / snoozed / missed sessions never count as training. Difficulty and
 `exerciseLevels` are not weighted yet — a later pass, once stage/severity data is used.
 
+### Core preferences
+
+`shared/domain/preferences.ts` — interval, picker mode and Focus rules; `src/components/settings/PreferencesPanel.vue` renders them on the dashboard «Настройки» tab.
+
+| Rule | Behaviour |
+|------|-----------|
+| Interval | `settings.intervalMinutes`, integer 5–240; out-of-range and non-numeric input is rejected, never clamped; every save reschedules the loop through `syncLoopFromSettings` |
+| Picker mode | `balance` / `rotation` / `focus` / `push`; an unknown id falls back to `balance` on load |
+| Focus | One primary direction plus accents; unknown ids are dropped, accents stay unique and never repeat the primary |
+| Build | `progress.characterBuild` (`lean` / `average` / `stocky`); presentation only, `neutral` means "not chosen" |
+| Storage | Interval, mode and Focus live in `settings.json`; build lives in `progress.json` |
+
+`#/dashboard?tab=settings` opens the tab directly (used by reloads and ready for a tray deep link; the tray «Настройки» item is still disabled).
+
 ### Popup severity
 
 `shared/domain/severity.ts` — rules only; the popup enforces them, main records any result.
@@ -197,6 +211,8 @@ Stage-up is automatic; `streak` has a file and a debug preview but no automatic 
 | UI | Popup attaches/removes photos inside the optional details block; dashboard shows a gallery with delete |
 
 The layer is off by default (`settings.photos.enabled`). `photoIds` are only carried by `done` sessions.
+
+`<img src="photo://…">` only works because the renderer CSP lists `photo:` in `img-src` ([index.html](../index.html)); `'self'` does not cover a different scheme. `tests/unit/csp.test.ts` pins that down — dropping the scheme silently blanks the popup thumbnail and the gallery.
 
 ### AI proposals
 
@@ -325,6 +341,7 @@ Preload: `electron/preload/index.ts`.
 | Popup shows the triggered exercise (pulled from main) | Yes |
 | Popup severity (timer gate, hold to confirm) | Yes — [ROADMAP.md](ROADMAP.md) #5 |
 | Dashboard: next reminder + pause + severity + motion + details switches | Yes |
+| Core preferences (interval, picker mode, Focus, build) + «Настройки» tab | Yes — dashboard tab; tray entry still disabled |
 | Optional session details (reps / feeling / weight) | Yes — popup block + dashboard switch; ROADMAP #8 (partial) |
 | Weight history (sparkline, manual entries, goal) | Yes — dashboard card; sessions backfilled once; ROADMAP #8 (partial) |
 | Tailwind + routed dashboard / popup views | Yes |
@@ -345,6 +362,8 @@ Preload: `electron/preload/index.ts`.
 |------|------|
 | Reminder schedule (interval, idle, snooze, missed, pause) | [electron/main/trigger-loop.ts](../electron/main/trigger-loop.ts) |
 | Exercise weights / penalties / modes | [shared/domain/exercise-picker.ts](../shared/domain/exercise-picker.ts) |
+| Interval bounds, picker modes, Focus normalization | [shared/domain/preferences.ts](../shared/domain/preferences.ts) |
+| Focus directions + labels | [shared/constants/focus.ts](../shared/constants/focus.ts) |
 | Exercise catalog (ids are permanent) | [shared/constants/exercises.ts](../shared/constants/exercises.ts) |
 | Popup severity rules | [shared/domain/severity.ts](../shared/domain/severity.ts) |
 | Session detail ranges + normalization | [shared/domain/session-extras.ts](../shared/domain/session-extras.ts) |

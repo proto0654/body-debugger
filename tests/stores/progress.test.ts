@@ -1,7 +1,9 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useProgressStore } from '@/stores/progress'
+import type { DataSnapshot } from '@shared/types/persistence'
 import type { UserProgress } from '@shared/types/progress'
+import { makeSettings } from '../fixtures'
 
 function progress(overrides: Partial<UserProgress> = {}): UserProgress {
   return {
@@ -48,5 +50,29 @@ describe('progress store', () => {
     const store = useProgressStore()
     store.hydrate(progress({ streak: { current: 7, max: 9 } }))
     expect(store.streak).toEqual({ current: 7, max: 9 })
+  })
+
+  it('persists a build change and ignores unknown or repeated values', async () => {
+    const saveProgress = vi.fn(
+      async (next: UserProgress): Promise<DataSnapshot> => ({
+        settings: makeSettings(),
+        progress: next,
+        sessions: [],
+        weights: []
+      })
+    )
+    Object.defineProperty(window, 'api', { configurable: true, value: { saveProgress } })
+
+    const store = useProgressStore()
+    store.hydrate(progress())
+
+    await store.setCharacterBuild('stocky')
+    expect(store.characterBuild).toBe('stocky')
+    expect(saveProgress.mock.calls[0][0]).toMatchObject({ characterBuild: 'stocky' })
+
+    await store.setCharacterBuild('huge' as never)
+    await store.setCharacterBuild('stocky')
+    expect(store.characterBuild).toBe('stocky')
+    expect(saveProgress).toHaveBeenCalledTimes(1)
   })
 })

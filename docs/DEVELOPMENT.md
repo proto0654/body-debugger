@@ -54,8 +54,9 @@ Do **not** download Electron into `%LOCALAPPDATA%\electron` or park the profile 
 ## Windows notes
 
 - App stays in the tray when all windows close.
-- Tray menu: **Дашборд**, **Напоминание сейчас**, **Пауза / Продолжить**, Quit. There is no settings screen yet — pause, severity, motion, details, photos, sounds, inventory, AI and themes live on the dashboard.
-- Renderer routes: `#/dashboard`, `#/popup`. A dev-only **Debug** tab appears on the dashboard (see [TESTING.md](TESTING.md#debug-panel-implemented)).
+- Tray menu: **Дашборд**, **Напоминание сейчас**, **Пауза / Продолжить**, Quit. The **Настройки** item is still disabled; preferences live on the dashboard.
+- Dashboard tabs: **Сегодня** (optional-layer switches, weight, photos, AI), **Календарь**, **Статистика**, **Настройки** (interval, picker mode, Focus, character build) plus a dev-only **Debug** tab — see [ARCHITECTURE.md](ARCHITECTURE.md#core-preferences).
+- Renderer routes: `#/dashboard`, `#/popup`; `#/dashboard?tab=settings` opens the settings tab directly (reloads, future tray deep links).
 - After a **Готово** in the popup, streak, sessions and character survive quit/relaunch (check `.userdata/data/`).
 - If the shell exports `ELECTRON_RUN_AS_NODE=1` (some editors/agents do), `electron.exe .` boots as plain Node and crashes on `electron.app`. Clear the variable for smoke runs.
 
@@ -65,7 +66,7 @@ Rules live in [electron/main/trigger-loop.ts](../electron/main/trigger-loop.ts) 
 
 | Knob | Value |
 |------|-------|
-| Interval | `settings.intervalMinutes` (default 45), counted from the last resolved session |
+| Interval | `settings.intervalMinutes` (default 45, bounds 5–240, edited on «Настройки»), counted from the last resolved session |
 | Snooze | retry after 5 minutes |
 | Idle hold | no popup while system idle ≥ 60 s |
 | Idle reset | away ≥ 5 min = break; cycle restarts on return |

@@ -191,6 +191,78 @@ describe('settings store', () => {
     expect(saveSettings).toHaveBeenCalledTimes(1)
   })
 
+  it('persists an in-range interval and ignores the rest', async () => {
+    const settings = useSettingsStore()
+
+    await settings.setIntervalMinutes(30)
+    expect(settings.intervalMinutes).toBe(30)
+    expect(saveSettings.mock.calls[0][0]).toMatchObject({ intervalMinutes: 30 })
+
+    await settings.setIntervalMinutes(500)
+    await settings.setIntervalMinutes(30)
+    expect(settings.intervalMinutes).toBe(30)
+    expect(saveSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists the picker mode and ignores an unknown one', async () => {
+    const settings = useSettingsStore()
+
+    await settings.setPickerMode('push')
+    expect(settings.pickerMode).toBe('push')
+    expect(saveSettings.mock.calls[0][0]).toMatchObject({ pickerMode: 'push' })
+
+    await settings.setPickerMode('rave' as never)
+    expect(settings.pickerMode).toBe('push')
+    expect(saveSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it('sets the primary focus and keeps it out of the accents', async () => {
+    const settings = useSettingsStore()
+    settings.hydrate(makeSettings({ focus: { primary: null, accents: ['balance'] } }))
+
+    await settings.setFocusPrimary('balance')
+    expect(settings.focus).toEqual({ primary: 'balance', accents: [] })
+    expect(saveSettings.mock.calls[0][0]).toMatchObject({
+      focus: { primary: 'balance', accents: [] }
+    })
+
+    await settings.setFocusPrimary(null)
+    expect(settings.focus.primary).toBeNull()
+    expect(saveSettings).toHaveBeenCalledTimes(2)
+  })
+
+  it('toggles accents and never duplicates the primary', async () => {
+    const settings = useSettingsStore()
+    settings.hydrate(makeSettings({ focus: { primary: 'strength', accents: [] } }))
+
+    await settings.toggleFocusAccent('mobility')
+    expect(settings.focus).toEqual({ primary: 'strength', accents: ['mobility'] })
+
+    await settings.toggleFocusAccent('mobility')
+    expect(settings.focus).toEqual({ primary: 'strength', accents: [] })
+    expect(saveSettings).toHaveBeenCalledTimes(2)
+
+    await settings.toggleFocusAccent('strength')
+    expect(settings.focus).toEqual({ primary: 'strength', accents: [] })
+    expect(saveSettings).toHaveBeenCalledTimes(2)
+  })
+
+  it('normalizes preferences when hydrating a stored file', () => {
+    const settings = useSettingsStore()
+
+    settings.hydrate(
+      makeSettings({
+        intervalMinutes: 1,
+        pickerMode: 'rave' as never,
+        focus: { primary: 'yoga' as never, accents: ['mobility', 'mobility'] }
+      })
+    )
+
+    expect(settings.intervalMinutes).toBe(45)
+    expect(settings.pickerMode).toBe('balance')
+    expect(settings.focus).toEqual({ primary: null, accents: ['mobility'] })
+  })
+
   it('keeps working when the preload bridge is absent', async () => {
     Object.defineProperty(window, 'api', { configurable: true, value: undefined })
     const settings = useSettingsStore()

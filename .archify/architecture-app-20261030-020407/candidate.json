@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Body Debugger — архитектура приложения",
+    "locale": "ru",
+    "output": ".archify/architecture-app-20261030-020407/body-debugger-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "tray",
+      "type": "backend",
+      "label": "Трей и меню",
+      "sublabel": "tray.ts · пауза, триггер сейчас",
+      "pos": [
+        60,
+        180
+      ],
+      "size": [
+        160,
+        62
+      ]
+    },
+    {
+      "id": "loop",
+      "type": "backend",
+      "label": "Триггер-цикл",
+      "sublabel": "trigger-loop.ts · расписание",
+      "pos": [
+        340,
+        180
+      ],
+      "size": [
+        190,
+        62
+      ]
+    },
+    {
+      "id": "picker",
+      "type": "backend",
+      "label": "Пикер упражнений",
+      "sublabel": "exercise-picker.ts · веса",
+      "pos": [
+        340,
+        40
+      ],
+      "size": [
+        190,
+        62
+      ]
+    },
+    {
+      "id": "store",
+      "type": "database",
+      "label": "JSON-хранилище",
+      "sublabel": ".userdata/data/*.json",
+      "pos": [
+        340,
+        320
+      ],
+      "size": [
+        190,
+        62
+      ]
+    },
+    {
+      "id": "ipc",
+      "type": "backend",
+      "label": "IPC-обработчики",
+      "sublabel": "ipc/* · session, data",
+      "pos": [
+        620,
+        180
+      ],
+      "size": [
+        190,
+        62
+      ]
+    },
+    {
+      "id": "preload",
+      "type": "security",
+      "label": "Preload-мост",
+      "sublabel": "contextBridge → window.api",
+      "pos": [
+        900,
+        180
+      ],
+      "size": [
+        190,
+        62
+      ]
+    },
+    {
+      "id": "popup",
+      "type": "frontend",
+      "label": "PopupView",
+      "sublabel": "окно 320×220 · одна сессия",
+      "pos": [
+        900,
+        40
+      ],
+      "size": [
+        190,
+        62
+      ]
+    },
+    {
+      "id": "dashboard",
+      "type": "frontend",
+      "label": "DashboardView",
+      "sublabel": "стрик · вес · настройки",
+      "pos": [
+        900,
+        320
+      ],
+      "size": [
+        190,
+        62
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Main process (Node.js)",
+      "wraps": [
+        "tray",
+        "loop",
+        "picker",
+        "store",
+        "ipc"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "Renderer · contextIsolation",
+      "wraps": [
+        "preload",
+        "popup",
+        "dashboard"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "tray-to-loop",
+      "from": "tray",
+      "to": "loop",
+      "label": "пауза · триггер",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "loop-to-picker",
+      "from": "loop",
+      "to": "picker",
+      "label": "pickNextExercise",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "loop-to-store",
+      "from": "loop",
+      "to": "store",
+      "label": "appendSession",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "ipc-to-loop",
+      "from": "ipc",
+      "to": "loop",
+      "label": "session:*",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "ipc-to-store",
+      "from": "ipc",
+      "to": "store",
+      "label": "data:*"
+    },
+    {
+      "id": "loop-to-popup",
+      "from": "loop",
+      "to": "popup",
+      "label": "создать попап 320×220"
+    },
+    {
+      "id": "preload-to-ipc",
+      "from": "preload",
+      "to": "ipc",
+      "label": "invoke",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "popup-to-preload",
+      "from": "popup",
+      "to": "preload",
+      "label": "session:result",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "dashboard-to-preload",
+      "from": "dashboard",
+      "to": "preload",
+      "label": "data:save*",
+      "fromSide": "top",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Цикл напоминания",
+      "items": [
+        "Следующий триггер = последняя завершённая сессия + interval.",
+        "«Отложить» — повтор через 5 минут, а не через интервал.",
+        "Нет ответа 5 минут — missed; закрытый попап — skipped.",
+        "Пауза выключает расписание, ручной триггер из трея работает."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Состояние",
+      "items": [
+        "main — источник истины: кэш в памяти + четыре JSON-файла.",
+        "Запись атомарная: временный файл, затем rename.",
+        "Pinia — проекция: hydrate до mount, переприменение на data:updated."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Слои и опции",
+      "items": [
+        "shared/domain — чистые правила: пикер, строгость, персонаж, вес.",
+        "Пуш в окна: data:updated, session:updated, session:loop-changed.",
+        "Опции (детали сессии, вес) по умолчанию выключены и не ломают цикл."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "visual-check",
+  "evidenceKind": "automated-browser",
+  "status": "fail",
+  "visualReview": "pending",
+  "provenance": "current",
+  "deliveryReceiptId": "e5febec6-729f-48bd-abfd-28804775738c",
+  "artifact": {
+    "path": "E:\\Electron\\body_debugger\\.archify\\architecture-app-20261030-020407\\body-debugger-architecture.html",
+    "sha256": "e8347aa557ccaf0ba173ac6aaa5170ee0408a6d3c5043c30cba0aff13e4341c0",
+    "bytes": 826358
+  },
+  "state": {
+    "detail": "read",
+    "motion": "still"
+  },
+  "chrome": {
+    "status": "available",
+    "executable": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+  },
+  "diagnostics": [
+    {
+      "code": "viewer/temp-cleanup-incomplete",
+      "severity": "error",
+      "message": "Browser cleanup could not safely finish; inspect the reported retained path.",
+      "subject": {
+        "artifact": "E:\\Electron\\body_debugger\\.archify\\architecture-app-20261030-020407\\body-debugger-architecture.html"
+      },
+      "evidence": {
+        "reason": "Chrome did not exit; retained temporary profile \"C:\\Users\\proto\\AppData\\Local\\Temp\\archify-visual-check-profile-vLLq4E\".",
+        "retainedDirectory": "C:\\Users\\proto\\AppData\\Local\\Temp\\archify-visual-check-profile-vLLq4E"
+      },
+      "supportedFixes": [
+        "resolve the reported process or filesystem failure; verify directory ownership before manual cleanup"
+      ]
+    }
+  ],
+  "containment": {
+    "status": "fail",
+    "policy": "fit-or-reader-declared-readable-vertical-scroll",
+    "viewports": []
+  },
+  "themeStates": {
+    "status": "fail",
+    "viewports": []
+  },
+  "readability": {
+    "status": "fail",
+    "minimumProjectedNodeTextPx": 6,
+    "viewports": []
+  },
+  "viewerChrome": {
+    "status": "fail",
+    "viewports": []
+  },
+  "captures": {
+    "status": "fail",
+    "screenshots": [],
+    "contactSheet": null
+  },
+  "sidecars": {
+    "directory": "E:\\Electron\\body_debugger\\.archify\\architecture-app-20261030-020407\\visual-check",
+    "receipt": "body-debugger-architecture.visual-check.json",
+    "contactSheet": "body-debugger-architecture.visual-check.html",
+    "files": []
+  },
+  "error": "Chrome did not exit; retained temporary profile \"C:\\Users\\proto\\AppData\\Local\\Temp\\archify-visual-check-profile-vLLq4E\"."
+}

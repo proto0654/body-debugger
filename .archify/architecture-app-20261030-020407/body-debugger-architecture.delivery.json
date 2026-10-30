@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "e5febec6-729f-48bd-abfd-28804775738c",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "E:\\Electron\\body_debugger\\.archify\\architecture-app-20261030-020407\\candidate.json",
+  "output": "E:\\Electron\\body_debugger\\.archify\\architecture-app-20261030-020407\\body-debugger-architecture.html",
+  "specification": {
+    "sha256": "e0bb31ec4d23f96b9827469cc7ee4b016d5e1bec04c14fc5edb289a903931f6a",
+    "bytes": 5827
+  },
+  "artifact": {
+    "sha256": "e8347aa557ccaf0ba173ac6aaa5170ee0408a6d3c5043c30cba0aff13e4341c0",
+    "bytes": 826358
+  }
+}

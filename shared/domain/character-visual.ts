@@ -5,6 +5,8 @@ import type {
   CharacterEmotion,
   CharacterStage
 } from '../types/character'
+import { DEFAULT_CHARACTER_PACK } from '../constants/character'
+import { normalizeCharacterPackId } from '../constants/character-packs'
 
 /**
  * Pure rules for turning the abstract character state into sprite frame keys.
@@ -58,7 +60,8 @@ export function characterBodyCandidates(
   stage: CharacterStage,
   branch: CharacterBranch,
   build: CharacterBuild,
-  condition: CharacterConditionLevel = 0
+  condition: CharacterConditionLevel = 0,
+  packId = DEFAULT_CHARACTER_PACK
 ): string[] {
   const buildKey = frameBuild(build)
   if (condition > 0) {
@@ -68,11 +71,11 @@ export function characterBodyCandidates(
       CHARACTER_EMOJI_FRAME
     ]
   }
-  const stageFrame = CHARACTER_STAGE_FRAME[stage]
+  const stageFrame = normalizeCharacterPackId(packId) === DEFAULT_CHARACTER_PACK ? CHARACTER_STAGE_FRAME[stage] : stage
   const hasBranchPose = stageFrame >= 4 && (branch === 'power' || branch === 'mobility')
   const pose = hasBranchPose ? withBuildFallback(`pose-${branch}`, buildKey) : []
   const body = withBuildFallback(`stage-${stageFrame}`, buildKey)
-  const keys = [...pose, ...body, CHARACTER_EMOJI_FRAME]
+  const keys = [...pose, ...body, ...withBuildFallback('stage-0', buildKey), CHARACTER_EMOJI_FRAME]
   return keys.filter((key, index) => keys.indexOf(key) === index)
 }
 
@@ -82,5 +85,8 @@ export function characterFaceCandidates(
   build: CharacterBuild
 ): string[] {
   const emotionKey = CHARACTER_EMOTION_FRAME[emotion]
-  return [...withBuildFallback(`emotion-${emotionKey}`, frameBuild(build)), CHARACTER_EMOJI_FRAME]
+  return Array.from(new Set([
+    ...withBuildFallback(`emotion-${emotionKey}`, frameBuild(build)),
+    ...withBuildFallback('emotion-neutral', frameBuild(build)), CHARACTER_EMOJI_FRAME
+  ]))
 }

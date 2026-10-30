@@ -1,6 +1,6 @@
 import { app, BrowserWindow } from 'electron'
 import { getUserDataPath, isLabProcess } from './lab-environment'
-import { initializeLaboratory, stopLaboratory } from './laboratory'
+import { initializeLaboratory, stopLaboratory, pauseLaboratory } from './laboratory'
 import { openLaboratoryWindow } from './windows/laboratory'
 import { createAppTray } from './tray'
 import { createDashboardWindow } from './windows/dashboard'
@@ -22,7 +22,7 @@ registerPhotoScheme()
 app.setPath('userData', getUserDataPath())
 
 if (isLabProcess() && !app.requestSingleInstanceLock()) app.quit()
-app.on('second-instance', () => { if (isLabProcess()) openLaboratoryWindow() })
+app.on('second-instance', () => { if (isLabProcess()) openLaboratoryWindow(pauseLaboratory) })
 
 // Windows: keep app alive in tray when all windows closed
 app.setAppUserModelId('com.bodydebugger.app')
@@ -54,7 +54,7 @@ app.whenReady().then(() => {
 
   // Open dashboard on first launch so Tailwind styles are visible immediately
   createDashboardWindow()
-  if (isLabProcess()) openLaboratoryWindow()
+  if (isLabProcess()) openLaboratoryWindow(pauseLaboratory)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

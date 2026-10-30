@@ -56,7 +56,7 @@ Do **not** download Electron into `%LOCALAPPDATA%\electron` or park the profile 
 
 - App stays in the tray when all windows close.
 - Tray menu: **Дашборд**, **Напоминание сейчас**, **Пауза / Продолжить**, Quit. **Настройки** opens the preferences tab directly, including in an existing dashboard.
-- Dashboard tabs: **Сегодня** (character, day totals, next form, weight and photos), **Календарь**, **Статистика**, **Настройки** (interval, picker mode, Focus, character build, comfort and optional-layer switches, AI imports) plus the dev-only **Лаборатория** entry — see [ARCHITECTURE.md](ARCHITECTURE.md#core-preferences).
+- Dashboard tabs: **Сегодня** (character, day totals, next form, weight and photos), **Календарь**, **Статистика**, **Настройки** (interval, picker mode, Focus, character identity/build, comfort and optional-layer switches, AI imports) plus the dev-only **Лаборатория** entry — see [ARCHITECTURE.md](ARCHITECTURE.md#core-preferences).
 - Renderer routes: `#/dashboard`, `#/popup`, `#/laboratory` (controls in an isolated laboratory process); `#/dashboard?tab=settings` opens the settings tab directly (direct links and the tray settings action).
 - After a **Готово** in the popup, streak, sessions and character survive quit/relaunch (check `.userdata/data/`).
 - If the shell exports `ELECTRON_RUN_AS_NODE=1` (some editors/agents do), `electron.exe .` boots as plain Node and crashes on `electron.app`. Clear the variable for smoke runs.

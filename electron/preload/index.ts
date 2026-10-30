@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { LabCommand, LabState } from '../../shared/domain/laboratory'
+import type { LabDriverAck, LabDriverCommand } from '../../shared/domain/laboratory-playback'
 import {
   IpcChannels,
   type DataAddWeightPayload,
@@ -25,6 +26,12 @@ import {
 } from '../../shared/types/events'
 
 const api = {
+  labDriverAck: (ack: LabDriverAck): Promise<void> => ipcRenderer.invoke(IpcChannels.LabDriverAck, ack),
+  onLabDriver: (handler: (command: LabDriverCommand) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, command: LabDriverCommand): void => handler(command)
+    ipcRenderer.on(IpcChannels.LabDriver, listener)
+    return () => ipcRenderer.removeListener(IpcChannels.LabDriver, listener)
+  },
   openLaboratory: (): Promise<void> => ipcRenderer.invoke(IpcChannels.LabOpen),
   getLabState: (): Promise<LabState> => ipcRenderer.invoke(IpcChannels.LabGetState),
   labCommand: (command: LabCommand): Promise<LabState> => ipcRenderer.invoke(IpcChannels.LabCommand, command),

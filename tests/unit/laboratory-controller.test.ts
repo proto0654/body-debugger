@@ -5,11 +5,13 @@ import { join } from 'node:path'
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LabCommand } from '@shared/domain/laboratory'
+import { LAB_SCENARIOS, labSummary } from '@shared/domain/laboratory'
+import type { LabDriverCommand } from '@shared/domain/laboratory-playback'
 
 const mocks = vi.hoisted(() => ({
   dir: '', enabled: true, packaged: false, popup: false, closed: null as (() => void) | null,
   broadcast: vi.fn(), trayState: 'idle',
-  dialogOpen: vi.fn(), dialogSave: vi.fn(), spawn: vi.fn()
+  dialogOpen: vi.fn(), dialogSave: vi.fn(), spawn: vi.fn(), driver: vi.fn()
 }))
 vi.mock('electron', () => ({
   app: { get isPackaged() { return mocks.packaged }, getPath: () => mocks.dir, getAppPath: () => mocks.dir },
@@ -23,7 +25,7 @@ vi.mock('../../electron/main/broadcast', () => ({
 }))
 vi.mock('../../electron/main/windows/laboratory', () => ({ openLaboratoryWindow: vi.fn() }))
 vi.mock('../../electron/main/windows/popup', () => ({
-  getPopupWindow: () => mocks.popup ? { focus: vi.fn() } : null,
+  getPopupWindow: () => mocks.popup ? { focus: vi.fn(), webContents: { send: mocks.driver } } : null,
   createPopupWindow: () => { mocks.popup = true; return { once: (_event: string, handler: () => void) => { mocks.closed = handler } } },
   closePopupWindow: () => { mocks.popup = false; mocks.closed?.(); mocks.closed = null }
 }))
@@ -46,6 +48,7 @@ beforeEach(async () => {
   mocks.dir = mkdtempSync(join(tmpdir(), 'body-debugger-lab-'))
   mocks.enabled = true; mocks.packaged = false; mocks.popup = false; mocks.closed = null; mocks.trayState = 'idle'
   mocks.spawn.mockReset()
+  mocks.driver.mockReset()
   mocks.dialogOpen.mockReset(); mocks.dialogSave.mockReset(); mocks.broadcast.mockClear()
   controller = await import('../../electron/main/laboratory')
   loop = await import('../../electron/main/trigger-loop')
@@ -124,18 +127,16 @@ describe('main-owned laboratory', () => {
     expect(loop.getActivePopup()).toBeNull()
     expect(store.getSnapshot().sessions).toEqual([])
   })
-  it('replays steps in main, pauses and stops at the end', async () => {
-    const initial = await command({ action: 'scenario', id: 'return' })
+  it('opens a real native event instead of inserting its final snapshot, and freezes while paused', async () => {
+    await command({ action: 'scenario', id: 'return' })
     await command({ action: 'play', delayMs: 500 })
     vi.advanceTimersByTime(1000)
-    expect(controller.getLabState().cursor).toBe(2)
+    expect(controller.getLabState()).toMatchObject({ cursor: 1, playing: true, activePopup: true, playback: { phase: 'reminder' } })
+    expect(store.getSnapshot().sessions).toEqual([])
     await command({ action: 'pause' })
-    vi.advanceTimersByTime(1000)
-    expect(controller.getLabState().cursor).toBe(2)
-    await command({ action: 'seek', cursor: initial.plan!.events.length - 2 })
-    await command({ action: 'play', delayMs: 500 })
-    vi.advanceTimersByTime(500)
-    expect(controller.getLabState()).toMatchObject({ cursor: initial.plan!.events.length - 1, playing: false })
+    vi.advanceTimersByTime(600000)
+    expect(controller.getLabState()).toMatchObject({ cursor: 1, playing: false, activePopup: true })
+    expect(store.getSnapshot().sessions).toEqual([])
   })
   it('stops playback immediately when the tray manually opens a real exercise', async () => {
     await command({ action: 'scenario', id: 'growth' })
@@ -193,7 +194,7 @@ describe('main-owned laboratory', () => {
     await command({ action: 'restore' })
     expect(store.getSnapshot()).toEqual(before)
     expect(controller.getLabState().cursor).toBe(20)
-    expect(JSON.parse(readFileSync(join(mocks.dir, 'data', 'laboratory-run.json'), 'utf8')).data.plan.version).toBe(1)
+    expect(JSON.parse(readFileSync(join(mocks.dir, 'data', 'laboratory-run.json'), 'utf8')).data.plan.version).toBe(2)
   })
   it('rejects an invalid imported cursor before changing the current timeline', async () => {
     const before = await command({ action: 'scenario', id: 'growth' })
@@ -203,6 +204,102 @@ describe('main-owned laboratory', () => {
     await expect(command({ action: 'import' })).rejects.toThrow('position')
     expect(controller.getLabState().plan).toEqual(before.plan)
     expect(store.getSnapshot().sessions).toEqual([])
+  })
+  it.each(LAB_SCENARIOS)('replays $id through real loop outcomes, without inserting future history', async ({ id }) => {
+    const initial = await command({ action: 'scenario', id })
+    const expected = labSummary(initial.plan!, initial.plan!.events.length - 1)
+    let hold: ReturnType<typeof setTimeout> | undefined
+    mocks.driver.mockImplementation((_channel: string, request: LabDriverCommand) => {
+      if (request.action === 'cancel') { clearTimeout(hold); return }
+      if (request.action === 'start') controller.acknowledgeLabDriver({ ...request, kind: 'applied' })
+      if (['done', 'skipped', 'snoozed', 'hold'].includes(request.action)) {
+        const resolve = () => {
+          const active = loop.getActivePopup()
+          if (!active || active.sessionId !== request.sessionId) return
+          const status = request.action === 'hold' ? 'done' : request.action as 'done' | 'skipped' | 'snoozed'
+          expect(loop.handleSessionResult({ sessionId: active.sessionId, exerciseId: active.exercise.id, status })).toEqual({ saved: true })
+          setTimeout(() => { mocks.popup = false }, 1000)
+        }
+        if (request.action === 'hold') hold = setTimeout(resolve, 1500)
+        else resolve()
+      }
+    })
+    await command({ action: 'play', delayMs: 500 })
+    for (let step = 0; step < 6000 && controller.getLabState().playing; step++) {
+      const state = controller.getLabState()
+      if (state.playback?.phase === 'reminder') {
+        controller.acknowledgeLabDriver({ kind: 'ready', sessionId: state.playback.sessionId! })
+      }
+      vi.advanceTimersByTime(500)
+    }
+    expect(controller.getLabState()).toMatchObject({ playing: false, playback: { phase: 'finished' } })
+    const actual = store.getSnapshot()
+    expect(actual.sessions.map(session => session.status)).toEqual(initial.plan!.events.flatMap(event => event.session ? [event.session.status] : []))
+    expect(actual.progress.characterStage).toBe(expected.character.stage)
+    expect(actual.progress.characterBranch).toBe(expected.character.branch)
+    expect(actual.progress.streak).toEqual({ current: expected.streak.current, max: expected.streak.max })
+    await command({ action: 'save' })
+  })
+  it('keeps character preferences across stories and seeks, preserving the original future of a manual branch', async () => {
+    store.updateSettings({ ...store.getSnapshot().settings, characterPackId: 'engineer', themeId: 'night-ops' })
+    store.updateProgress({ ...store.getSnapshot().progress, characterBuild: 'stocky' })
+    const initial = await command({ action: 'scenario', id: 'growth' })
+    await command({ action: 'seek', cursor: 5 })
+    expect(store.getSnapshot()).toMatchObject({ settings: { characterPackId: 'engineer' }, progress: { characterBuild: 'stocky' } })
+    await command({ action: 'popup', preset: 'soft' })
+    const active = loop.getActivePopup()!
+    loop.handleSessionResult({ sessionId: active.sessionId, exerciseId: active.exercise.id, status: 'skipped' })
+    expect(controller.getLabState().hasOriginal).toBe(true)
+    await command({ action: 'save' })
+    await command({ action: 'reset' })
+    await command({ action: 'restore' })
+    expect(controller.getLabState().hasOriginal).toBe(true)
+    await command({ action: 'original' })
+    expect(controller.getLabState().plan!.events).toEqual(initial.plan!.events)
+  })
+  it('waits indefinitely for an interactive choice without executing the planned outcome or missed deadline', async () => {
+    await command({ action: 'scenario', id: 'growth' })
+    await command({ action: 'mode', mode: 'interactive' })
+    await command({ action: 'seek', cursor: 1 })
+    mocks.driver.mockImplementation((_channel: string, request: LabDriverCommand) => {
+      if (request.action === 'start') controller.acknowledgeLabDriver({ ...request, kind: 'applied' })
+    })
+    await command({ action: 'play', delayMs: 500 })
+    vi.advanceTimersByTime(500)
+    const sessionId = controller.getLabState().playback!.sessionId!
+    controller.acknowledgeLabDriver({ kind: 'ready', sessionId })
+    vi.advanceTimersByTime(10000)
+    expect(controller.getLabState().playback).toMatchObject({ phase: 'choice', waiting: true, mode: 'interactive' })
+    vi.advanceTimersByTime(600000)
+    expect(store.getSnapshot().sessions).toEqual([])
+    expect(mocks.driver.mock.calls.map(([, request]) => request.action)).not.toContain('done')
+    controller.acknowledgeLabDriver({ kind: 'manual', sessionId })
+    const active = loop.getActivePopup()!
+    expect(loop.handleSessionResult({ sessionId, exerciseId: active.exercise.id, status: 'skipped' })).toEqual({ saved: true })
+    expect(controller.getLabState()).toMatchObject({ hasOriginal: true, playback: { phase: 'saved' } })
+    expect(store.getSnapshot().sessions).toHaveLength(1)
+  })
+  it('freezes an accelerated unanswered-popup deadline until replay resumes', async () => {
+    const initial = await command({ action: 'scenario', id: 'recovery' })
+    const missed = initial.plan!.events.findIndex(event => event.session?.status === 'missed')
+    await command({ action: 'seek', cursor: missed - 1 })
+    const count = store.getSnapshot().sessions.length
+    await command({ action: 'play', delayMs: 500 })
+    vi.advanceTimersByTime(500)
+    const sessionId = controller.getLabState().playback!.sessionId!
+    controller.acknowledgeLabDriver({ kind: 'ready', sessionId })
+    vi.advanceTimersByTime(1000)
+    await command({ action: 'pause' })
+    const frozen = store.getSnapshot().laboratory!.at
+    vi.advanceTimersByTime(600000)
+    expect(store.getSnapshot().laboratory!.at).toBe(frozen)
+    expect(store.getSnapshot().sessions).toHaveLength(count)
+    expect(loop.getActivePopup()?.sessionId).toBe(sessionId)
+    await command({ action: 'play', delayMs: 500 })
+    vi.advanceTimersByTime(1500)
+    expect(store.getSnapshot().sessions).toHaveLength(count + 1)
+    expect(store.getSnapshot().sessions.at(-1)!.status).toBe('missed')
+    expect(['saved', 'reaction', 'closing']).toContain(controller.getLabState().playback?.phase)
   })
   it.each([{ action: 'seek', cursor: NaN }, { action: 'advance', seconds: Infinity }, { action: 'idle', seconds: -1 },
     { action: 'play', delayMs: 0 }, { action: 'step', unit: 'bad', direction: 1 }] as unknown as LabCommand[])(

@@ -176,7 +176,7 @@ async function triggerReminder(): Promise<void> {
         </div>
         <div class="hero-character" :class="{ 'hero-character--speaking': reactionActive }" data-testid="character-scene">
           <span class="character-badge">ФОРМА {{ character.state.stage + 1 }} / 6</span>
-          <CharacterPortrait size="xl" :variant="reactionActive ? 'face' : 'body'" :show-label="false" :stage="character.state.stage" :branch="character.state.branch"
+          <CharacterPortrait :pack-id="settings.characterPackId" size="xl" :variant="reactionActive ? 'face' : 'body'" :show-label="false" :stage="character.state.stage" :branch="character.state.branch"
             :build="character.state.build" :emotion="character.emotion" :condition="character.condition.level" />
           <p class="mt-1 text-lg font-semibold text-white">{{ CHARACTER_STAGE_LABELS[character.state.stage] }}</p>
           <p class="mt-1 text-xs text-emerald-400">{{ CHARACTER_BRANCH_LABELS[character.state.branch] }}</p>

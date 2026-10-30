@@ -27,6 +27,7 @@ import {
   normalizeSoundSettings
 } from '@shared/domain/sounds'
 import { DEFAULT_CHARACTER_PACK } from '@shared/constants/character'
+import { normalizeCharacterPackId } from '@shared/constants/character-packs'
 import { isEquipmentId } from '@shared/constants/equipment'
 import { normalizeThemeId } from '@shared/constants/themes'
 
@@ -96,9 +97,18 @@ export const useSettingsStore = defineStore('settings', () => {
       targetKg: next.weight?.targetKg ?? null
     }
     themeId.value = normalizeThemeId(next.themeId)
-    characterPackId.value = next.characterPackId
+    characterPackId.value = normalizeCharacterPackId(next.characterPackId)
     reduceMotion.value = next.reduceMotion
     paused.value = next.paused
+  }
+
+  async function setCharacterPack(next: string): Promise<void> {
+    const id = normalizeCharacterPackId(next)
+    if (next !== id || characterPackId.value === id) return
+    const previous = characterPackId.value
+    characterPackId.value = id
+    try { await persist() }
+    catch (cause) { characterPackId.value = previous; throw cause }
   }
 
   async function persist(): Promise<void> {
@@ -258,6 +268,7 @@ export const useSettingsStore = defineStore('settings', () => {
     reduceMotion,
     paused,
     asSettings,
+    setCharacterPack,
     hydrate,
     persist,
     togglePause,

@@ -1,15 +1,20 @@
 <script setup lang="ts">
+import CharacterPicker from '@/components/character/CharacterPicker.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import CharacterPortrait from '@/components/character/CharacterPortrait.vue'
 import ComicBubble from '@/components/character/ComicBubble.vue'
 import CalendarHeatmap from '@/components/stats/CalendarHeatmap.vue'
 import StatsPanel from '@/components/stats/StatsPanel.vue'
 import AppearancePanel from './AppearancePanel.vue'
+import ProgressDynamics from './ProgressDynamics.vue'
+import { LAB_PHASE_LABELS } from '@shared/domain/laboratory-playback'
+import { resolveFrameUrl } from '@/components/character/frames'
 import { useCharacterStore } from '@/stores/character'
 import { useProgressStore } from '@/stores/progress'
 import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsStore } from '@/stores/settings'
 import { useRuntimeStore } from '@/stores/runtime'
+import { applySnapshot } from '@/bootstrap/hydrate'
 import { LAB_SCENARIOS, labEventExplanation, labMilestones, labSummary, type LabCommand, type LabGeneratorOptions, type LabState } from '@shared/domain/laboratory'
 import { nowDate } from '@shared/domain/clock'
 import { localDateKey } from '@shared/domain/stats'
@@ -41,12 +46,21 @@ let unsubscribe: (() => void) | undefined
 let clock: ReturnType<typeof setInterval> | undefined
 let reactionTimer: ReturnType<typeof setTimeout> | undefined
 const showFace = ref(false)
+const frameStatus = ref('')
+function describeFrame(status: { fallback: boolean; failed: number; url?: string }): void {
+  frameStatus.value = status.fallback
+    ? `Запасной кадр: ${status.url ? 'тот же персонаж' : 'эмодзи'}; ошибок загрузки: ${status.failed}`
+    : 'Основной кадр найден'
+}
 const now = computed(() => { tick.value; runtime.revision; return nowDate() })
 const plan = computed(() => state.value?.plan)
 const milestones = computed(() => plan.value ? labMilestones(plan.value) : [])
 const expected = computed(() => plan.value ? labSummary(plan.value, state.value?.cursor ?? 0) : null)
 const journey = computed(() => characterJourney(sessions.history))
 const streak = computed(() => computeStreak(sessions.history, now.value))
+const phaseLabel = computed(() => LAB_PHASE_LABELS[state.value?.playback?.phase ?? 'idle'])
+const liveCaption = computed(() => !runtime.laboratory?.silent && state.value?.playback?.sessionId
+  ? character.reaction.caption : 'СМОТРИМ, КАК МЕНЯЕТСЯ ФОРМА')
 const current = computed(() => plan.value?.events[state.value?.cursor ?? 0])
 const explanation = computed(() => plan.value ? labEventExplanation(plan.value, state.value?.cursor ?? 0) : '')
 const events = computed(() => {
@@ -67,7 +81,13 @@ async function command(value: LabCommand): Promise<void> {
   try { state.value = await window.api.labCommand(value) }
   catch (cause) {
     console.error('[laboratory] command failed', value.action, cause)
-    error.value = 'Действие не выполнено. Проверьте параметры; для восстановления сначала сохраните вариант. Подробности — в журнале Electron.'
+    const detail = cause instanceof Error ? cause.message : ''
+    error.value = detail.includes('too large') ? 'Файл слишком большой. Максимум — 2 МБ.'
+      : detail.includes('version') || detail.includes('Invalid laboratory file') ? 'Неподдерживаемый или повреждённый формат сценария.'
+      : detail.includes('character') ? 'В сценарии указан неизвестный персонаж.'
+      : detail.includes('action sequence') ? 'Неверный порядок действий в сценарии.'
+      : detail.includes('laboratory session') ? 'Сценарий содержит неизвестное упражнение или неверную сессию.'
+      : 'Действие не выполнено. Проверьте параметры; для восстановления сначала сохраните вариант.'
   } finally { busy.value = false }
 }
 
@@ -96,7 +116,7 @@ function milestoneLabel(index: number): string {
 watch([() => journey.value.stage, () => sessions.lastSession?.id], ([stage], [oldStage]) => {
   clearTimeout(reactionTimer)
   showFace.value = false
-  if (runtime.laboratory?.silent || !state.value?.playing) return
+  if (runtime.laboratory?.silent || (!state.value?.playing && !state.value?.playback?.sessionId)) return
   const last = sessions.lastSession
   if (!last) return
   const stageUp = stage > oldStage
@@ -106,7 +126,12 @@ watch([() => journey.value.stage, () => sessions.lastSession?.id], ([stage], [ol
   reactionTimer = setTimeout(() => { showFace.value = false }, 3500)
 })
 watch(() => runtime.laboratory?.silent, silent => {
-  if (silent) { clearTimeout(reactionTimer); showFace.value = false }
+  if (silent) { clearTimeout(reactionTimer); showFace.value = false; character.react('welcome', sessions.history.length) }
+})
+watch(() => state.value?.playback?.phase, phase => {
+  if (runtime.laboratory?.silent) return
+  if (phase === 'reminder') character.react('ready', sessions.history.length)
+  if (phase === 'exercise') character.react('active', sessions.history.length)
 })
 watch(() => state.value?.plan?.generator, options => {
   if (options) generator.value = { ...options }
@@ -114,7 +139,10 @@ watch(() => state.value?.plan?.generator, options => {
 
 onMounted(async () => {
   try {
-    unsubscribe = window.api.onLabChanged(next => { state.value = next })
+    unsubscribe = window.api.onLabChanged(next => {
+      if (next.snapshot) applySnapshot(next.snapshot)
+      state.value = next
+    })
     state.value = await window.api.getLabState()
     clock = setInterval(() => { tick.value++ }, 1000)
   } catch (cause) {
@@ -138,12 +166,46 @@ onBeforeUnmount(() => { unsubscribe?.(); clearInterval(clock); clearTimeout(reac
       <button type="button" :class="{ 'is-active': tab === 'appearance' }" @click="tab = 'appearance'">Внешность</button>
     </nav>
 
-    <div class="lab-controls rounded-xl bg-slate-900 p-3">
+    <div class="lab-console">
+      <section class="settings-card space-y-3" data-testid="lab-console">
+        <CharacterPicker />
+        <div class="lab-controls">
+          <label class="min-w-0 flex-1">Сценарий<select aria-label="Сценарий" class="!max-w-none" :value="plan?.id ?? ''" :disabled="busy" @change="command({ action: 'scenario', id: ($event.target as HTMLSelectElement).value as typeof LAB_SCENARIOS[number]['id'] })"><option disabled value="">Выберите историю</option><option v-for="scenario in LAB_SCENARIOS" :key="scenario.id" :value="scenario.id">{{ scenario.title }}</option><option v-if="plan?.generator" :value="plan.id">{{ plan.title }}</option></select></label>
+          <label>Режим<select aria-label="Режим проигрывания" :value="state?.playback?.mode ?? 'automatic'" :disabled="busy || !plan" @change="command({ action: 'mode', mode: ($event.target as HTMLSelectElement).value as 'automatic' | 'interactive' })"><option value="automatic">Автоматически</option><option value="interactive">Выбираю сам</option></select></label>
+          <label>Темп<select v-model="speed"><option :value="3500">Медленно</option><option :value="1500">Обычно</option><option :value="500">Быстро</option></select></label>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" class="primary-action !px-3 !py-2 !text-xs" data-testid="lab-play" :disabled="busy || !plan" @click="command(state?.playing ? { action: 'pause' } : { action: 'play', delayMs: speed })">{{ state?.playing ? 'Пауза' : state?.playback?.phase === 'error' ? 'Повторить действие' : '▶ Проиграть сценарий' }}</button>
+          <button type="button" class="setting-chip" :disabled="busy || !plan" @click="command({ action: 'phase-step' })">Следующий шаг</button>
+          <button type="button" class="setting-chip" :disabled="busy || !plan" @click="command({ action: 'restart' })">Сначала</button>
+        </div>
+        <div class="rounded-lg bg-slate-950 p-2" aria-live="polite"><p class="text-xs font-semibold text-amber-200">{{ phaseLabel }}</p><p class="mt-1 text-[11px] text-slate-400">{{ state?.playback?.action || 'Выберите историю и нажмите «Проиграть сценарий»' }}</p><p class="mt-1 text-[10px] text-slate-500">{{ dateLabel }}</p></div>
+        <p v-if="state?.playback?.error" role="alert" class="text-xs text-red-300">{{ state.playback.error }}</p>
+        <p v-if="state?.playback?.waiting && state.playback.mode === 'interactive'" class="text-xs text-amber-300">Выберите действие в настоящем попапе у трея.</p>
+        <div v-if="state?.hasOriginal" class="flex flex-wrap gap-2"><button type="button" class="setting-chip" :disabled="busy" @click="command({ action: 'popup', preset: 'normal' })">Продолжить вручную</button><button type="button" class="setting-chip" :disabled="busy" @click="command({ action: 'original' })">Вернуться к исходному</button></div>
+      </section>
+      <section class="lab-live settings-card">
+        <div class="flex flex-col items-center justify-center gap-3">
+          <CharacterPortrait @frame-status="describeFrame" :pack-id="settings.characterPackId" :stage="progress.characterStage" :branch="progress.characterBranch" :build="progress.characterBuild" :emotion="character.emotion" :condition="character.condition.level" :variant="showFace ? 'face' : 'body'" size="xl" :show-label="false" />
+          <div class="text-center"><p class="font-semibold text-white">{{ CHARACTER_STAGE_LABELS[progress.characterStage] }}</p><p class="mt-1 text-xs text-emerald-400">{{ CHARACTER_BRANCH_LABELS[progress.characterBranch] }}</p></div>
+        </div>
+        <div class="space-y-4">
+          <ComicBubble :caption="liveCaption" :tone="character.reaction.tone" />
+          <div class="grid grid-cols-3 gap-2"><div class="metric-card"><p>Выполнено</p><strong>{{ journey.done }}</strong></div><div class="metric-card"><p>Стрик</p><strong>{{ streak.current }}</strong></div><div class="metric-card"><p>Ухудшение</p><strong>{{ character.condition.points }}<small class="text-sm text-slate-500"> / 10</small></strong></div></div>
+          <p class="text-sm text-slate-300">{{ character.conditionLabel }} · уровень {{ character.condition.level }}. До восстановления: {{ character.condition.recoverySessions }} выполнений.</p>
+          <p class="text-xs text-slate-400">{{ journey.nextStage === null ? 'Пиковая форма достигнута' : `До следующей формы: ${journey.remaining} выполнений` }}. Рекорд серии: {{ streak.max }}.</p>
+          <p v-if="actualMatches !== null" class="text-xs" :class="actualMatches ? 'text-emerald-400' : 'text-red-300'" data-testid="lab-checkpoint">{{ actualMatches ? '✓ Состояние соответствует истории до курсора' : 'Состояние отличается от контрольной точки' }}</p>
+          <details class="text-[11px] text-slate-500"><summary class="cursor-pointer">Диагностика кадра</summary><p class="mt-2 break-all">{{ settings.characterPackId }} · {{ character.visualKey.candidates.join(' → ') }}</p><p class="break-all">{{ resolveFrameUrl(character.visualKey.candidates, settings.characterPackId) ?? 'Кадров нет — эмодзи' }}</p><p>{{ frameStatus }}</p><p>При ошибке загрузки: следующий кадр того же персонажа → эмодзи.</p></details>
+        </div>
+      </section>
+    </div>
+    <ProgressDynamics :sessions="sessions.history" :now="now" :start-at="plan?.events[0]?.at" />
+    <details class="rounded-xl bg-slate-900 p-3"><summary class="cursor-pointer text-xs text-slate-400">Тема, телосложение, анимации и звук</summary><div class="lab-controls mt-3">
       <label>Тема<select :value="settings.themeId" @change="changeSetting(() => settings.setTheme(($event.target as HTMLSelectElement).value))"><option v-for="theme in THEMES" :key="theme.id" :value="theme.id">{{ theme.title }}</option></select></label>
       <label>Телосложение<select :value="progress.characterBuild" @change="changeSetting(async () => { progress.characterBuild = ($event.target as HTMLSelectElement).value as typeof progress.characterBuild; await progress.persist() })"><option v-for="(title, key) in CHARACTER_BUILD_LABELS" :key="key" :value="key">{{ title }}</option></select></label>
       <label class="lab-check"><input type="checkbox" :checked="settings.reduceMotion" @change="changeSetting(() => settings.setReduceMotion(($event.target as HTMLInputElement).checked))">Уменьшить анимации</label>
       <label class="lab-check"><input type="checkbox" :checked="settings.sound.enabled" @change="changeSetting(() => settings.setSoundEnabled(($event.target as HTMLInputElement).checked))">Звук</label>
-    </div>
+    </div></details>
 
     <template v-if="tab === 'history'">
       <details class="settings-card" :open="!plan">
@@ -166,34 +228,20 @@ onBeforeUnmount(() => { unsubscribe?.(); clearInterval(clock); clearTimeout(reac
       </details>
 
       <div v-if="plan && state" class="settings-card space-y-4" data-testid="lab-timeline">
-        <div class="flex flex-wrap items-center justify-between gap-2"><h2 class="font-semibold text-white">{{ plan.title }}</h2><span class="text-xs text-slate-400">{{ state.cursor + 1 }} / {{ plan.events.length }}</span></div>
+        <div class="flex flex-wrap items-center justify-between gap-2"><h2 class="font-semibold text-white">Просмотр даты · {{ plan.title }}</h2><span class="text-xs text-slate-400">{{ state.cursor + 1 }} / {{ plan.events.length }}</span></div>
         <input class="lab-range w-full" aria-label="Позиция на таймлайне" type="range" min="0" :max="plan.events.length - 1" :value="state.cursor" :disabled="busy" @change="seek(Number(($event.target as HTMLInputElement).value))">
         <div class="lab-controls">
-          <div class="flex items-center gap-1"><button type="button" class="setting-chip" :disabled="busy" @click="seek(0)">В начало</button><button type="button" aria-label="Шаг назад" class="setting-chip" :disabled="busy" @click="command({ action: 'step', direction: -1, unit: stepUnit })">←</button><button type="button" class="setting-chip" :disabled="busy" data-testid="lab-play" @click="command(state.playing ? { action: 'pause' } : { action: 'play', delayMs: speed })">{{ state.playing ? 'Пауза' : '▶ Играть' }}</button><button type="button" aria-label="Шаг вперёд" class="setting-chip" :disabled="busy" @click="command({ action: 'step', direction: 1, unit: stepUnit })">→</button><button type="button" class="setting-chip" :disabled="busy" @click="seek(plan.events.length - 1)">В конец</button></div>
+          <div class="flex items-center gap-1"><button type="button" class="setting-chip" :disabled="busy" @click="seek(0)">В начало</button><button type="button" aria-label="Шаг назад" class="setting-chip" :disabled="busy" @click="command({ action: 'step', direction: -1, unit: stepUnit })">←</button><button type="button" aria-label="Шаг вперёд" class="setting-chip" :disabled="busy" @click="command({ action: 'step', direction: 1, unit: stepUnit })">→</button><button type="button" class="setting-chip" :disabled="busy" @click="seek(plan.events.length - 1)">В конец</button></div>
           <label>Шаг<select v-model="stepUnit"><option value="event">Событие</option><option value="day">День</option><option value="milestone">Изменение формы / серии</option></select></label>
           <label>Темп<select v-model="speed"><option :value="3500">Медленно · 3,5 с</option><option :value="1500">Обычно · 1,5 с</option><option :value="500">Быстро · 0,5 с</option></select></label>
           <label>Перейти к дате<input type="date" :value="positionDate" :disabled="busy" @change="command({ action: 'date', date: ($event.target as HTMLInputElement).value })"></label>
         </div>
-        <p class="text-sm text-amber-200">{{ current?.label }}</p>
+        <p class="text-xs text-slate-500">Просмотр даты восстанавливает историю без попапов и звуков. «Проиграть сценарий» выполняет события в настоящем окне.</p><p class="text-sm text-amber-200">{{ current?.label }}</p>
         <p class="text-xs leading-relaxed text-slate-400">{{ explanation }}</p>
         <p v-if="state.interrupted || state.detached" class="text-xs text-amber-400">Ручная проверка изменила состояние. Переход по таймлайну восстановит выбранную точку.</p>
         <details><summary class="cursor-pointer text-xs text-slate-400">Контрольные точки · {{ milestones.length }}</summary><div class="mt-3 flex flex-wrap gap-2"><button v-for="index in milestones" :key="index" type="button" class="setting-chip" :disabled="busy" @click="seek(index)">{{ milestoneLabel(index) }}</button></div></details>
       </div>
 
-      <section class="lab-preview settings-card">
-        <div class="flex flex-col items-center justify-center gap-3">
-          <CharacterPortrait :stage="progress.characterStage" :branch="progress.characterBranch" :build="progress.characterBuild" :emotion="character.emotion" :condition="character.condition.level" :variant="showFace ? 'face' : 'body'" size="xl" :show-label="false" />
-          <div class="text-center"><p class="font-semibold text-white">{{ CHARACTER_STAGE_LABELS[progress.characterStage] }}</p><p class="mt-1 text-xs text-emerald-400">{{ CHARACTER_BRANCH_LABELS[progress.characterBranch] }}</p></div>
-        </div>
-        <div class="space-y-4">
-          <ComicBubble :caption="showFace ? character.reaction.caption : 'СМОТРИМ, КАК МЕНЯЕТСЯ ФОРМА'" :tone="character.reaction.tone" />
-          <div class="grid grid-cols-3 gap-2"><div class="metric-card"><p>Выполнено</p><strong>{{ journey.done }}</strong></div><div class="metric-card"><p>Стрик</p><strong>{{ streak.current }}</strong></div><div class="metric-card"><p>Ухудшение</p><strong>{{ character.condition.points }}<small class="text-sm text-slate-500"> / 10</small></strong></div></div>
-          <p class="text-sm text-slate-300">{{ character.conditionLabel }} · уровень {{ character.condition.level }}. До восстановления: {{ character.condition.recoverySessions }} выполнений.</p>
-          <p class="text-xs text-slate-400">{{ journey.nextStage === null ? 'Пиковая форма достигнута' : `До следующей формы: ${journey.remaining} выполнений` }}. Рекорд серии: {{ streak.max }}.</p>
-          <p v-if="actualMatches !== null" class="text-xs" :class="actualMatches ? 'text-emerald-400' : 'text-red-300'" data-testid="lab-checkpoint">{{ actualMatches ? '✓ Состояние соответствует истории до курсора' : 'Состояние отличается от контрольной точки' }}</p>
-          <p class="break-all text-[11px] text-slate-500">Кадр: {{ character.visualKey.candidates.join(' → ') }}</p>
-        </div>
-      </section>
       <section class="settings-card space-y-3"><h2 class="text-sm font-semibold text-white">Календарь до выбранного момента</h2><CalendarHeatmap :sessions="sessions.history" :now="now" /></section>
       <details class="settings-card"><summary class="cursor-pointer text-sm text-white">Статистика и события</summary><div class="mt-4 space-y-5"><StatsPanel :sessions="sessions.history" :now="now" /><ol class="space-y-1"><li v-for="event in events" :key="event.index"><button type="button" class="lab-event" :class="{ current: event.index === state?.cursor, future: event.index > (state?.cursor ?? 0) }" :disabled="busy" @click="seek(event.index)"><span class="w-28 shrink-0 text-slate-500">{{ new Date(event.at).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }}</span>{{ event.label }}</button></li></ol></div></details>
     </template>

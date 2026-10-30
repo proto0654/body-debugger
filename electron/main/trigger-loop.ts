@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { nowDate, nowMs } from '../../shared/domain/clock'
+import { getLaboratoryClock, nowDate, nowMs } from '../../shared/domain/clock'
 import { powerMonitor } from 'electron'
 import { getAvailableCatalog } from './custom-exercises'
 import { pickNextExercise } from '../../shared/domain/exercise-picker'
@@ -28,6 +28,7 @@ import {
 } from './persistence'
 import { closePopupWindow, createPopupWindow, getPopupWindow } from './windows/popup'
 import { getTrayState, refreshTrayAnimation, refreshTrayMenu, setTrayPaused, setTrayState } from './tray'
+import { isLabProcess } from './lab-environment'
 
 /**
  * Reminder loop (CONCEPT.md §2, ROADMAP #2).
@@ -64,7 +65,7 @@ interface AwaitingResult {
   sessionId: string
   exercise: Exercise
   triggeredAt: string
-  timeout: NodeJS.Timeout
+  timeout: NodeJS.Timeout | undefined
   deadline: number
 }
 
@@ -94,14 +95,32 @@ interface LoopSimulation {
   hold: boolean
   idleSeconds: number | null
   failNextWrite: boolean
+  freezeDeadline: boolean
   onTriggered?: () => void
   onResolved?: (session: Session) => void
 }
-const simulation: LoopSimulation = { hold: false, idleSeconds: null, failNextWrite: false }
+const simulation: LoopSimulation = { hold: false, idleSeconds: null, failNextWrite: false, freezeDeadline: false }
 
 /** Only the isolated laboratory controller supplies these runtime dependencies. */
 export function configureLoopSimulation(next: Partial<LoopSimulation>): void {
   Object.assign(simulation, next)
+  if (awaiting) armResultDeadline()
+}
+
+function armResultDeadline(): void {
+  if (!awaiting) return
+  clearTimeout(awaiting.timeout)
+  awaiting.timeout = undefined
+  if (simulation.freezeDeadline) return
+  const clock = getLaboratoryClock()
+  if (clock && !clock.running) return
+  const sessionId = awaiting.sessionId
+  const remaining = Math.max(1, (awaiting.deadline - nowMs()) / (clock?.rate ?? 1))
+  awaiting.timeout = setTimeout(() => {
+    if (awaiting?.sessionId !== sessionId || simulation.freezeDeadline) return
+    if (nowMs() >= awaiting.deadline) handleMissed(sessionId)
+    else armResultDeadline()
+  }, remaining)
 }
 
 /** Cancel before closing: a scrub must never turn a discarded popup into a skipped session. */
@@ -204,8 +223,6 @@ function completeSession(
   } catch (error) {
     console.error('[trigger-loop] session saved; progress write failed', error)
   }
-  notifyDataUpdated()
-
   const trayState = trayStateFor(status)
   setTrayState(trayState)
   broadcastToWindows(IpcChannels.SessionUpdated, { session, trayState })
@@ -225,6 +242,7 @@ function completeSession(
 
   publishLoopState()
   simulation.onResolved?.(session)
+  notifyDataUpdated()
   return { saved: true }
 }
 
@@ -288,7 +306,7 @@ function pickForCycle(): Exercise {
 }
 
 /** Show the popup for one exercise and start the answer timeout. */
-function trigger(reason: SessionTriggerReason): void {
+function trigger(reason: SessionTriggerReason, exercise?: Exercise): void {
   if (awaiting) return
 
   const sessionId = randomUUID()
@@ -296,16 +314,17 @@ function trigger(reason: SessionTriggerReason): void {
 
   awaiting = {
     sessionId,
-    exercise: pickForCycle(),
+    exercise: exercise ?? pickForCycle(),
     triggeredAt,
     deadline: nowMs() + MISSED_AFTER_MS,
-    timeout: setTimeout(() => handleMissed(sessionId), MISSED_AFTER_MS)
+    timeout: undefined
   }
   nextTriggerAt = null
   awayStartedAt = null
   setTrayState('standup')
 
   const win = createPopupWindow()
+  armResultDeadline()
   win.once('closed', () => handlePopupClosed(sessionId))
 
   const payload: SessionTriggerPayload = { reason, at: triggeredAt }
@@ -323,8 +342,19 @@ export function triggerNow(reason: SessionTriggerReason = 'manual'): void {
   trigger(reason)
 }
 
+/** The isolated controller may choose a resolved exercise, but never write its outcome. */
+export function triggerLaboratoryExercise(exerciseId: string, durationSec?: number): SessionPopupPayload {
+  if (!isLabProcess()) throw new Error('Native action driver requires the isolated laboratory')
+  if (awaiting || getPopupWindow()) throw new Error('Another popup is still open')
+  const exercise = getAvailableCatalog().find(candidate => candidate.id === exerciseId)
+  if (!exercise) throw new Error('Unknown laboratory exercise')
+  if (durationSec !== undefined && (!Number.isFinite(durationSec) || durationSec < 0 || durationSec > 86400)) throw new Error('Invalid laboratory exercise duration')
+  trigger('event', durationSec === undefined ? exercise : { ...exercise, durationSec })
+  return getActivePopup()!
+}
+
 function tick(): void {
-  if (awaiting && nowMs() >= awaiting.deadline) handleMissed(awaiting.sessionId)
+  if (awaiting && !simulation.freezeDeadline && nowMs() >= awaiting.deadline) handleMissed(awaiting.sessionId)
   if (!started || simulation.hold || paused || awaiting || getPopupWindow() || nextTriggerAt === null) return
 
   const now = nowMs()

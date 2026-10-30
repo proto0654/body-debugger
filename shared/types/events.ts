@@ -37,6 +37,8 @@ export const IpcChannels = {
   LabGetState: 'lab:get-state',
   LabCommand: 'lab:command',
   LabChanged: 'lab:changed',
+  LabDriver: 'lab:driver',
+  LabDriverAck: 'lab:driver-ack',
   PhotoList: 'photo:list',
   PhotoAdd: 'photo:add',
   PhotoRemove: 'photo:remove',

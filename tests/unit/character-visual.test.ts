@@ -60,11 +60,14 @@ describe('characterBodyCandidates', () => {
       'pose-power-average',
       'stage-4-lean',
       'stage-4-average',
+      'stage-0-lean',
+      'stage-0-average',
       CHARACTER_EMOJI_FRAME
     ])
     expect(characterBodyCandidates(5, 'mobility', 'average')).toEqual([
       'pose-mobility-average',
       'stage-4-average',
+      'stage-0-average',
       CHARACTER_EMOJI_FRAME
     ])
   })
@@ -73,6 +76,8 @@ describe('characterBodyCandidates', () => {
     expect(characterBodyCandidates(3, 'power', 'stocky')).toEqual([
       'stage-2-stocky',
       'stage-2-average',
+      'stage-0-stocky',
+      'stage-0-average',
       CHARACTER_EMOJI_FRAME
     ])
   })
@@ -80,10 +85,12 @@ describe('characterBodyCandidates', () => {
   it('never uses a pose for posture or neutral branches', () => {
     expect(characterBodyCandidates(5, 'posture', 'average')).toEqual([
       'stage-4-average',
+      'stage-0-average',
       CHARACTER_EMOJI_FRAME
     ])
     expect(characterBodyCandidates(5, 'neutral', 'average')).toEqual([
       'stage-4-average',
+      'stage-0-average',
       CHARACTER_EMOJI_FRAME
     ])
   })
@@ -105,10 +112,13 @@ describe('characterFaceCandidates', () => {
     expect(characterFaceCandidates('proud', 'stocky')).toEqual([
       'emotion-proud-stocky',
       'emotion-proud-average',
+      'emotion-neutral-stocky',
+      'emotion-neutral-average',
       CHARACTER_EMOJI_FRAME
     ])
     expect(characterFaceCandidates('proud', 'neutral')).toEqual([
       'emotion-proud-average',
+      'emotion-neutral-average',
       CHARACTER_EMOJI_FRAME
     ])
   })

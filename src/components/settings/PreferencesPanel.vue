@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CharacterPicker from '@/components/character/CharacterPicker.vue'
 import { CHARACTER_BUILD_LABELS, CHARACTER_BUILDS } from '@shared/constants/character'
 import { FOCUS_DIRECTIONS, FOCUS_LABELS } from '@shared/constants/focus'
 import {
@@ -62,6 +63,7 @@ async function setBuild(build: CharacterBuild): Promise<void> {
 
 <template>
   <div class="grid gap-4" data-testid="preferences-panel">
+    <section class="rounded-2xl border border-slate-800 bg-slate-900/40 p-4"><CharacterPicker /></section>
     <section
       class="rounded-2xl border border-slate-800 bg-slate-900/40 p-4"
       data-testid="interval-control"

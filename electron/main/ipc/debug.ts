@@ -6,7 +6,9 @@ import {
 import { broadcastToWindows } from '../broadcast'
 import { applyDebugState } from '../persistence'
 import { syncLoopFromSettings } from '../trigger-loop'
-import { executeLabCommand, getLabState, launchLaboratory } from '../laboratory'
+import { acknowledgeLabDriver, executeLabCommand, getLabState, launchLaboratory } from '../laboratory'
+import { getPopupWindow } from '../windows/popup'
+import type { LabDriverAck } from '../../../shared/domain/laboratory-playback'
 import { isLabProcess } from '../lab-environment'
 import type { LabCommand } from '../../../shared/domain/laboratory'
 
@@ -23,6 +25,10 @@ export function registerDebugIpc(): void {
 
   ipcMain.handle(IpcChannels.LabOpen, () => launchLaboratory())
   ipcMain.handle(IpcChannels.LabGetState, () => getLabState())
+  if (isLabProcess()) ipcMain.handle(IpcChannels.LabDriverAck, (event, ack: LabDriverAck) => {
+    if (event.sender !== getPopupWindow()?.webContents) throw new Error('Only the active laboratory popup may acknowledge actions')
+    acknowledgeLabDriver(ack)
+  })
   let pending: Promise<unknown> = Promise.resolve()
   ipcMain.handle(IpcChannels.LabCommand, (_event, command: LabCommand) => {
     const request = pending.then(() => executeLabCommand(command))

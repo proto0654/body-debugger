@@ -44,6 +44,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Themes + equipment catalogs | `shared/constants/themes.ts`, `shared/constants/equipment.ts` |
 | Dashboard aggregation (heatmap / stats) | `shared/domain/stats.ts`, `src/components/stats/` |
 | Native laboratory | `src/debug/`, `shared/domain/laboratory.ts`, `electron/main/laboratory.ts` |
+| Native replay phases / semantic actions | `electron/main/laboratory-playback.ts`, `shared/domain/laboratory-playback.ts` |
 | App clock / renderer runtime metadata | `shared/domain/clock.ts`, `src/stores/runtime.ts` |
 | Preload API | `electron/preload/index.ts` |
 | Renderer entry | `src/main.ts`, `src/App.vue`, `src/router.ts` |
@@ -51,7 +52,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Stores | `src/stores/` |
 | Reminder schedule store (UI mirror) | `src/stores/reminder.ts` |
 | Domain rules (picker, character, severity, session extras, weight) | `shared/domain/` |
-| Core preferences (interval, picker mode, Focus, build) | `shared/domain/preferences.ts`, `shared/constants/focus.ts`, `src/components/settings/` |
+| Core preferences (interval, picker mode, Focus, identity/build) | `shared/domain/preferences.ts`, `shared/constants/focus.ts`, `src/components/settings/` |
 | Exercise catalog (34) | `shared/constants/exercises.ts` |
 | Shared types | `shared/types/` |
 | Exercise validation | `shared/validation/exercise.ts` |
@@ -59,6 +60,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Character frame rules (stage → body, branch pose, emotion bust, neglect) | `shared/domain/character-visual.ts` |
 | Temporary condition from saved results | `shared/domain/character-condition.ts` |
 | Additional character art manifest | `src/assets/character/packs.json` |
+| Character identity catalog / picker | `shared/constants/character-packs.ts`, `src/components/character/CharacterPicker.vue` |
 | Frame key → bundled URL | `src/components/character/frames.ts` |
 | Sprite cutting script | `scripts/cut-character-sprites.py` |
 | Motion preference + popup exit timings | `src/motion.ts` |
@@ -91,14 +93,14 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 - Optional photo/AI hydration runs in the background and cannot block mounting the core renderer.
 - Comic reactions: `shared/domain/character-reaction.ts` owns contextual captions/emotions; `ComicBubble.vue` renders them. The dashboard briefly switches the stage body to a large emotional portrait, then restores it.
 - Character art is cut per frame; emoji fallback also handles a failed image load. Motion respects the dashboard switch and the OS setting.
-- Nine additional character packs have 432 source-derived frames (three builds × sixteen states each), indexed by `src/assets/character/packs.json`. They are art-ready; the runtime still resolves Desk Hulk. See the [character art library](../src/assets/character/README.md).
+- Nine additional character packs have 432 source-derived frames (three builds × sixteen states each), indexed by `src/assets/character/packs.json`. They are selectable alongside Desk Hulk through the manifest-backed picker; their six distinct stages resolve across all windows. See the [character art library](../src/assets/character/README.md).
 - Optional layers are live and off by default unless noted: session details, weight history, photos, inventory, sounds, AI proposals, themes.
 - Dashboard: «Сегодня» foregrounds the large character, day totals, current streak and progress to the next form. «Настройки» owns all switches and AI imports. Calendar/stats remain separate; current-day values refresh while open.
-- Core preferences: the «Настройки» tab edits interval (5–240 min), picker mode, Focus and character build; values are normalized on load, and an interval change reschedules the loop.
+- Core preferences: the «Настройки» tab edits interval (5–240 min), picker mode, Focus, character identity and build; values are normalized on load, and an interval change reschedules the loop.
 - Renderer CSP lists `photo:` in `img-src`, so progress photos load through the custom scheme.
-- Native laboratory: `npm run dev:lab` or the dev dashboard «Лаборатория» entry starts a separate profile under `.userdata/laboratory/`. Main owns six chronological stories, timeline playback/rewind, seeded 7/30/90-day calendars, saved/exported runs and native popup/idle/write-failure controls. Shared app time follows the virtual cursor; animation/hold time stays real. See [TESTING.md](TESTING.md).
+- Native laboratory: `npm run dev:lab` or the dev dashboard «Лаборатория» entry starts a separate profile under `.userdata/laboratory/`. Main owns six chronological stories, silent timeline seeking, native phased replay with automatic/interactive modes, original/manual branches, seeded 7/30/90-day calendars, format-2 saved/exported action plans and popup/idle/write-failure controls. Compact completion/condition charts and activity stay visible beside the live scene. Shared app time follows the virtual cursor/rate; pause freezes deadlines and dispatch while animation/hold time stays real. The driver is available only to the active isolated popup. See [TESTING.md](TESTING.md).
 - Tests: Vitest covers domain rules, stores, persistence, preferences, popup/portrait/weight/heatmap/stats/photo/AI components and the isolated native laboratory.
-- Known gaps: six distinct body illustrations for the default Desk Hulk (still three tiers), a runtime selector/resolver for the nine additional art-ready packs, personal exercise-level progression, automatic AI analysis, export, external-event triggers and Playwright E2E. Window/tray integration still needs manual Electron smoke checks.
+- Known gaps: six distinct body illustrations for the default Desk Hulk (still three tiers), personal exercise-level progression, automatic AI analysis, export, external-event triggers and Playwright E2E. Window/tray integration still needs manual Electron smoke checks.
 
 ## Doc index
 

@@ -64,6 +64,19 @@ beforeEach(() => {
 })
 
 describe('PreferencesPanel', () => {
+  it('persists the chosen identity and rolls back a failed save so retry remains possible', async () => {
+    const wrapper = mountPanel()
+    expect(wrapper.findAll('[data-character-pack]')).toHaveLength(10)
+    await click(wrapper, '[data-character-pack="engineer"]')
+    expect(saveSettings.mock.calls.at(-1)![0].characterPackId).toBe('engineer')
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    saveSettings.mockRejectedValueOnce(new Error('disk full'))
+    await click(wrapper, '[data-character-pack="hipster"]')
+    expect(wrapper.get('[data-character-pack="engineer"]').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('[role="alert"]').text()).toContain('Не удалось сохранить')
+    await click(wrapper, '[data-character-pack="hipster"]')
+    expect(wrapper.get('[data-character-pack="hipster"]').attributes('aria-pressed')).toBe('true')
+  })
   it('renders the four preference groups from the stored state', () => {
     const wrapper = mountPanel()
 

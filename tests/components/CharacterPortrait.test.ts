@@ -8,8 +8,8 @@ vi.mock('@/components/character/frames', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/components/character/frames')>()
   return {
     ...actual,
-    resolveFrameUrl: (candidates: string[]) =>
-      frameMock.override === null ? actual.resolveFrameUrl(candidates) : frameMock.override
+    resolveFrameUrl: (candidates: string[], packId?: string) =>
+      frameMock.override === null ? actual.resolveFrameUrl(candidates, packId) : frameMock.override
   }
 })
 
@@ -104,5 +104,21 @@ describe('CharacterPortrait', () => {
     await wrapper.get('img').trigger('error')
     expect(wrapper.find('img').exists()).toBe(false)
     expect(wrapper.text()).toContain('💪')
+  })
+  it('keeps the selected identity through build, neutral and image-load fallbacks', async () => {
+    const wrapper = mount(CharacterPortrait, { props: { packId: 'engineer', variant: 'face', emotion: 'happy', build: 'lean' } })
+    expect(wrapper.get('img').attributes('src')).toContain('/engineer/frames/emotion-happy-lean.png')
+    await wrapper.get('img').trigger('error')
+    expect(wrapper.get('img').attributes('src')).toContain('/engineer/frames/emotion-happy-average.png')
+    await wrapper.get('img').trigger('error')
+    expect(wrapper.get('img').attributes('src')).toContain('/engineer/frames/emotion-neutral-lean.png')
+    await wrapper.get('img').trigger('error')
+    expect(wrapper.get('img').attributes('src')).toContain('/engineer/frames/emotion-neutral-average.png')
+    await wrapper.get('img').trigger('error')
+    expect(wrapper.find('img').exists()).toBe(false)
+    expect(wrapper.get('[role="img"]').attributes('data-frame-fallback')).toBe('true')
+    expect(wrapper.emitted('frame-status')!.at(-1)).toEqual([expect.objectContaining({ failed: 4, fallback: true })])
+    await wrapper.setProps({ packId: 'hipster' })
+    expect(wrapper.get('img').attributes('src')).toContain('/hipster/frames/emotion-happy-lean.png')
   })
 })

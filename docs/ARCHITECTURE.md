@@ -31,7 +31,7 @@ src/styles/index.css        # Tailwind entry, keyframes, theme tokens, reduced-m
 src/stores/                 # sessions, progress, settings, character, reminder, weight, photos, AI
 src/components/             # UI (character, weight, stats, photos, AI)
 src/debug/                  # Dev-only panel + scenario builders
-src/assets/character/       # Desk Hulk source sheets + cut frames
+src/assets/character/       # Manifest, ten selectable identities and cut frames
 src/assets/sounds/default/  # Default cue pack (mp3)
 shared/types/               # Exercise, Session, Character, Progress, Settings, Photo, Events, Persistence
 shared/domain/              # Pure rules: picker, character, severity, extras, weight, sounds, photos, AI, streak, stats
@@ -125,7 +125,8 @@ Skipped / snoozed / missed sessions never count as training. Difficulty and
 | Picker mode | `balance` / `rotation` / `focus` / `push`; an unknown id falls back to `balance` on load |
 | Focus | One primary direction plus accents; unknown ids are dropped, accents stay unique and never repeat the primary |
 | Build | `progress.characterBuild` (`lean` / `average` / `stocky`); presentation only, `neutral` means "not chosen" |
-| Storage | Interval, mode and Focus live in `settings.json`; build lives in `progress.json` |
+| Character | `settings.characterPackId`; Desk Hulk plus the nine manifest identities, normalized to the default for unknown IDs |
+| Storage | Interval, mode, Focus and identity live in `settings.json`; build lives in `progress.json` |
 
 `#/dashboard?tab=settings` opens the tab directly. The tray «Настройки» item opens it in a new dashboard or sends `window:navigate-dashboard` to an existing window without reloading the renderer.
 
@@ -254,12 +255,18 @@ The dev dashboard entry launches a separate Electron process with `--body-debugg
 |------|-------|
 | Profile gate and path | `electron/main/lab-environment.ts`; checked before persistence loads |
 | Stories, deterministic generator, import boundary and checkpoint explanations | `shared/domain/laboratory.ts` |
-| Playback, rewind, saved runs, native popup controls and manual branching | `electron/main/laboratory.ts` |
+| Plans, rewind, saved runs, native popup controls and manual branching | `electron/main/laboratory.ts` |
+| Native phases, action acknowledgements and cancellation | `electron/main/laboratory-playback.ts`, `shared/domain/laboratory-playback.ts` |
+| Compact completion/condition charts and activity strip | `src/debug/ProgressDynamics.vue`; shared condition transitions and stage thresholds |
 | Runtime app clock | `shared/domain/clock.ts`; clock metadata travels with main snapshots |
 | Renderer runtime projection | `src/stores/runtime.ts`; applied before hydrating domain stores |
 | Separate controls and visual previews | `electron/main/windows/laboratory.ts`, `src/debug/LaboratoryPanel.vue`, `src/debug/AppearancePanel.vue` |
 
-Timeline seeks cancel pending popup work before closing its window, then reconstruct the event prefix through ordinary main-owned persistence. Live native popups use the normal session loop; opening one interrupts playback. Frame-only overrides remain local to the appearance viewer. Detailed workflow and verification limits: [TESTING.md](TESTING.md).
+Silent date viewing reconstructs only the selected prefix. Native replay moves through reminder readiness, visible start/choice, exercise, durable save, reaction and close/repeat phases. The semantic driver calls the same popup actions as real input, including the normal severity gate and real-time Hardcore hold. It cannot append a final history snapshot as a playback result. Main checks generation, command sequence and session identity; driver acknowledgements are accepted only from the active popup WebContents in an isolated unpackaged process. Late popup close/resize requests also require the currently active WebContents.
+
+Controller-owned popup openings do not interrupt replay. Actual user actions cancel automatic dispatch and form a manual branch; the original resolved future is retained separately. A durable outcome publishes its cursor and snapshot together to the laboratory. Normal dashboard hydration uses the same canonical result. Pause freezes application time and result deadlines, cancels a partial hold and rearms remaining work on resume. Closing the separate control window pauses the driver without losing the run. Seek/reset/mode changes invalidate the generation and cancel the discarded native session before closing its window.
+
+Saved plans use laboratory format 2 with semantic actions, character/build, settings, generator parameters and resolved events; the save envelope also retains the original plan, branch flag, mode and cursor. Version-1 imports are explicitly converted to inferred actions, not presented as recorded input. Production history/envelope schemas are unchanged. Detailed migration, rollback and verification limits: [TESTING.md](TESTING.md).
 
 ### Character progress
 
@@ -293,7 +300,9 @@ No field or schema version is added to JSON: existing saved results immediately 
 
 ### Character visuals
 
-Rules: `shared/domain/character-visual.ts` (pure). Frames: `src/assets/character/desk-hulk/frames/`, cut from the source sheets by `scripts/cut-character-sprites.py`.
+Rules: `shared/domain/character-visual.ts` (pure). Frames: `src/assets/character/*/frames/`, cut from the source sheets by `scripts/cut-character-sprites.py`.
+
+Desk Hulk source frames (the other identities follow the manifest contract linked below):
 
 | Frame | Key | Drawn in |
 |-------|-----|----------|
@@ -305,20 +314,15 @@ Rules: `shared/domain/character-visual.ts` (pure). Frames: `src/assets/character
 | Rule | Behaviour |
 |------|-----------|
 | Build | `neutral` (not chosen) → `average` body |
-| Stage tiers | Stages 0–1 → `stage-0`, 2–3 → `stage-2`, 4–5 → `stage-4` |
+| Stage tiers | Desk Hulk: stages 0–1 → `stage-0`, 2–3 → `stage-2`, 4–5 → `stage-4`. Other supplied identities have six distinct `stage-{0..5}` frames |
 | Branch pose | `power` / `mobility` replace the body from stage 4 (strong/peak form) |
 | Neglect | Condition levels 1–3 override stage and branch body; fallback: matching neglect build → average neglect → matching stage-0 body → average stage-0 → emoji |
 | Emotion | `emotion-*` busts feed the popup face; `surprised` uses the happy bust |
-| Fallback | exact build → `average` build → emoji; an image load error also shows the emoji |
+| Fallback | requested frame/build → average build → neutral body/face of the same identity → emoji. Image-load errors continue through the same candidates; laboratory diagnostics report the fallback |
 
 `CharacterPortrait` normally renders `variant="body"` on the dashboard and switches to a large `variant="face"` for 3.5 seconds after a completion or milestone; the popup uses `variant="face"`; `src/components/character/frames.ts` maps a winning key to the bundled URL. Source sheets stay in the repo as the only art source — never edit `frames/` by hand.
 
-The runtime glob currently bundles Desk Hulk only. Nine additional characters
-have 432 generated frames (three builds × sixteen states per character) in the
-[art library](../src/assets/character/README.md). Their [manifest](../src/assets/character/packs.json)
-drives `scripts/cut-character-sprites.py --packs`; it is not yet connected to a
-runtime pack resolver or settings selector. Their six individual stage bodies
-do not change Desk Hulk's existing three-tier mapping.
+The runtime glob bundles Desk Hulk and all nine supplied characters (432 additional frames). [packs.json](../src/assets/character/packs.json) owns the cast IDs and labels; `shared/constants/character-packs.ts` adds the built-in default and normalizes unknown IDs. `CharacterPicker.vue` is reused by normal preferences and the laboratory. The chosen identity is passed through dashboard bodies, popup faces/reactions and appearance previews. Frame lookup never switches to a different identity when a selected pack lacks a frame. The cutter and source contracts remain in the [art library](../src/assets/character/README.md).
 
 ### Comic reactions
 
@@ -359,7 +363,8 @@ Tray frames are generated by `scripts/build-tray-icons.py` (a placeholder stretc
 | `exercise:updated` | main → renderers | Approved list after add/remove |
 | `debug:apply-scenario` | invoke | Compatibility replacement of validated sessions/settings/progress; isolated laboratory process only |
 | `lab:open` / `lab:get-state` | invoke | Unpackaged builds: launch/focus the separate native laboratory, read its state |
-| `lab:command` / `lab:changed` | invoke / main → renderers | Laboratory-only main-owned timeline/native commands and state pushes |
+| `lab:command` / `lab:changed` | invoke / main → renderers | Laboratory-only main-owned timeline/native phases and state pushes; durable outcomes include a coherent snapshot |
+| `lab:driver` / `lab:driver-ack` | main → popup / invoke | Semantic popup actions and correlated acknowledgements; active laboratory popup only |
 | `window:open-dashboard` | invoke | Open / focus the dashboard |
 | `session:get-current-popup` | invoke | Active popup payload (`{ sessionId, exercise }` or `null`) |
 | `session:get-loop-state` | invoke | `{ paused, nextTriggerAt, intervalMinutes }` |
@@ -405,7 +410,7 @@ Preload: `electron/preload/index.ts`.
 | AI proposal validation + explicit approval + custom catalog | Yes — ROADMAP #8 |
 | Themes + inventory UI | Yes — ROADMAP #8 |
 | Dashboard heatmap + stats | Yes — ROADMAP #11 |
-| Vitest suite + isolated native laboratory | Yes — timeline, virtual app time, seeded calendars, popup controls; [TESTING.md](TESTING.md) |
+| Vitest suite + isolated native laboratory | Yes — native semantic replay, virtual app time, seeded calendars, manual branches and compact dynamics; [TESTING.md](TESTING.md) |
 
 ## Where rules live
 

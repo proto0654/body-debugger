@@ -1,5 +1,5 @@
 import type { CharacterBuild, CharacterConditionLevel } from '../types/character'
-import type { Session } from '../types/session'
+import type { Session, SessionStatus } from '../types/session'
 
 export const CHARACTER_CONDITION_MAX_POINTS = 10
 export const CHARACTER_CONDITION_RECOVERY_POINTS = 2
@@ -8,6 +8,13 @@ export interface CharacterCondition {
   points: number
   level: CharacterConditionLevel
   recoverySessions: number
+}
+
+/** Shared transition for the current condition and laboratory time series. */
+export function advanceCharacterCondition(points: number, status: SessionStatus): number {
+  if (status === 'done') return Math.max(0, points - CHARACTER_CONDITION_RECOVERY_POINTS)
+  if (status === 'skipped' || status === 'missed') return Math.min(CHARACTER_CONDITION_MAX_POINTS, points + 1)
+  return points
 }
 
 /** Temporary visual condition, derived from durable results; never lowers earned stages. */
@@ -22,10 +29,7 @@ export function computeCharacterCondition(sessions: readonly Session[]): Charact
   for (const { session } of ordered) {
     if (seen.has(session.id)) continue
     seen.add(session.id)
-    if (session.status === 'done') points = Math.max(0, points - CHARACTER_CONDITION_RECOVERY_POINTS)
-    else if (session.status === 'skipped' || session.status === 'missed') {
-      points = Math.min(CHARACTER_CONDITION_MAX_POINTS, points + 1)
-    }
+    points = advanceCharacterCondition(points, session.status)
   }
   const level = points >= CHARACTER_CONDITION_MAX_POINTS ? 3 : points >= 6 ? 2 : points >= 3 ? 1 : 0
   return { points, level, recoverySessions: Math.ceil(points / CHARACTER_CONDITION_RECOVERY_POINTS) }

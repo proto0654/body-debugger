@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { LAB_SCENARIOS, buildLabScenario, buildRandomCalendar, labMilestones, labSessionsAt, labSummary,
-  validateLabPlan, type LabGeneratorOptions } from '@shared/domain/laboratory'
+  validateLabPlan, upgradeLabPlan, type LabGeneratorOptions } from '@shared/domain/laboratory'
+import { labDynamics } from '@shared/domain/laboratory-playback'
 import { localDateKey } from '@shared/domain/stats'
 import { defaultProgress, defaultSettings } from '../../electron/main/persistence/defaults'
 
@@ -95,6 +96,23 @@ describe('random calendars', () => {
 })
 
 describe('laboratory import boundary', () => {
+  it('explicitly upgrades version-1 snapshots to inferred semantic actions without altering the source', () => {
+    const old = { ...build('snooze'), version: 1 as const }
+    for (const event of old.events) delete event.actions
+    const next = upgradeLabPlan(old)
+    expect(next).toMatchObject({ version: 2, convertedFrom: 1 })
+    expect(next.events.find(event => event.session?.status === 'snoozed')!.actions).toEqual(['reminder', 'snoozed', 'repeat'])
+    expect(old.version).toBe(1)
+    expect(old.events.find(event => event.session)!.actions).toBeUndefined()
+    expect(validateLabPlan(next)).toEqual(next)
+  })
+  it('rejects unsupported versions, unknown characters and malformed action sequences', () => {
+    const plan = build('growth')
+    expect(() => validateLabPlan({ ...plan, version: 3 })).toThrow()
+    expect(() => validateLabPlan({ ...plan, settings: { ...plan.settings, characterPackId: 'missing' } })).toThrow('character')
+    plan.events.find(event => event.session)!.actions = ['done', 'reminder']
+    expect(() => validateLabPlan(plan)).toThrow('action')
+  })
   it.each(['duplicate', 'unknown-exercise', 'backwards', 'wrong-completion', 'oversized', 'empty'] as const)('rejects %s events', kind => {
     const plan = build('growth')
     const first = plan.events.find(event => event.session)!
@@ -105,5 +123,19 @@ describe('laboratory import boundary', () => {
     if (kind === 'oversized') plan.events = Array(2001).fill(plan.events[0])
     if (kind === 'empty') plan.events = []
     expect(() => validateLabPlan(plan)).toThrow()
+  })
+})
+
+describe('live laboratory dynamics', () => {
+  it('uses only the current prefix and the same recovery transitions as the character', () => {
+    const plan = build('recovery')
+    const all = labSessionsAt(plan, plan.events.length - 1)
+    for (const index of labMilestones(plan)) {
+      const expected = labSummary(plan, index)
+      const actual = labDynamics(all, new Date(plan.events[index]!.at))
+      expect(actual.done).toBe(expected.journey.done)
+      expect(actual.condition).toBe(expected.condition.points)
+    }
+    expect(labDynamics([], NOW)).toMatchObject({ points: [], done: 0, condition: 0 })
   })
 })

@@ -8,6 +8,9 @@ import {
   POPUP_EXTRAS_COLLAPSED_HEIGHT,
   POPUP_EXTRAS_HEIGHT
 } from '@shared/constants/popup'
+import { useRuntimeStore } from '@/stores/runtime'
+import { nowMs, setLaboratoryClock } from '@shared/domain/clock'
+import type { LabDriverCommand } from '@shared/domain/laboratory-playback'
 import { useCharacterStore } from '@/stores/character'
 import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsStore } from '@/stores/settings'
@@ -58,6 +61,7 @@ async function mountPopup(
     reduceMotion?: boolean
     extras?: boolean
     photos?: boolean
+    laboratory?: boolean
   } = {}
 ) {
   const pinia = createPinia()
@@ -74,6 +78,7 @@ async function mountPopup(
     makeExercise({ id: 'neck-circles', durationSec: 30 }),
     'session-1'
   )
+  if (options.laboratory) useRuntimeStore().apply({ at: new Date().toISOString(), running: false, silent: false })
   const popup = mount(PopupView, { global: { plugins: [pinia] } })
   if (options.start !== false) await popup.get('[data-testid="start-exercise"]').trigger('click')
   return popup
@@ -97,6 +102,7 @@ beforeEach(() => {
 afterEach(() => {
   wrapper?.unmount()
   wrapper = null
+  setLaboratoryClock()
   vi.useRealTimers()
 })
 
@@ -371,5 +377,74 @@ describe('PopupView — optional details', () => {
     await flushMicrotasks()
 
     expect(api.sessionResult.mock.calls[0]?.[0]?.reps).toBeUndefined()
+  })
+})
+
+
+describe('PopupView — isolated semantic driver', () => {
+  let dispatch: (command: LabDriverCommand) => void
+  const acknowledge = vi.fn(async () => undefined)
+  const unsubscribe = vi.fn()
+  beforeEach(() => {
+    acknowledge.mockClear(); unsubscribe.mockClear()
+    Object.defineProperty(window, 'api', { configurable: true, value: { ...api,
+      labDriverAck: acknowledge,
+      onLabDriver: (listener: typeof dispatch) => { dispatch = listener; return unsubscribe },
+      onLabChanged: () => () => undefined
+    } })
+  })
+  const action = (sequence: number, value: LabDriverCommand['action']) => dispatch({ generation: 9, sessionId: 'session-1', sequence, action: value })
+  it('waits for readiness, highlights the real control and rejects done before its severity gate', async () => {
+    wrapper = await mountPopup({ start: false, severity: 'medium', laboratory: true })
+    await flushMicrotasks()
+    expect(acknowledge).toHaveBeenCalledWith({ kind: 'ready', sessionId: 'session-1' })
+    action(1, 'highlight-start'); await nextTick()
+    expect(wrapper.get('[data-testid="start-exercise"]').attributes('data-lab-highlight')).toBe('true')
+    action(2, 'start'); await flushMicrotasks()
+    expect(wrapper.find('[data-testid="start-exercise"]').exists()).toBe(false)
+    action(3, 'done'); await flushMicrotasks()
+    expect(api.sessionResult).not.toHaveBeenCalled()
+    expect(acknowledge).toHaveBeenCalledWith(expect.objectContaining({ kind: 'failed', sequence: 3 }))
+  })
+  it('shows an error before any success and retries the same session through the ordinary submit path', async () => {
+    wrapper = await mountPopup({ start: false, severity: 'medium', laboratory: true })
+    await flushMicrotasks()
+    action(1, 'start')
+    setLaboratoryClock({ at: new Date(nowMs() + 30000).toISOString(), running: false, silent: false })
+    api.sessionResult.mockResolvedValueOnce({ saved: false })
+    action(2, 'done'); await flushMicrotasks()
+    expect(wrapper.get('[role="alert"]').text()).toContain('Не удалось сохранить')
+    expect(wrapper.find('.popup-success').exists()).toBe(false)
+    expect(acknowledge).toHaveBeenCalledWith(expect.objectContaining({ kind: 'failed', sequence: 2 }))
+    action(3, 'done'); await flushMicrotasks()
+    expect(api.sessionResult.mock.calls.slice(-2).map(([payload]) => payload.sessionId)).toEqual(['session-1', 'session-1'])
+    expect(wrapper.find('.popup-success').exists()).toBe(true)
+    dispatch({ generation: 8, sessionId: 'session-1', sequence: 99, action: 'done' })
+    await flushMicrotasks()
+    expect(api.sessionResult).toHaveBeenCalledTimes(2)
+  })
+  it('cancels an incomplete real-time Hardcore hold and requires a fresh full hold', async () => {
+    wrapper = await mountPopup({ start: false, severity: 'hardcore', laboratory: true })
+    await flushMicrotasks()
+    action(1, 'start')
+    setLaboratoryClock({ at: new Date(nowMs() + 30000).toISOString(), running: false, silent: false })
+    vi.advanceTimersByTime(250); await nextTick()
+    action(2, 'hold')
+    vi.advanceTimersByTime(750)
+    action(3, 'cancel')
+    vi.advanceTimersByTime(3000); await flushMicrotasks()
+    expect(api.sessionResult).not.toHaveBeenCalled()
+    action(4, 'hold')
+    vi.advanceTimersByTime(1499); await flushMicrotasks()
+    expect(api.sessionResult).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1); await flushMicrotasks()
+    expect(api.sessionResult).toHaveBeenCalledOnce()
+  })
+  it('does not subscribe to the driver outside the isolated runtime', async () => {
+    const spy = vi.fn()
+    Object.defineProperty(window, 'api', { configurable: true, value: { ...api, onLabDriver: spy } })
+    wrapper = await mountPopup({ start: false })
+    await flushMicrotasks()
+    expect(spy).not.toHaveBeenCalled()
   })
 })

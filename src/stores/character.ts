@@ -46,7 +46,7 @@ export const useCharacterStore = defineStore('character', () => {
       branch: s.branch,
       build: s.build,
       emotion: s.emotion,
-      candidates: characterBodyCandidates(s.stage, s.branch, s.build, condition.value.level)
+      candidates: characterBodyCandidates(s.stage, s.branch, s.build, condition.value.level, s.packId)
     }
   })
 

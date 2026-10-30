@@ -5,7 +5,7 @@ import {
   type TraySetStatePayload
 } from '../../../shared/types/events'
 import { createDashboardWindow } from '../windows/dashboard'
-import { closePopupWindow, resizePopupWindow } from '../windows/popup'
+import { closePopupWindow, getPopupWindow, resizePopupWindow } from '../windows/popup'
 import { setTrayState } from '../tray'
 import {
   getActivePopup,
@@ -30,11 +30,13 @@ export function registerSessionCycleIpc(): void {
     triggerNow('manual')
   })
 
-  ipcMain.handle(IpcChannels.WindowClosePopup, async () => {
+  ipcMain.handle(IpcChannels.WindowClosePopup, async (event) => {
+    if (event.sender !== getPopupWindow()?.webContents) return
     closePopupWindow()
   })
 
-  ipcMain.handle(IpcChannels.WindowResizePopup, async (_event, height: number) => {
+  ipcMain.handle(IpcChannels.WindowResizePopup, async (event, height: number) => {
+    if (event.sender !== getPopupWindow()?.webContents) return
     resizePopupWindow(height)
   })
 

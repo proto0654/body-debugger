@@ -21,7 +21,7 @@ import type { Session } from '../types/session'
  * Visuals are a separate layer: see `src/components/character/`.
  */
 
-const STAGE_THRESHOLDS: { stage: CharacterStage; done: number }[] = [
+export const STAGE_THRESHOLDS: readonly { stage: CharacterStage; done: number }[] = [
   { stage: 1, done: 3 },
   { stage: 2, done: 8 },
   { stage: 3, done: 20 },
@@ -29,7 +29,7 @@ const STAGE_THRESHOLDS: { stage: CharacterStage; done: number }[] = [
   { stage: 5, done: 80 }
 ]
 
-const BRANCH_WINDOW = 30
+export const BRANCH_WINDOW = 30
 const MIN_BRANCH_SESSIONS = 3
 /** The leader must beat the runner-up by this factor, otherwise the branch stays neutral. */
 const BRANCH_LEAD_RATIO = 1.2

@@ -1,4 +1,5 @@
 import { DEFAULT_CHARACTER_PACK } from '../../../shared/constants/character'
+import { normalizeCharacterPackId } from '../../../shared/constants/character-packs'
 import { DEFAULT_SOUND_SETTINGS, normalizeSoundSettings } from '../../../shared/domain/sounds'
 import { normalizeThemeId } from '../../../shared/constants/themes'
 import { normalizeWeightTarget } from '../../../shared/domain/weight'
@@ -70,6 +71,7 @@ export function normalizeSettings(stored: Partial<AppSettings> | null | undefine
     photos: { enabled: stored.photos?.enabled === true },
     sound: normalizeSoundSettings(stored.sound),
     themeId: normalizeThemeId(stored.themeId),
+    characterPackId: normalizeCharacterPackId(stored.characterPackId),
     weight: {
       enabled: stored.weight?.enabled ?? base.weight.enabled,
       targetKg: normalizeWeightTarget(stored.weight?.targetKg)

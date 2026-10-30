@@ -35,9 +35,10 @@ Project docs and this file override global agent rules when they conflict.
 | Progress photos (rules, main store, protocol, UI) | `shared/domain/photos.ts`, `electron/main/photos.ts`, `electron/main/photo-protocol.ts`, `src/components/photos/` |
 | AI proposals (parsing, approval, store, UI) | `shared/domain/ai-proposal.ts`, `electron/main/custom-exercises.ts`, `src/components/ai/` |
 | Themes / equipment | `shared/constants/themes.ts`, `shared/constants/equipment.ts`, `src/styles/index.css` |
-| Core preferences (interval, picker mode, Focus, build) | `shared/domain/preferences.ts`, `shared/constants/focus.ts`, `src/components/settings/` |
+| Core preferences (interval, picker mode, Focus, identity/build) | `shared/domain/preferences.ts`, `shared/constants/focus.ts`, `src/components/settings/` |
 | Dashboard calendar + stats | `shared/domain/stats.ts`, `src/components/stats/` |
 | Native laboratory (dev-only, isolated profile) | `src/debug/`, `shared/domain/laboratory.ts`, `electron/main/laboratory.ts` |
+| Native replay phases / semantic driver | `electron/main/laboratory-playback.ts`, `shared/domain/laboratory-playback.ts` |
 | Application clock / laboratory time | `shared/domain/clock.ts`, `src/stores/runtime.ts` |
 | Preload bridge | `electron/preload/` |
 | Vue renderer | `src/` |
@@ -46,6 +47,7 @@ Project docs and this file override global agent rules when they conflict.
 | Exercise catalog + domain rules (picker, character, session extras, weight) | `shared/constants/exercises.ts`, `shared/domain/` |
 | Character assets (source sheets + cut frames) | `src/assets/character/desk-hulk/` |
 | Additional character art (nine packs, three builds) | [Art library](src/assets/character/README.md), `src/assets/character/packs.json` |
+| Character identity catalog / picker | `shared/constants/character-packs.ts`, `src/components/character/CharacterPicker.vue` |
 | Temporary character condition (neglect / recovery) | `shared/domain/character-condition.ts` |
 | Character frame rules / resolver | `shared/domain/character-visual.ts`, `src/components/character/frames.ts` |
 | Sprite cutting script | `scripts/cut-character-sprites.py` |

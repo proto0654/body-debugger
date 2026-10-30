@@ -1,9 +1,9 @@
 # Character art library
 
-Desk Hulk remains the default, currently bundled character. The approved cast below
-has **432 transparent frames** ready for a later runtime pack selector: nine
-characters × three builds × sixteen states. These assets do not yet change the
-active character in the app.
+Desk Hulk is the default character. The approved cast below has **432 transparent
+frames** available through the character picker in normal preferences and the
+isolated laboratory: nine characters × three builds × sixteen states. Identity
+and build are separate preferences, shared by every body and emotion portrait.
 
 Review the [build comparison](character-builds-preview.png) and the original
 [casting sheet](character-casting-sheet.png).
@@ -65,6 +65,6 @@ Python tests cover alpha preservation, neighbouring fragments, unequal row
 heights, incomplete sheets and thin bridges. Vitest checks every source/prompt
 and all 432 RGBA outputs, including distinct artwork for the three builds.
 
-Runtime rules and the active Desk Hulk resolver are documented in
+Runtime identity selection and frame fallback rules are documented in
 [Architecture](../../../docs/ARCHITECTURE.md). Running the cutter without `--packs`
 still rebuilds Desk Hulk's existing 42 frames separately.

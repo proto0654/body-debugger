@@ -11,6 +11,12 @@ import type { UserProgress } from '../types/progress'
 import type { Session, SessionStatus } from '../types/session'
 import type { CharacterBranch } from '../types/character'
 import { CHARACTER_BRANCH_LABELS, CHARACTER_STAGE_LABELS } from '../constants/character'
+import { labActions, type LabAction, type LabPlaybackMode, type LabPlaybackState } from './laboratory-playback'
+import { normalizeCharacterPackId } from '../constants/character-packs'
+import type { DataSnapshot } from '../types/persistence'
+
+export const LAB_MAX_IMPORT_BYTES = 2 * 1024 * 1024
+export const LAB_MAX_EVENTS = 2000
 
 export const LAB_SCENARIOS = [
   { id: 'growth', title: 'От новичка до пика', description: 'Первые шаги, серии дней и все шесть форм' },
@@ -37,11 +43,14 @@ export interface LabEvent {
   at: string
   label: string
   session?: Session
+  actions?: LabAction[]
 }
 
 /** Resolved events are stored alongside parameters, so generator changes cannot alter saved runs. */
 export interface LabPlan {
-  version: 1
+  version: 1 | 2
+  /** Version-1 snapshot histories are explicitly labelled as inferred action plans. */
+  convertedFrom?: 1
   id: string
   title: string
   settings: AppSettings
@@ -60,6 +69,10 @@ export interface LabState {
   message: string
   now: string
   activePopup: boolean
+  playback?: LabPlaybackState
+  hasOriginal?: boolean
+  /** A durable outcome projects cursor, clock and domain stores in one renderer update. */
+  snapshot?: DataSnapshot
 }
 
 export type LabCommand =
@@ -69,6 +82,8 @@ export type LabCommand =
   | { action: 'step'; direction: -1 | 1; unit: 'event' | 'day' | 'milestone' }
   | { action: 'date'; date: string }
   | { action: 'play'; delayMs: number }
+  | { action: 'mode'; mode: LabPlaybackMode }
+  | { action: 'phase-step' | 'restart' | 'original' }
   | { action: 'popup'; preset: 'normal' | 'stage-up' | 'soft' | 'medium' | 'hardcore' | 'details' }
   | { action: 'advance'; seconds: number }
   | { action: 'idle'; seconds: number }
@@ -124,7 +139,7 @@ const STATUS_LABELS: Record<SessionStatus, string> = {
 
 function createPlan(id: string, title: string, settings: AppSettings, progress: UserProgress): LabPlan {
   return {
-    version: 1, id, title, settings: cloneSettings(settings),
+    version: 2, id, title, settings: cloneSettings(settings),
     progress: { ...progress, streak: { current: 0, max: 0 }, characterStage: 0, characterBranch: 'neutral',
       exerciseLevels: {}, focus: { primary: progress.focus.primary, accents: [...progress.focus.accents] } },
     events: []
@@ -136,12 +151,13 @@ function addSession(plan: LabPlan, at: Date, status: SessionStatus, direction: C
   if (!catalog.length) throw new Error(`No exercises for ${direction}`)
   const exercise = pickNextExercise({ catalog, recentSessions: plan.events.flatMap(event => event.session ? [event.session] : []),
     settings: plan.settings, now: at, random })
-  const completedAt = new Date(at.getTime() + exercise.durationSec * 1000).toISOString()
+  const elapsed = status === 'missed' ? 300 : status === 'done' ? exercise.durationSec : 0
+  const completedAt = new Date(at.getTime() + elapsed * 1000).toISOString()
   const session: Session = {
     id: `lab-${plan.id}-${plan.events.length}`, exerciseId: exercise.id, status,
     durationSec: exercise.durationSec, triggeredAt: at.toISOString(), completedAt
   }
-  plan.events.push({ at: completedAt, label: `${STATUS_LABELS[status]} · ${exercise.title}`, session })
+  plan.events.push({ at: completedAt, label: `${STATUS_LABELS[status]} · ${exercise.title}`, session, actions: labActions(session) })
 }
 
 export function buildRandomCalendar(raw: LabGeneratorOptions, settings: AppSettings, progress: UserProgress): LabPlan {
@@ -249,23 +265,37 @@ export function labEventExplanation(plan: LabPlan, cursor: number): string {
 export function validateLabPlan(raw: unknown): LabPlan {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid laboratory file')
   const value = raw as LabPlan
-  if (value.version !== 1 || typeof value.id !== 'string' || value.id.length > 80
+  if (![1, 2].includes(value.version) || typeof value.id !== 'string' || value.id.length > 80
     || typeof value.title !== 'string' || value.title.length > 200 || !value.settings || !value.progress
-    || !Array.isArray(value.events) || value.events.length < 1 || value.events.length > 2000) throw new Error('Invalid laboratory file')
+    || !Array.isArray(value.events) || value.events.length < 1 || value.events.length > LAB_MAX_EVENTS) throw new Error('Invalid laboratory file')
   let previous = -Infinity
   const ids = new Set<string>()
   const catalog = new Set(EXERCISE_CATALOG.map(exercise => exercise.id))
+  if (value.version === 2 && normalizeCharacterPackId(value.settings.characterPackId) !== value.settings.characterPackId) throw new Error('Unknown laboratory character')
   for (const event of value.events) {
     const at = Date.parse(event?.at)
     if (!Number.isFinite(at) || at < previous || new Date(at).getUTCFullYear() < 2000 || new Date(at).getUTCFullYear() > 2100
       || typeof event.label !== 'string' || event.label.length > 300) throw new Error('Invalid laboratory event')
     previous = at
-    if (!event.session) continue
+    if (!event.session) {
+      if (event.actions !== undefined) throw new Error('Actions require a laboratory session')
+      continue
+    }
     const session = sanitizeSessions([event.session])[0]
-    if (!session || ids.has(session.id) || !catalog.has(session.exerciseId)
+    if (!session || session.durationSec > 86400 || ids.has(session.id) || !catalog.has(session.exerciseId)
       || Date.parse(session.completedAt ?? session.triggeredAt) !== at
       || Date.parse(session.triggeredAt) > at) throw new Error('Invalid laboratory session')
     ids.add(session.id)
+    if (value.version === 2 && JSON.stringify(event.actions) !== JSON.stringify(labActions(session))) throw new Error('Invalid laboratory action sequence')
   }
   return JSON.parse(JSON.stringify(value)) as LabPlan
+}
+
+/** V1 preserves its original resolved timestamps; actions are inferred, not a recording. */
+export function upgradeLabPlan(raw: unknown): LabPlan {
+  const plan = validateLabPlan(raw)
+  if (plan.version === 2) return plan
+  return { ...plan, version: 2, convertedFrom: 1,
+    settings: { ...plan.settings, characterPackId: normalizeCharacterPackId(plan.settings.characterPackId) },
+    events: plan.events.map(event => ({ ...event, ...(event.session ? { actions: labActions(event.session) } : {}) })) }
 }

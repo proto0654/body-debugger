@@ -58,6 +58,12 @@ describe('laboratory controls', () => {
     await button.trigger('click')
     expect(command).toHaveBeenCalledWith({ action: 'popup', preset: 'hardcore' })
   })
+  it('keeps the primary play action, identity picker and dynamics discoverable before choosing a history', async () => {
+    const view = await panel()
+    expect(view.get('[data-testid="lab-console"] [data-testid="lab-play"]').text()).toContain('Проиграть сценарий')
+    expect(view.findAll('[data-character-pack]')).toHaveLength(10)
+    expect(view.find('[data-testid="lab-dynamics"]').exists()).toBe(true)
+  })
   it('shows command errors and releases controls for retry', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
     command.mockRejectedValueOnce(new Error('invalid seed'))

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 let laboratoryWindow: BrowserWindow | null = null
 
-export function openLaboratoryWindow(): void {
+export function openLaboratoryWindow(onClosed?: () => void): void {
   if (laboratoryWindow && !laboratoryWindow.isDestroyed()) {
     laboratoryWindow.show()
     laboratoryWindow.focus()
@@ -18,7 +18,7 @@ export function openLaboratoryWindow(): void {
   laboratoryWindow.setMenuBarVisibility(false)
   laboratoryWindow.on('page-title-updated', event => { event.preventDefault() })
   laboratoryWindow.once('ready-to-show', () => laboratoryWindow?.show())
-  laboratoryWindow.once('closed', () => { laboratoryWindow = null })
+  laboratoryWindow.once('closed', () => { laboratoryWindow = null; onClosed?.() })
   if (process.env.ELECTRON_RENDERER_URL) void laboratoryWindow.loadURL(`${process.env.ELECTRON_RENDERER_URL}#/laboratory`)
   else void laboratoryWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/laboratory' })
 }

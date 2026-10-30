@@ -14,10 +14,12 @@ import {
   characterFaceCandidates
 } from '@shared/domain/character-visual'
 import { resolveFrameUrl } from './frames'
+import { DEFAULT_CHARACTER_PACK } from '@shared/constants/character'
 
 const props = withDefaults(
   defineProps<{
     stage?: CharacterStage
+    packId?: string
     branch?: CharacterBranch
     build?: CharacterBuild
     emotion?: CharacterEmotion
@@ -30,6 +32,7 @@ const props = withDefaults(
   }>(),
   {
     stage: 0,
+    packId: DEFAULT_CHARACTER_PACK,
     branch: 'neutral',
     build: 'average',
     emotion: 'neutral',
@@ -40,6 +43,7 @@ const props = withDefaults(
     showLabel: true
   }
 )
+const emit = defineEmits<{ 'frame-status': [status: { packId: string; fallback: boolean; failed: number; url?: string }] }>()
 
 const sizeClass = computed(() => {
   if (props.size === 'xl') return 'h-52 w-44 text-6xl'
@@ -52,15 +56,22 @@ const label = computed(() => CHARACTER_STAGE_LABELS[props.stage])
 const conditionLabel = computed(() => props.variant === 'body' && props.condition > 0
   ? ` · ${characterConditionLabel(props.condition, props.build)}` : '')
 
-const frameUrl = computed(() =>
-  resolveFrameUrl(
-    props.variant === 'face'
-      ? characterFaceCandidates(props.emotion, props.build)
-      : characterBodyCandidates(props.stage, props.branch, props.build, props.condition)
-  )
-)
-const imageFailed = ref(false)
-watch(frameUrl, () => { imageFailed.value = false })
+const candidates = computed(() => props.variant === 'face'
+  ? characterFaceCandidates(props.emotion, props.build)
+  : characterBodyCandidates(props.stage, props.branch, props.build, props.condition, props.packId))
+const failedUrls = ref<string[]>([])
+watch([candidates, () => props.packId], () => { failedUrls.value = [] })
+const frameUrl = computed(() => resolveFrameUrl(candidates.value.filter(key => {
+  const url = resolveFrameUrl([key, 'emoji'], props.packId)
+  return !url || !failedUrls.value.includes(url)
+}), props.packId))
+const frameFallback = computed(() => !frameUrl.value || frameUrl.value !== resolveFrameUrl([candidates.value[0]!, 'emoji'], props.packId))
+watch([frameUrl, frameFallback, () => failedUrls.value.length, () => props.packId], () => {
+  emit('frame-status', { packId: props.packId, fallback: frameFallback.value, failed: failedUrls.value.length, url: frameUrl.value })
+}, { immediate: true })
+function rejectImage(): void {
+  if (frameUrl.value) failedUrls.value = [...failedUrls.value, frameUrl.value]
+}
 
 /** Short bounce when the character reacts to a finished exercise (CONCEPT §13). */
 const bouncing = ref(false)
@@ -89,6 +100,8 @@ onBeforeUnmount(() => {
       class="character-portrait relative overflow-hidden rounded-2xl"
       :class="[sizeClass, { 'portrait-bounce': bouncing, 'fade-rise': variant === 'body', 'portrait-proud': emotion === 'proud', 'portrait-hero': size === 'xl', 'portrait-expression': variant === 'face' && size === 'xl' }]"
       :data-stage="stage"
+      :data-pack="packId"
+      :data-frame-fallback="frameFallback"
       :data-emotion="emotion"
       :data-condition="condition"
       role="img"
@@ -97,15 +110,15 @@ onBeforeUnmount(() => {
     >
       <Transition name="frame-fade">
         <img
-          v-if="frameUrl && !imageFailed"
+          v-if="frameUrl"
           :key="frameUrl"
           :src="frameUrl"
           alt=""
           class="absolute inset-0 h-full w-full object-contain"
-          @error="imageFailed = true"
+          @error="rejectImage"
         />
       </Transition>
-      <div v-if="!frameUrl || imageFailed" class="relative flex h-full w-full items-center justify-center">
+      <div v-if="!frameUrl" class="relative flex h-full w-full items-center justify-center">
         <span aria-hidden="true">{{ emojiFallback }}</span>
       </div>
     </div>

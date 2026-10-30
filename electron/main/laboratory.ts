@@ -2,12 +2,15 @@ import { app, dialog } from 'electron'
 import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
-import { buildLabScenario, buildRandomCalendar, labMilestones, labSessionsAt, validateLabPlan,
+import { LAB_MAX_IMPORT_BYTES, buildLabScenario, buildRandomCalendar, labMilestones, labSessionsAt, validateLabPlan, upgradeLabPlan,
   type LabCommand, type LabPlan, type LabState } from '../../shared/domain/laboratory'
 import { nowDate, nowMs, setLaboratoryClock } from '../../shared/domain/clock'
 import { localDateKey } from '../../shared/domain/stats'
 import { IpcChannels } from '../../shared/types/events'
 import type { Session } from '../../shared/types/session'
+import { NativePlayback } from './laboratory-playback'
+import { labActions, type LabDriverAck } from '../../shared/domain/laboratory-playback'
+import { closePopupWindow, getPopupWindow } from './windows/popup'
 import { applyDebugState, getSnapshot } from './persistence'
 import { defaultProgress, defaultSettings, normalizeProgress, normalizeSettings } from './persistence/defaults'
 import { readJsonEnvelope, writeJsonEnvelope } from './persistence/json-file'
@@ -16,18 +19,78 @@ import { broadcastToWindows, notifyDataUpdated } from './broadcast'
 import { isLabProcess, LAB_ARGUMENT } from './lab-environment'
 import { openLaboratoryWindow } from './windows/laboratory'
 import { cancelLoopForLaboratory, configureLoopSimulation, getActivePopup, syncLoopFromSettings,
-  tickTriggerLoop, triggerNow } from './trigger-loop'
+  tickTriggerLoop, triggerNow, triggerLaboratoryExercise } from './trigger-loop'
 
 let plan: LabPlan | null = null
 let cursor = 0
-let playing: ReturnType<typeof setInterval> | undefined
+let originalPlan: LabPlan | null = null
+let openingReplay = false
 let detached = false
 let interrupted = false
+let hasBranch = false
+let projectingResult = false
 let message = 'Выберите историю или создайте календарь'
+
+const playback = new NativePlayback({
+  plan: () => plan, cursor: () => cursor, now: nowMs, severity: () => getSnapshot().settings.severity,
+  clock: (at, running, rate) => {
+    setLaboratoryClock({ at: new Date(at).toISOString(), running, rate, silent: false })
+    configureLoopSimulation({ hold: true, freezeDeadline: !running })
+    if (!projectingResult) notifyDataUpdated()
+  },
+  move: index => { cursor = index; notifyDataUpdated() },
+  open: event => {
+    openingReplay = true
+    try { return triggerLaboratoryExercise(event.session!.exerciseId, event.session!.durationSec).sessionId }
+    finally { openingReplay = false }
+  },
+  active: () => !!getPopupWindow(), close: closePopupWindow,
+  timeout: () => {
+    configureLoopSimulation({ freezeDeadline: false })
+    tickTriggerLoop()
+  },
+  send: command => getPopupWindow()?.webContents?.send(IpcChannels.LabDriver, command),
+  commit: (index, session, manual) => {
+    if (!plan) return
+    const events = plan.events.slice()
+    const resolvedAt = session.completedAt ?? session.triggeredAt
+    const shift = Math.max(0, Date.parse(resolvedAt) - Date.parse(events[index]!.at))
+    if (!manual && shift > 0) {
+      for (let next = index + 1; next < events.length; next++) {
+        const event = events[next]!
+        const move = (at: string) => new Date(Date.parse(at) + shift).toISOString()
+        events[next] = { ...event, at: move(event.at), ...(event.session ? { session: {
+          ...event.session, triggeredAt: move(event.session.triggeredAt),
+          ...(event.session.completedAt ? { completedAt: move(event.session.completedAt) } : {})
+        } } : {}) }
+      }
+    }
+    events[index] = { at: resolvedAt, label: `Результат · ${session.status}`,
+      session, actions: labActions(session) }
+    // A manual outcome retains the original future separately and makes an explicit branch.
+    plan = { ...plan, events: manual ? events.slice(0, index + 1) : events }
+    cursor = index
+    interrupted = manual
+    hasBranch ||= manual
+    detached = false
+    message = manual ? 'Ручная ветка записана. Можно продолжить её или вернуться к исходному сценарию.' : 'Результат сохранён обычным циклом приложения.'
+  },
+  intervention: () => {
+    interrupted = true
+    message = 'Вы управляете попапом. Автоматические действия отменены; исходный сценарий сохранён.'
+  },
+  changed: () => { publish() }
+})
+
+export function acknowledgeLabDriver(ack: LabDriverAck): void {
+  if (!isLabProcess()) throw new Error('Native driver requires the isolated laboratory')
+  playback.acknowledge(ack)
+}
+
 
 export async function launchLaboratory(): Promise<void> {
   if (app.isPackaged) throw new Error('Laboratory is only available in development')
-  if (isLabProcess()) { openLaboratoryWindow(); return }
+  if (isLabProcess()) { openLaboratoryWindow(pauseLaboratory); return }
   const environment = { ...process.env }
   delete environment.ELECTRON_RUN_AS_NODE
   await new Promise<void>((resolve, reject) => {
@@ -40,25 +103,26 @@ export async function launchLaboratory(): Promise<void> {
 }
 
 export function getLabState(): LabState {
-  return { enabled: isLabProcess(), plan, cursor, playing: !!playing, detached, interrupted, message,
-    now: nowDate().toISOString(), activePopup: getActivePopup() !== null }
+  return { enabled: isLabProcess(), plan, cursor, playing: playback.playing, detached, interrupted, message,
+    now: nowDate().toISOString(), activePopup: getActivePopup() !== null, playback: { ...playback.state }, hasOriginal: !!originalPlan && hasBranch }
 }
 
 function publish(): LabState {
   const state = getLabState()
+  if (projectingResult) state.snapshot = getSnapshot()
   broadcastToWindows(IpcChannels.LabChanged, state)
   return state
 }
 
 function pause(): void {
-  clearInterval(playing)
-  playing = undefined
+  playback.pause()
 }
 
 function seek(next: number, silent = true): void {
   if (!plan || !Number.isInteger(next) || next < 0 || next >= plan.events.length) throw new Error('Invalid timeline position')
+  playback.cancel()
   cancelLoopForLaboratory()
-  configureLoopSimulation({ hold: true, idleSeconds: 0 })
+  configureLoopSimulation({ hold: true, freezeDeadline: true, idleSeconds: 0 })
   cursor = next
   detached = false
   interrupted = false
@@ -71,30 +135,42 @@ function seek(next: number, silent = true): void {
 
 function load(next: LabPlan): void {
   pause()
-  plan = validateLabPlan(next)
+  plan = upgradeLabPlan(next)
+  originalPlan = structuredClone(plan)
+  hasBranch = false
   // Imports cross the same normalization boundary as regular persisted settings.
   plan.settings = normalizeSettings(plan.settings)
   plan.progress = normalizeProgress(plan.progress)
   seek(0)
+  if (plan.convertedFrom) message = 'Формат 1: действия выведены из исходов, а не записаны. Просмотр дат сохраняет исходную историю.'
 }
 
-function onResolved(session: Session): void {
+function projectResolved(session: Session): void {
+  if (playback.resolved(session)) return
   pause()
   interrupted = true
+  hasBranch = true
   detached = true
   if (plan) {
     plan = { ...plan, events: [...plan.events.slice(0, cursor + 1), {
-      at: session.completedAt ?? session.triggeredAt, label: `Ручное событие · ${session.status}`, session
+      at: session.completedAt ?? session.triggeredAt, label: `Ручное событие · ${session.status}`, session, actions: labActions(session)
     }] }
     cursor = plan.events.length - 1
   }
-  message = 'Событие записано. Воспроизведение остановлено; будущая история заменена ручной веткой.'
+  message = 'Событие записано. Воспроизведение остановлено; доступны ручная ветка и возврат к исходному сценарию.'
   publish()
 }
 
+function onResolved(session: Session): void {
+  projectingResult = true
+  try { projectResolved(session) }
+  finally { projectingResult = false }
+}
+
 function onTriggered(): void {
-  pause()
-  configureLoopSimulation({ hold: false })
+  if (openingReplay) return
+  playback.cancel()
+  configureLoopSimulation({ hold: false, freezeDeadline: false })
   detached = true
   setLaboratoryClock({ at: nowDate().toISOString(), running: true, silent: false })
   notifyDataUpdated()
@@ -108,7 +184,10 @@ export function initializeLaboratory(): void {
   configureLoopSimulation({ hold: true, idleSeconds: 0, onTriggered, onResolved })
 }
 
-export function stopLaboratory(): void { pause() }
+export function stopLaboratory(): void { if (isLabProcess()) playback.cancel() }
+
+/** Closing controls freezes the run and cancels the driver; the native popup remains inspectable. */
+export function pauseLaboratory(): void { if (isLabProcess()) playback.pause() }
 
 export function rememberLabPreferences(): void {
   if (!isLabProcess() || !plan) return
@@ -135,7 +214,7 @@ function openPopup(preset: Extract<LabCommand, { action: 'popup' }>['preset']): 
   if (!['normal', 'stage-up', 'soft', 'medium', 'hardcore', 'details'].includes(preset)) throw new Error('Invalid popup preset')
   cancelLoopForLaboratory()
   if (preset === 'stage-up') {
-    const next = buildLabScenario('growth', nowDate(), defaultSettings(), defaultProgress())
+    const next = buildLabScenario('growth', nowDate(), getSnapshot().settings, getSnapshot().progress)
     const milestones = labMilestones(next)
     const stageUp = milestones.find(index => labSessionsAt(next, index).filter(session => session.status === 'done').length === 3)
     load(next)
@@ -161,8 +240,8 @@ export async function executeLabCommand(command: LabCommand): Promise<LabState> 
   if (!isLabProcess()) throw new Error('Open the isolated laboratory first')
   if (!command || typeof command.action !== 'string') throw new Error('Invalid laboratory command')
   switch (command.action) {
-    case 'scenario': load(buildLabScenario(command.id, new Date(), defaultSettings(), defaultProgress())); break
-    case 'generate': load(buildRandomCalendar(command.options, defaultSettings(), defaultProgress())); break
+    case 'scenario': load(buildLabScenario(command.id, new Date(), getSnapshot().settings, getSnapshot().progress)); break
+    case 'generate': load(buildRandomCalendar(command.options, getSnapshot().settings, getSnapshot().progress)); break
     case 'seek': pause(); seek(command.cursor); break
     case 'date': pause(); seek(dateCursor(command.date)); break
     case 'step': {
@@ -179,23 +258,26 @@ export async function executeLabCommand(command: LabCommand): Promise<LabState> 
       seek(Math.min(plan.events.length - 1, Math.max(0, next)))
       break
     }
-    case 'play': {
-      pause()
-      if (!plan || ![500, 1500, 3500].includes(command.delayMs)) throw new Error('Invalid playback speed')
+    case 'play':
+      if (!plan || ![500, 1500, 3500].includes(command.delayMs)) throw new Error('Invalid playback speed or scenario')
       if (detached) seek(cursor)
-      playing = setInterval(() => {
-        try {
-          if (!plan || cursor >= plan.events.length - 1) { pause(); publish(); return }
-          seek(cursor + 1, false)
-          if (cursor === plan.events.length - 1) pause()
-          publish()
-        } catch (error) {
-          pause()
-          console.error('[laboratory] playback failed', error)
-          message = 'Воспроизведение остановлено: не удалось применить событие.'
-          publish()
-        }
-      }, command.delayMs)
+      playback.play(command.delayMs)
+      break
+    case 'phase-step': playback.step(); break
+    case 'mode':
+      if (command.mode !== 'automatic' && command.mode !== 'interactive') throw new Error('Invalid playback mode')
+      seek(cursor)
+      playback.setMode(command.mode)
+      break
+    case 'restart': seek(0); break
+    case 'original': {
+      if (!originalPlan) throw new Error('No original scenario')
+      const preferences = getSnapshot()
+      const selected = structuredClone(originalPlan)
+      selected.settings = preferences.settings
+      selected.progress.characterBuild = preferences.progress.characterBuild
+      load(selected)
+      message = 'Исходный сценарий восстановлен. Ручная ветка заменена только в текущем просмотре.'
       break
     }
     case 'pause': pause(); message = 'Воспроизведение остановлено'; break
@@ -205,7 +287,7 @@ export async function executeLabCommand(command: LabCommand): Promise<LabState> 
       if (!Number.isFinite(command.seconds) || command.seconds < 0 || command.seconds > 86400) throw new Error('Invalid time jump')
       const at = new Date(nowMs() + command.seconds * 1000).toISOString()
       setLaboratoryClock({ at, running: true, silent: false })
-      configureLoopSimulation({ hold: false })
+      configureLoopSimulation({ hold: false, freezeDeadline: false })
       detached = true
       notifyDataUpdated()
       tickTriggerLoop()
@@ -227,7 +309,8 @@ export async function executeLabCommand(command: LabCommand): Promise<LabState> 
       pause()
       cancelLoopForLaboratory()
       configureLoopSimulation({ hold: true, idleSeconds: 0 })
-      plan = null; cursor = 0; detached = false; interrupted = false
+      playback.cancel()
+      plan = null; originalPlan = null; hasBranch = false; cursor = 0; detached = false; interrupted = false
       setLaboratoryClock({ at: new Date().toISOString(), running: false, silent: true })
       applyDebugState({ sessions: [], settings: defaultSettings(), progress: defaultProgress() })
       syncLoopFromSettings(); notifyDataUpdated()
@@ -236,15 +319,19 @@ export async function executeLabCommand(command: LabCommand): Promise<LabState> 
     case 'save':
       if (!plan) throw new Error('Choose a scenario first')
       validateLabPlan(plan)
-      writeJsonEnvelope(savedPath(), { plan, cursor })
+      writeJsonEnvelope(savedPath(), { plan, cursor, originalPlan, hasBranch, mode: playback.state.mode })
       message = 'Вариант и позиция сохранены в тестовом профиле'
       break
     case 'restore': {
-      const saved = readJsonEnvelope<{ plan: unknown; cursor: number }>(savedPath())
+      const saved = readJsonEnvelope<{ plan: unknown; cursor: number; originalPlan?: unknown; hasBranch?: boolean; mode?: string }>(savedPath())
       if (!saved || !Number.isInteger(saved.cursor)) throw new Error('No saved laboratory run')
       const restored = validateLabPlan(saved.plan)
       if (saved.cursor < 0 || saved.cursor >= restored.events.length) throw new Error('Invalid saved position')
+      const original = saved.originalPlan ? upgradeLabPlan(saved.originalPlan) : null
       load(restored); seek(saved.cursor)
+      if (original) originalPlan = original
+      hasBranch = saved.hasBranch === true
+      if (saved.mode === 'interactive') playback.setMode(saved.mode)
       message = 'Сохранённый вариант восстановлен'
       break
     }
@@ -252,9 +339,11 @@ export async function executeLabCommand(command: LabCommand): Promise<LabState> 
       pause()
       if (!plan) throw new Error('Choose a scenario first')
       validateLabPlan(plan)
+      const serialized = JSON.stringify({ plan, cursor, originalPlan, hasBranch, mode: playback.state.mode })
+      if (Buffer.byteLength(serialized, 'utf8') > LAB_MAX_IMPORT_BYTES) throw new Error('Laboratory file is too large')
       const result = await dialog.showSaveDialog({ title: 'Сохранить сценарий лаборатории', defaultPath: 'body-debugger-scenario.json', filters: [{ name: 'JSON', extensions: ['json'] }] })
       if (!result.canceled && result.filePath) {
-        writeFileSync(result.filePath, JSON.stringify({ plan, cursor }, null, 2), 'utf8')
+        writeFileSync(result.filePath, serialized, 'utf8')
         message = 'Сценарий экспортирован'
       }
       break
@@ -264,16 +353,20 @@ export async function executeLabCommand(command: LabCommand): Promise<LabState> 
       const result = await dialog.showOpenDialog({ title: 'Открыть сценарий лаборатории', properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] })
       const path = result.filePaths[0]
       if (!result.canceled && path) {
-        if (statSync(path).size > 2 * 1024 * 1024) throw new Error('Laboratory file is too large')
-        const saved = JSON.parse(readFileSync(path, 'utf8')) as { plan: unknown; cursor: number }
+        if (statSync(path).size > LAB_MAX_IMPORT_BYTES) throw new Error('Laboratory file is too large')
+        const saved = JSON.parse(readFileSync(path, 'utf8')) as { plan: unknown; cursor: number; originalPlan?: unknown; hasBranch?: boolean; mode?: string }
         const imported = validateLabPlan(saved.plan)
         if (!Number.isInteger(saved.cursor) || saved.cursor < 0 || saved.cursor >= imported.events.length) throw new Error('Invalid saved position')
+        const original = saved.originalPlan ? upgradeLabPlan(saved.originalPlan) : null
         load(imported); seek(saved.cursor)
+        if (original) originalPlan = original
+        hasBranch = saved.hasBranch === true
+        if (saved.mode === 'interactive') playback.setMode(saved.mode)
         message = 'Сценарий импортирован'
       }
       break
     }
-    case 'detach': openLaboratoryWindow(); break
+    case 'detach': openLaboratoryWindow(pauseLaboratory); break
     default: throw new Error('Unknown laboratory command')
   }
   return publish()

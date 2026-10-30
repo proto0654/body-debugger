@@ -35,4 +35,14 @@ describe('laboratory app clock', () => {
   it('rejects invalid virtual timestamps', () => {
     expect(() => setLaboratoryClock({ at: 'bad', running: false, silent: true })).toThrow()
   })
+  it('scales only application time and preserves its anchor while paused', () => {
+    vi.useFakeTimers()
+    setLaboratoryClock({ at: '2026-01-01T09:00:00Z', running: true, silent: false, rate: 50 })
+    vi.advanceTimersByTime(500)
+    expect(nowDate().toISOString()).toBe('2026-01-01T09:00:25.000Z')
+    setLaboratoryClock({ ...getLaboratoryClock()!, running: false })
+    vi.advanceTimersByTime(300000)
+    expect(nowDate().toISOString()).toBe('2026-01-01T09:00:25.000Z')
+    expect(() => setLaboratoryClock({ at: '2026-01-01T09:00:00Z', running: true, silent: false, rate: Infinity })).toThrow()
+  })
 })

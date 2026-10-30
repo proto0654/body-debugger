@@ -67,7 +67,7 @@ describe('character store', () => {
 
   it('derives the state from progress and settings', () => {
     hydrateProgress({ characterStage: 3, characterBranch: 'power', characterBuild: 'stocky' })
-    useSettingsStore().hydrate(makeSettings({ characterPackId: 'custom-pack' }))
+    useSettingsStore().hydrate(makeSettings({ characterPackId: 'engineer' }))
     const store = useCharacterStore()
 
     expect(store.state).toEqual({
@@ -75,7 +75,7 @@ describe('character store', () => {
       branch: 'power',
       build: 'stocky',
       emotion: 'neutral',
-      packId: 'custom-pack'
+      packId: 'engineer'
     })
   })
 

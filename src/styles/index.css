@@ -570,4 +570,11 @@ html[data-reduce-motion='true'] *::after {
 .lab-event.current { background: var(--color-slate-800); color: var(--color-amber-300); }
 .lab-event.future { opacity: .5; }
 .laboratory button:disabled { opacity: .45; cursor: wait; }
+.lab-console { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 12px; }
+.lab-live { display: grid; grid-template-columns: 145px minmax(0, 1fr); gap: 12px; align-items: center; }
+.lab-live .character-portrait { max-width: 145px; height: 175px; }
+.lab-live .metric-card { padding: 9px; }
+.lab-live .metric-card strong { font-size: 24px; }
+[data-lab-highlight='true'] { outline: 3px solid var(--color-amber-300); outline-offset: 2px; box-shadow: 0 0 16px rgb(252 211 77 / .35); }
+@media (max-width: 960px) { .lab-console { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 760px) { .lab-preview { grid-template-columns: 1fr; } }

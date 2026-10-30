@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import type { LabCommand, LabState } from '@shared/domain/laboratory'
+import type { LabDriverAck, LabDriverCommand } from '@shared/domain/laboratory-playback'
 
 import type {
   DataAddWeightPayload,
@@ -31,6 +32,8 @@ declare module '*.vue' {
 }
 
 export interface BodyDebuggerApi {
+  labDriverAck: (ack: LabDriverAck) => Promise<void>
+  onLabDriver: (handler: (command: LabDriverCommand) => void) => () => void
   openLaboratory: () => Promise<void>
   getLabState: () => Promise<LabState>
   labCommand: (command: LabCommand) => Promise<LabState>

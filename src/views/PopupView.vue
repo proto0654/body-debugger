@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { nowDate, nowMs } from '@shared/domain/clock'
+import { useRuntimeStore } from '@/stores/runtime'
+import type { LabDriverCommand } from '@shared/domain/laboratory-playback'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import CharacterPortrait from '@/components/character/CharacterPortrait.vue'
 import ComicBubble from '@/components/character/ComicBubble.vue'
@@ -38,6 +40,7 @@ const character = useCharacterStore()
 const progress = useProgressStore()
 const settings = useSettingsStore()
 const photos = usePhotosStore()
+const runtime = useRuntimeStore()
 const { reduced } = useMotionPreference()
 const sounds = useSoundPlayer()
 
@@ -79,6 +82,53 @@ const photoInput = ref<HTMLInputElement | null>(null)
 
 let timer: ReturnType<typeof setInterval> | null = null
 let holdTimer: ReturnType<typeof setInterval> | null = null
+let unsubscribeDriver: (() => void) | undefined
+let unsubscribeLab: (() => void) | undefined
+let driverCommand: LabDriverCommand | null = null
+let popupSessionId = ''
+const labHighlight = ref('')
+const labPaused = ref(false)
+
+function driverAck(kind: 'applied' | 'failed'): void {
+  if (!driverCommand) return
+  void window.api.labDriverAck({ ...driverCommand, kind }).catch(cause => console.warn('[laboratory] acknowledgement failed', cause))
+}
+
+/** The laboratory invokes these same actions; it cannot bypass severity or persistence. */
+async function applyDriver(command: LabDriverCommand): Promise<void> {
+  if (!runtime.laboratory || command.sessionId !== popupSessionId || resolved.value
+    || (driverCommand && (command.generation < driverCommand.generation
+      || (command.generation === driverCommand.generation && command.sequence <= driverCommand.sequence)))) return
+  driverCommand = command
+  if (command.action === 'cancel') { stopHold(); labHighlight.value = ''; return }
+  labHighlight.value = command.action.replace('highlight-', '')
+  if (command.action.startsWith('highlight-')) { driverAck('applied'); return }
+  if (command.action === 'start') {
+    startExercise()
+    driverAck(started.value ? 'applied' : 'failed')
+  } else if (command.action === 'hold') {
+    if (canFinishNow.value && severity.value === 'hardcore') { startHold(); driverAck('applied') }
+    else driverAck('failed')
+  } else if (command.action === 'done' || command.action === 'skipped' || command.action === 'snoozed') {
+    // Give the countdown's ordinary 250 ms update a chance to observe a clock revision.
+    if (command.action === 'done' && started.value && timerStartedAt !== null) {
+      remainingMs.value = Math.max(0, durationMs.value - (nowMs() - timerStartedAt))
+    }
+    if (command.action === 'done' && !canFinishNow.value) { driverAck('failed'); return }
+    await submit(command.action)
+  }
+}
+
+function reportManualAction(): Promise<void> {
+  if (!runtime.laboratory || !popupSessionId) return Promise.resolve()
+  labHighlight.value = ''
+  driverCommand = null
+  return window.api.labDriverAck?.({ sessionId: popupSessionId, kind: 'manual' })
+    .catch(cause => console.warn('[laboratory] manual action report failed', cause))
+}
+
+function userStart(): void { void reportManualAction(); startExercise() }
+function userSubmit(status: SessionStatus): void { void reportManualAction(); void submit(status) }
 
 const severity = computed(() => settings.severity)
 const canFinishNow = computed(() =>
@@ -115,6 +165,7 @@ function startExercise(): void {
   startTimer()
 }
 
+let timerStartedAt: number | null = null
 function startTimer(): void {
   const current = sessions.current
   durationMs.value = Math.max(0, (current?.durationSec ?? 0) * 1000)
@@ -124,6 +175,7 @@ function startTimer(): void {
   if (durationMs.value <= 0) return
 
   const startedAt = nowMs()
+  timerStartedAt = startedAt
   timer = setInterval(() => {
     remainingMs.value = Math.max(0, durationMs.value - (nowMs() - startedAt))
   }, 250)
@@ -222,23 +274,29 @@ function stopHold(): void {
 }
 
 function onDoneDown(): void {
-  if (severity.value === 'hardcore') startHold()
+  if (severity.value !== 'hardcore') return
+  if (!runtime.laboratory) { startHold(); return }
+  userHolding = true
+  void reportManualAction().then(() => { if (userHolding) startHold() })
 }
 
+let userHolding = false
 function onDoneUp(): void {
+  userHolding = false
   if (severity.value === 'hardcore') stopHold()
 }
 
 function onDoneClick(): void {
   // Hardcore confirms via hold only; the click fires right after pointerup.
   if (severity.value === 'hardcore') return
+  void reportManualAction()
   void submit('done')
 }
 
 function onHoldKeyDown(event: KeyboardEvent): void {
   if (severity.value !== 'hardcore') return
   event.preventDefault()
-  if (!event.repeat) startHold()
+  if (!event.repeat) onDoneDown()
 }
 
 onMounted(async () => {
@@ -256,11 +314,23 @@ onMounted(async () => {
     errorMessage.value = 'Не удалось загрузить разминку. Откройте её ещё раз из трея.'
   }
   character.react('ready', sessions.history.length)
+  popupSessionId = sessions.current?.id ?? ''
+  if (runtime.laboratory && popupSessionId && window.api.onLabDriver) {
+    unsubscribeDriver = window.api.onLabDriver(command => { void applyDriver(command) })
+    unsubscribeLab = window.api.onLabChanged(state => {
+      if (state.playback?.paused && !labPaused.value) stopHold()
+      labPaused.value = state.playback?.paused ?? false
+    })
+    void window.api.labDriverAck({ sessionId: popupSessionId, kind: 'ready' })
+      .catch(cause => console.warn('[laboratory] readiness failed', cause))
+  }
   sounds.preload()
   sounds.play('popup')
 })
 
 onBeforeUnmount(() => {
+  unsubscribeDriver?.()
+  unsubscribeLab?.()
   stopTimer()
   stopHold()
 })
@@ -308,6 +378,7 @@ async function submit(status: SessionStatus): Promise<void> {
   } catch (cause) {
     console.error('[popup] failed to save result', cause)
     errorMessage.value = 'Не удалось сохранить. Попробуйте ещё раз.'
+    driverAck('failed')
   } finally {
     busy.value = false
   }
@@ -341,7 +412,7 @@ async function playExit(status: SessionStatus): Promise<void> {
     />
     <div v-if="resolved && exitKind === 'done'" class="popup-success absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 rounded-xl p-4 text-center" role="status">
       <div class="relative">
-        <CharacterPortrait variant="face" size="md" :stage="character.state.stage" :branch="character.state.branch" :build="character.state.build" :emotion="character.emotion" />
+        <CharacterPortrait :pack-id="settings.characterPackId" variant="face" size="md" :stage="character.state.stage" :branch="character.state.branch" :build="character.state.build" :emotion="character.emotion" />
         <span class="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-xs text-slate-950" aria-hidden="true">✓</span>
       </div>
       <p class="sr-only">{{ successLabel }}</p>
@@ -349,6 +420,7 @@ async function playExit(status: SessionStatus): Promise<void> {
       <p class="text-xs text-slate-400">{{ successDetail }}</p>
       <button v-if="errorMessage" type="button" class="setting-chip" @click="closeResolved">Закрыть</button>
     </div>
+    <p v-if="runtime.laboratory && labPaused" class="text-[10px] text-amber-300">Сценарий на паузе</p>
     <ComicBubble v-if="!resolved" compact :key="character.reaction.caption"
       :caption="character.reaction.caption" :tone="character.reaction.tone" class="popup-speech" />
     <header class="flex items-start justify-between gap-2">
@@ -363,7 +435,7 @@ async function playExit(status: SessionStatus): Promise<void> {
           {{ sessions.currentExercise?.description ?? 'Один попап — одно упражнение.' }}
         </p>
       </div>
-      <CharacterPortrait
+      <CharacterPortrait :pack-id="settings.characterPackId"
         variant="face"
         size="sm"
         :stage="character.state.stage"
@@ -508,7 +580,8 @@ async function playExit(status: SessionStatus): Promise<void> {
         type="button"
         class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
         :disabled="busy || !sessions.current"
-        @click="submit('snoozed')"
+        :data-lab-highlight="labHighlight === 'snoozed'"
+        @click="userSubmit('snoozed')"
       >
         Отложить
       </button>
@@ -516,17 +589,19 @@ async function playExit(status: SessionStatus): Promise<void> {
         type="button"
         class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
         :disabled="busy || !sessions.current"
-        @click="submit('skipped')"
+        :data-lab-highlight="labHighlight === 'skipped'"
+        @click="userSubmit('skipped')"
       >
         Пропустить
       </button>
       <button v-if="!started"
         type="button" class="ml-auto rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-slate-950 disabled:opacity-40"
-        :disabled="busy || !sessions.current" data-testid="start-exercise" @click="startExercise">Начать</button>
+        :disabled="busy || !sessions.current" data-testid="start-exercise" :data-lab-highlight="labHighlight === 'start'" @click="userStart">Начать</button>
       <button v-else
         type="button"
         class="relative ml-auto overflow-hidden rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400 disabled:hover:bg-slate-700"
         :disabled="busy || !sessions.current || !canFinishNow"
+        :data-lab-highlight="labHighlight === 'done' || labHighlight === 'hold'"
         @click="onDoneClick"
         @pointerdown="onDoneDown"
         @pointerup="onDoneUp"

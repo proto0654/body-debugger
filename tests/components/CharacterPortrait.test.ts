@@ -19,6 +19,25 @@ describe('CharacterPortrait', () => {
     vi.useRealTimers()
   })
 
+  it('shows neglect art and its accessible label, then restores the earned body on recovery', async () => {
+    const wrapper = mount(CharacterPortrait, {
+      props: { stage: 5, branch: 'power', build: 'lean', condition: 3 }
+    })
+    expect(wrapper.get('img').attributes('src')).toMatch(/neglect-3-lean\.png$/)
+    expect(wrapper.get('[role="img"]').attributes('aria-label')).toContain('Дрыщ')
+    expect(wrapper.text()).toContain('Desk Hulk')
+    await wrapper.setProps({ condition: 0 })
+    expect(wrapper.get('img').attributes('src')).toMatch(/pose-power-lean\.png$/)
+    expect(wrapper.get('[role="img"]').attributes('aria-label')).not.toContain('Дрыщ')
+  })
+
+  it('keeps the completion face expressive while the body is degraded', () => {
+    const wrapper = mount(CharacterPortrait, {
+      props: { variant: 'face', build: 'stocky', condition: 3, emotion: 'happy' }
+    })
+    expect(wrapper.get('img').attributes('src')).toMatch(/emotion-happy-stocky\.png$/)
+  })
+
   it('renders the stage body for the dashboard', () => {
     const wrapper = mount(CharacterPortrait, {
       props: { stage: 4, branch: 'power', build: 'lean', size: 'lg' }

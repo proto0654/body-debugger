@@ -1,0 +1,6 @@
+Generated with built-in image_gen on 2026-10-30.
+Reference/edit target: sprite-sheet-average.png.
+
+Edit the provided exact sixteen-frame transparent sprite sheet of the adult mother character. Keep the SAME 4-column x4-row layout and all SIXTEEN states in the exact same cells, with entire bodies and both white shoes visible. Keep each face, auburn ponytail, sunglasses, burgundy jacket, cream fully covering top, black joggers, tote with little dinosaur and white sneakers.
+CHANGE ONLY THE BODY BUILD throughout EVERY frame to a distinctly LEAN slim woman: narrow shoulders, slender arms and legs, narrow torso, slim jaw, loose clothing draping on a light wiry frame.
+The first six full bodies retain the progression from tired to fit, the next three full bodies retain mild/medium/strong neglect, the five head-and-shoulder portraits remain tired/neutral/focused/happy/proud, and the last two bodies retain power and side lunge. ALL body cells must remain complete full-body cutouts. Do not crop the legs, cut off feet, merge neighbouring figures, swap any state or change identity. Preserve the SAME cell order of the input. Large transparent margins and gutters. Exactly16 sprites in4rows4columns, genuine alpha transparency, no text, no labels, no checkerboard, no ground, no sexualization.

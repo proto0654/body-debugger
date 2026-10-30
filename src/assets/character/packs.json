@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "columns": 4,
+  "rowsPerBuild": 4,
+  "frames": [
+    "stage-0",
+    "stage-1",
+    "stage-2",
+    "stage-3",
+    "stage-4",
+    "stage-5",
+    "neglect-1",
+    "neglect-2",
+    "neglect-3",
+    "emotion-tired",
+    "emotion-neutral",
+    "emotion-focused",
+    "emotion-happy",
+    "emotion-proud",
+    "pose-power",
+    "pose-mobility"
+  ],
+  "sheets": {
+    "sprite-sheet-average.png": [
+      "average"
+    ],
+    "sprite-sheet-builds.png": [
+      "lean",
+      "stocky"
+    ]
+  },
+  "packs": [
+    {
+      "id": "alt-girl",
+      "label": "Альтуха"
+    },
+    {
+      "id": "punk",
+      "label": "Нефор"
+    },
+    {
+      "id": "zoomer",
+      "label": "Зумер"
+    },
+    {
+      "id": "cool-mom",
+      "label": "Милфа",
+      "overrides": { "neglect-3-stocky": "sprite-neglect-3-stocky.png" },
+      "sheets": {
+        "sprite-sheet-average.png": ["average"],
+        "sprite-sheet-lean.png": ["lean"],
+        "sprite-sheet-stocky.png": ["stocky"]
+      }
+    },
+    {
+      "id": "metro",
+      "label": "Метро",
+      "sheets": {
+        "sprite-sheet-average.png": ["average"],
+        "sprite-sheet-lean.png": ["lean"],
+        "sprite-sheet-stocky.png": ["stocky"]
+      }
+    },
+    {
+      "id": "streetwear",
+      "label": "Стритвир"
+    },
+    {
+      "id": "insta-diva",
+      "label": "Инстадива"
+    },
+    {
+      "id": "engineer",
+      "label": "Инженер"
+    },
+    {
+      "id": "hipster",
+      "label": "Хипстер"
+    }
+  ]
+}

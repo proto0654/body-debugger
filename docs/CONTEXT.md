@@ -55,7 +55,9 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Shared types | `shared/types/` |
 | Exercise validation | `shared/validation/exercise.ts` |
 | Desk Hulk assets (sheets + cut frames) | `src/assets/character/desk-hulk/` |
-| Character frame rules (stage → body, branch pose, emotion bust) | `shared/domain/character-visual.ts` |
+| Character frame rules (stage → body, branch pose, emotion bust, neglect) | `shared/domain/character-visual.ts` |
+| Temporary condition from saved results | `shared/domain/character-condition.ts` |
+| Additional character art manifest | `src/assets/character/packs.json` |
 | Frame key → bundled URL | `src/components/character/frames.ts` |
 | Sprite cutting script | `scripts/cut-character-sprites.py` |
 | Motion preference + popup exit timings | `src/motion.ts` |
@@ -83,17 +85,19 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 - Trigger loop: interval from last completion, idle hold/reset, snooze, tray + dashboard pause, `missed` timeout.
 - Picker: 34-exercise catalog plus approved AI exercises, zone/group penalties, neglect bonus, Focus, inventory gate, four modes.
 - Character stage/branch and a **day-based streak** derive from history. Streak is recomputed on snapshot reads and in the dashboard clock, so a gap cannot leave an old active run visible.
+- Temporary character condition also derives from history: skips/misses add points (cap 10), completions remove 2; levels at 3/6/10 select nine generated neglect bodies. Earned stage/branch and selected build are preserved; see [ARCHITECTURE.md](ARCHITECTURE.md#temporary-character-condition).
 - Severity: explicit «Начать» starts the timer. Medium/Hardcore gate «Готово» at 80%; Hardcore accepts pointer or keyboard hold. Results are acknowledged after a durable session write and retries are idempotent.
 - Optional photo/AI hydration runs in the background and cannot block mounting the core renderer.
 - Comic reactions: `shared/domain/character-reaction.ts` owns contextual captions/emotions; `ComicBubble.vue` renders them. The dashboard briefly switches the stage body to a large emotional portrait, then restores it.
 - Character art is cut per frame; emoji fallback also handles a failed image load. Motion respects the dashboard switch and the OS setting.
+- Nine additional character packs have 432 source-derived frames (three builds × sixteen states each), indexed by `src/assets/character/packs.json`. They are art-ready; the runtime still resolves Desk Hulk. See the [character art library](../src/assets/character/README.md).
 - Optional layers are live and off by default unless noted: session details, weight history, photos, inventory, sounds, AI proposals, themes.
 - Dashboard: «Сегодня» foregrounds the large character, day totals, current streak and progress to the next form. «Настройки» owns all switches and AI imports. Calendar/stats remain separate; current-day values refresh while open.
 - Core preferences: the «Настройки» tab edits interval (5–240 min), picker mode, Focus and character build; values are normalized on load, and an interval change reschedules the loop.
 - Renderer CSP lists `photo:` in `img-src`, so progress photos load through the custom scheme.
 - Debug panel: dev-only, with state view, quick actions, six scenario presets and per-cue sound preview.
 - Tests: Vitest covers domain rules, stores, persistence, preferences, popup/portrait/weight/heatmap/stats/photo/AI components and the debug panel.
-- Known gaps: six distinct body illustrations, personal exercise-level progression, automatic AI analysis, export, external-event triggers and Playwright E2E. Window/tray integration still needs manual Electron smoke checks.
+- Known gaps: six distinct body illustrations for the default Desk Hulk (still three tiers), a runtime selector/resolver for the nine additional art-ready packs, personal exercise-level progression, automatic AI analysis, export, external-event triggers and Playwright E2E. Window/tray integration still needs manual Electron smoke checks.
 
 ## Doc index
 

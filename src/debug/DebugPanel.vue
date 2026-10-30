@@ -8,6 +8,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsStore } from '@/stores/settings'
 import { EXERCISE_CATALOG } from '@shared/constants/exercises'
 import { CHARACTER_STAGE_LABELS } from '@shared/constants/character'
+import { CHARACTER_CONDITION_MAX_POINTS } from '@shared/domain/character-condition'
 import { mergeCatalogs } from '@shared/domain/ai-proposal'
 import { useCustomExercisesStore } from '@/stores/custom-exercises'
 import { SOUND_CUES, type SoundCue } from '@shared/domain/sounds'
@@ -215,6 +216,7 @@ async function forceBuild(build: CharacterBuild): Promise<void> {
     </div>
 
     <div class="rounded-lg bg-slate-900 p-2 text-xs text-slate-400">
+      <p class="mb-1" data-testid="debug-condition">Состояние: {{ character.conditionLabel }} · {{ character.condition.points }} / {{ CHARACTER_CONDITION_MAX_POINTS }} · уровень {{ character.condition.level }}</p>
       Следующее упражнение:
       <span class="text-slate-200">{{ nextPick.title }}</span>
       <span class="text-slate-500"> · {{ nextPick.category }} · {{ nextPick.durationSec }} с</span>

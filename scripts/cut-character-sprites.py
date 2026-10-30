@@ -10,19 +10,23 @@ Output goes to `src/assets/character/desk-hulk/frames/`:
     stage-{stage}-{build}.png    body frame for a stage tier (0, 2 or 4)
     pose-{branch}-{build}.png    branch pose (neutral / power / mobility)
     emotion-{emotion}-{build}.png emotion bust, named by CharacterEmotion
+    neglect-{level}-{build}.png temporary condition (levels 1, 2 or 3)
 
 Requires Pillow and NumPy (`pip install pillow numpy`).
 Run from the repository root: `python scripts/cut-character-sprites.py`
+Use `--packs` to cut all nine additional characters (48 frames each), or
+`--packs alt-girl punk` to rebuild selected packs from packs.json.
 """
 
 from __future__ import annotations
 
+import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 CHARACTER_DIR = ROOT / "src" / "assets" / "character" / "desk-hulk"
@@ -65,7 +69,7 @@ def foreground_mask(image: Image.Image) -> np.ndarray:
     return (spread > CHROMA_THRESHOLD) | (lightness > LIGHTNESS_THRESHOLD)
 
 
-def _label_small(mask_small: np.ndarray) -> list[tuple[int, int, int, int]]:
+def _label_small(mask_small: np.ndarray, scale: int = COMPONENT_SCALE) -> list[tuple[int, int, int, int]]:
     """4-connected labelling on a downscaled mask via union-find."""
     height, width = mask_small.shape
     parent: dict[int, int] = {}
@@ -98,16 +102,16 @@ def _label_small(mask_small: np.ndarray) -> list[tuple[int, int, int, int]]:
 
     boxes: list[tuple[int, int, int, int]] = []
     for members in groups.values():
-        if len(members) * COMPONENT_SCALE * COMPONENT_SCALE < MIN_COMPONENT_AREA:
+        if len(members) * scale * scale < MIN_COMPONENT_AREA:
             continue
         xs = [node % width for node in members]
         ys = [node // width for node in members]
         boxes.append(
             (
-                min(xs) * COMPONENT_SCALE,
-                min(ys) * COMPONENT_SCALE,
-                (max(xs) + 1) * COMPONENT_SCALE,
-                (max(ys) + 1) * COMPONENT_SCALE,
+                min(xs) * scale,
+                min(ys) * scale,
+                (max(xs) + 1) * scale,
+                (max(ys) + 1) * scale,
             )
         )
     return boxes
@@ -172,9 +176,9 @@ def split_rows(boxes: list[Box]) -> list[list[Box]]:
     return [sorted(row, key=lambda box: box.center[0]) for row in rows]
 
 
-def grid_figures(sheet: Image.Image, name: str, rows: int) -> list[list[Box]]:
+def grid_figures(sheet: Image.Image, name: str, rows: int, *, transparent: bool = False) -> list[list[Box]]:
     """Detect a rows x 3 grid; extra rows (extras, heads) are dropped."""
-    mask = foreground_mask(sheet)
+    mask = np.asarray(sheet.getchannel("A")) > 32 if transparent else foreground_mask(sheet)
     found = figure_boxes(mask)
     if not found:
         raise SystemExit(f"{name}: no figures detected")
@@ -200,13 +204,16 @@ def grid_figures(sheet: Image.Image, name: str, rows: int) -> list[list[Box]]:
     return grid
 
 
-def cut_frame(sheet: Image.Image, box: Box) -> Image.Image:
+def cut_frame(sheet: Image.Image, box: Box, *, preserve_alpha: bool = False) -> Image.Image:
     """Crop a figure, drop the flat background and trim the transparent border."""
     pad = 4
     left = max(0, box.x0 - pad)
     top = max(0, box.y0 - pad)
     right = min(sheet.width, box.x1 + pad)
     bottom = min(sheet.height, box.y1 + pad)
+    if preserve_alpha:
+        # Preserve the generated alpha, including antialiased edges.
+        return sheet.crop((left, top, right, bottom))
     cell = sheet.crop((left, top, right, bottom)).convert("RGB")
     width, height = cell.size
     pixels = cell.load()
@@ -256,6 +263,7 @@ def cut_frame(sheet: Image.Image, box: Box) -> Image.Image:
 def build() -> None:
     stages = Image.open(CHARACTER_DIR / "sprite-sheet-stages.png")
     branches = Image.open(CHARACTER_DIR / "sprite-sheet-branches.png")
+    neglect = Image.open(CHARACTER_DIR / "sprite-sheet-neglect.png")
     emotions = {
         name: Image.open(CHARACTER_DIR / "emotions" / f"emotions-set-{name.rsplit('-', 1)[1]}.png")
         for name in ("set-1", "set-2", "set-3")
@@ -301,12 +309,165 @@ def build() -> None:
                 frame.save(OUT_DIR / f"emotion-{emotion}-{build}.png", optimize=True)
                 written += 1
 
+    neglect_grid = grid_figures(neglect, "neglect", rows=3, transparent=True)
+    for row_index, row in enumerate(neglect_grid):
+        for column, build in enumerate(builds):
+            frame = cut_frame(neglect, row[column], preserve_alpha=True)
+            frame.save(OUT_DIR / f"neglect-{row_index + 1}-{build}.png", optimize=True)
+            written += 1
+
     total_bytes = sum(path.stat().st_size for path in OUT_DIR.glob("*.png"))
     print(f"wrote {written} frames to {OUT_DIR.relative_to(ROOT)} ({total_bytes // 1024} KiB)")
 
 
+def pack_grid(sheet: Image.Image, rows: int, columns: int) -> list[list[Box]]:
+    """Find authored-alpha sprites without dilation joining neighbouring rows."""
+    if sheet.mode != "RGBA" or sheet.getchannel("A").getextrema()[0] != 0:
+        raise ValueError("Pack sheets must contain a transparent RGBA background")
+    for scale in (COMPONENT_SCALE, 2, 1):
+        alpha = sheet.getchannel("A").resize(
+            (sheet.width // scale, sheet.height // scale), Image.Resampling.BOX
+        )
+        boxes = [Box(*raw) for raw in _label_small(np.asarray(alpha) > 128, scale)]
+        if len(boxes) == rows * columns:
+            break
+    mask = np.asarray(sheet.getchannel("A")) > 128
+    while boxes and len(boxes) < rows * columns:
+        tallest = max(boxes, key=lambda box: box.height)
+        median_height = float(np.median([box.height for box in boxes]))
+        if tallest.height < median_height * 1.25:
+            break
+        region = mask[tallest.y0 : tallest.y1, tallest.x0 : tallest.x1]
+        profile = region.sum(axis=1)
+        low, high = int(tallest.height * 0.3), int(tallest.height * 0.7)
+        cut = low + int(np.argmin(profile[low:high]))
+        # Generated antialiasing can create a tiny bridge between two rows.
+        # Split only an unusually tall component with a near-empty waist.
+        if profile[cut] > max(4, tallest.width * 0.12):
+            break
+        top = Box(tallest.x0, tallest.y0, tallest.x1, tallest.y0 + cut)
+        bottom = Box(tallest.x0, tallest.y0 + cut, tallest.x1, tallest.y1)
+        if any(mask[part.y0 : part.y1, part.x0 : part.x1].sum() < MIN_COMPONENT_AREA
+               for part in (top, bottom)):
+            break
+        parts = [_bbox_of(mask, part) for part in (top, bottom)]
+        if not all(parts):
+            break
+        boxes.remove(tallest)
+        boxes.extend(part for part in parts if part)
+    if len(boxes) != rows * columns:
+        raise ValueError(f"Expected {rows * columns} sprites, detected {len(boxes)}")
+    # Each row has exactly four figures; sorting their centres handles sheets
+    # whose body rows are taller than their portrait rows.
+    ordered = sorted(boxes, key=lambda box: box.center[1])
+    return [sorted(ordered[row * columns : (row + 1) * columns], key=lambda box: box.center[0])
+            for row in range(rows)]
+
+
+def cut_pack_frame(sheet: Image.Image, box: Box) -> Image.Image:
+    """Isolate the selected connected figure so a neighbour cannot leak into its crop."""
+    frame = cut_frame(sheet, box, preserve_alpha=True)
+    alpha = np.asarray(frame.getchannel("A"))
+    mask = Image.fromarray(np.where(alpha > 128, 255, 0).astype(np.uint8)).copy()
+    points = np.argwhere(alpha > 128)
+    center = np.array([frame.height / 2, frame.width / 2])
+    seed_y, seed_x = points[np.argmin(((points - center) ** 2).sum(axis=1))]
+    ImageDraw.floodfill(mask, (int(seed_x), int(seed_y)), 128)
+    selected = Image.fromarray(np.where(np.asarray(mask) == 128, 255, 0).astype(np.uint8))
+    # Restore low-alpha antialiased edges around the isolated figure.
+    selected = selected.filter(ImageFilter.MaxFilter(7))
+    frame.putalpha(Image.fromarray(np.where(np.asarray(selected) > 0, alpha, 0).astype(np.uint8)))
+    bounds = frame.getbbox()
+    if not bounds:
+        raise ValueError("An extracted sprite is empty")
+    return frame.crop(bounds)
+
+
+def build_packs(pack_ids: list[str] | None = None) -> None:
+    """Build the approved cast, retaining distinct art for all three builds."""
+    root = CHARACTER_DIR.parent
+    manifest = json.loads((root / "packs.json").read_text(encoding="utf-8"))
+    unknown = set(pack_ids or []) - {pack["id"] for pack in manifest["packs"]}
+    if unknown:
+        raise ValueError(f"Unknown character packs: {', '.join(sorted(unknown))}")
+    written = 0
+    for pack in manifest["packs"]:
+        if pack_ids and pack["id"] not in pack_ids:
+            continue
+        pack_dir = root / pack["id"]
+        prepared: dict[str, Image.Image] = {}
+        for file_name, builds in pack.get("sheets", manifest["sheets"]).items():
+            with Image.open(pack_dir / file_name) as sheet:
+                rows = manifest["rowsPerBuild"] * len(builds)
+                grid = pack_grid(sheet, rows, manifest["columns"])
+                cells = [box for row in grid for box in row]
+                for build_index, build in enumerate(builds):
+                    for index, frame_key in enumerate(manifest["frames"]):
+                        cell = cells[build_index * len(manifest["frames"]) + index]
+                        prepared[f"{frame_key}-{build}.png"] = cut_pack_frame(sheet, cell)
+        for frame_key, file_name in pack.get("overrides", {}).items():
+            name = f"{frame_key}.png"
+            if name not in prepared:
+                raise ValueError(f"Unknown override frame: {frame_key}")
+            with Image.open(pack_dir / file_name) as sheet:
+                frame = cut_pack_frame(sheet, pack_grid(sheet, 1, 1)[0][0])
+                frame.thumbnail((512, 512), Image.Resampling.LANCZOS)
+                prepared[name] = frame
+        # Validate and cut the complete pack before writing any output.
+        output = pack_dir / "frames"
+        output.mkdir(parents=True, exist_ok=True)
+        for name, frame in prepared.items():
+            frame.save(output / name, optimize=True)
+            written += 1
+        print(f"{pack['id']}: wrote {len(prepared)} frames")
+    print(f"wrote {written} pack frames")
+    preview_pack_builds(root, manifest)
+
+
+def preview_pack_builds(root: Path, manifest: dict) -> None:
+    """Compose real output frames side by side for a build/identity art review."""
+    builds = ("lean", "average", "stocky")
+    paths = [root / pack["id"] / "frames" / f"stage-5-{build}.png"
+             for pack in manifest["packs"] for build in builds]
+    if not all(path.exists() for path in paths):
+        print("preview deferred until every pack has been cut")
+        return
+
+    def font(size: int) -> ImageFont.ImageFont:
+        for name in ("arial.ttf", "DejaVuSans.ttf"):
+            try:
+                return ImageFont.truetype(name, size)
+            except OSError:
+                continue
+        return ImageFont.load_default(size=size)
+
+    canvas = Image.new("RGBA", (1440, 1400), (17, 24, 39, 255))
+    draw = ImageDraw.Draw(canvas)
+    title_font, label_font, build_font = font(34), font(25), font(16)
+    draw.text((36, 24), "BODY DEBUGGER / 9 ПЕРСОНАЖЕЙ × 3 БИЛДА", font=title_font, fill="#f8fafc")
+    for index, pack in enumerate(manifest["packs"]):
+        x, y = 24 + (index % 3) * 472, 90 + (index // 3) * 428
+        draw.rounded_rectangle((x, y, x + 448, y + 404), radius=18, fill="#1e293b")
+        draw.text((x + 20, y + 15), pack["label"], font=label_font, fill="#e2e8f0")
+        for column, (build, label) in enumerate(zip(builds, ("Худой", "Обычный", "Плотный"))):
+            with Image.open(root / pack["id"] / "frames" / f"stage-5-{build}.png") as source:
+                frame = source.copy()
+            frame.thumbnail((136, 306), Image.Resampling.LANCZOS)
+            left = x + 9 + column * 144 + (136 - frame.width) // 2
+            canvas.alpha_composite(frame, (left, y + 62 + 306 - frame.height))
+            draw.text((x + 77 + column * 144, y + 378), label, anchor="mm", font=build_font, fill="#94a3b8")
+    path = root / "character-builds-preview.png"
+    canvas.convert("RGB").save(path, optimize=True)
+    print(f"preview: {path.relative_to(ROOT)}")
+
+
 if __name__ == "__main__":
     try:
-        build()
+        if len(sys.argv) > 1 and sys.argv[1] == "--packs":
+            build_packs(sys.argv[2:] or None)
+        elif not sys.argv[1:]:
+            build()
+        else:
+            raise SystemExit("Usage: python scripts/cut-character-sprites.py [--packs [pack-id ...]]")
     except KeyboardInterrupt:
         sys.exit(130)

@@ -1,0 +1,17 @@
+Generated with built-in image_gen on 2026-10-30.
+Reference: ../character-casting-sheet.png.
+
+Use case: stylized-concept.
+Asset type: production character sprite sheet for the Body Debugger desktop exercise game.
+Input image is an APPROVED CHARACTER CASTING reference. Select ONLY the specified character and preserve that exact face, hairstyle, outfit, palette, footwear and characteristic small accessories throughout all 16 frames. Match the hand-inked comic style, clean dark outlines and polished cel shading of that reference.
+Generate ONE genuinely transparent RGBA sprite sheet, exactly FOUR COLUMNS by FOUR ROWS with exactly SIXTEEN separate illustrations and no other content. Every equal grid cell must have generous clear transparent margins, at least 10% cell width and 6% cell height, so no limb, hair, prop or shoe crosses a cell boundary. All full-body cells show the ENTIRE character including both shoes. Bodies should be about 78% of cell height and centered; preserve consistent head scale across body cells. Portrait cells show head and shoulders, centered with clear margin, no circle or border.
+No text, no labels, no numbers, no panel frames, no background, no checkerboard painted into art, no shadows on the ground. Clear alpha outside each figure and between the legs; avoid detached loose particles or props.
+EXACT cell order, row-major, left to right:
+ROW 1: stage 0 tired and slightly hunched full body; stage 1 awakening and beginning to straighten full body; stage 2 relaxed upright full body; stage 3 energetic upright confident full body.
+ROW 2: stage 4 visibly fit athletic full body; stage 5 peak heroic confident full body, hands on hips or friendly flex, still original fully covering outfit; neglect level 1 mild loss of tone and slight slouch full body; neglect level 2 clear rounded shoulders, weary posture and loss of fitness full body.
+ROW 3: neglect level 3 maximum funny loss of form, very hunched and unfit but same identity/outfit full body; TIRED head-and-shoulders bust, drooping eyes; NEUTRAL head-and-shoulders bust, calm; FOCUSED head-and-shoulders bust, intent eyes.
+ROW 4: HAPPY head-and-shoulders bust, warm delighted smile; PROUD head-and-shoulders bust, pleased confident chin; POWER athletic full-body exercise stance, bent arms lightly flexed with clenched hands, no gym props needed; MOBILITY full-body side-lunge stretching pose with a moderately wide stance completely contained in its cell, no cropped feet.
+The six progression bodies must read as distinct steps through posture, confidence and subtle fitness changes. Neglect levels must be progressively worse in silhouette; preserve dignity and affectionate comedy. Never remove clothes or convert the person into a different person. No sexualization, no nudity, no logos, no watermarks. Match the approved character faithfully in every single cell.
+SELECTED CHARACTER: Стритвир, located MIDDLE RIGHT in the input casting sheet.
+IDENTITY AND WARDROBE: Black adult man late 20s with dark brown skin, short neat twists and small neat beard; oversized burnt-orange varsity jacket with abstract geometric patches, cream tee, loose dark cargo trousers, black sling bag, orange/white high-top sneakers, black headphones around neck; a tiny green houseplant pot as a small belt/bag charm.
+CHARACTER HUMOR AND EVOLUTION: relaxed playful eyebrow and proud sneaker-care personality; neglect is increasingly slouched and potbellied, peak athletic and confident; humor never relates to ethnicity.

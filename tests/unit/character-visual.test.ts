@@ -45,6 +45,15 @@ describe('character frame rules', () => {
 })
 
 describe('characterBodyCandidates', () => {
+  it('replaces even a peak branch pose with the current neglect body and safe fallbacks', () => {
+    expect(characterBodyCandidates(5, 'power', 'lean', 3)).toEqual([
+      'neglect-3-lean', 'neglect-3-average', 'stage-0-lean', 'stage-0-average', CHARACTER_EMOJI_FRAME
+    ])
+    expect(characterBodyCandidates(5, 'mobility', 'neutral', 2)).toEqual([
+      'neglect-2-average', 'stage-0-average', CHARACTER_EMOJI_FRAME
+    ])
+  })
+
   it('uses the branch pose for power and mobility from stage 4', () => {
     expect(characterBodyCandidates(4, 'power', 'lean')).toEqual([
       'pose-power-lean',
@@ -106,6 +115,20 @@ describe('characterFaceCandidates', () => {
 })
 
 describe('frame assets', () => {
+  it('ships all three neglect levels for every build and stage', () => {
+    for (const level of [1, 2, 3] as const) {
+      for (const stage of stages) {
+        for (const branch of branches) {
+          for (const build of ['lean', 'average', 'stocky', 'neutral'] as const) {
+            const candidates = characterBodyCandidates(stage, branch, build, level)
+            expect(new Set(candidates).size).toBe(candidates.length)
+            expect(frameFiles.has(candidates[0]), candidates[0]).toBe(true)
+          }
+        }
+      }
+    }
+  })
+
   it('ships every body frame the resolver can ask for', () => {
     for (const stage of stages) {
       for (const branch of branches) {

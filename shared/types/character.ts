@@ -6,6 +6,9 @@ export type CharacterBranch = 'neutral' | 'posture' | 'power' | 'mobility'
 
 export type CharacterBuild = 'lean' | 'average' | 'stocky' | 'neutral'
 
+/** Temporary visual neglect, independent of the earned stage and selected build. */
+export type CharacterConditionLevel = 0 | 1 | 2 | 3
+
 /** UI-layer emotion; not part of progress calculation */
 export type CharacterEmotion =
   | 'neutral'

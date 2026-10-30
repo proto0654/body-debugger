@@ -97,13 +97,15 @@ never clamped, and the core cycle resolves without any details.
 
 ## Character sprites
 
-Source sheets in `src/assets/character/desk-hulk/` (`sprite-sheet-stages.png`, `sprite-sheet-branches.png`, `emotions/emotions-set-*.png`) are the only art source. After replacing a sheet, re-cut the frames:
+Source sheets in `src/assets/character/desk-hulk/` (`sprite-sheet-stages.png`, `sprite-sheet-branches.png`, `sprite-sheet-neglect.png`, `emotions/emotions-set-*.png`) are the only art source. After replacing a sheet, re-cut the frames:
 
 ```bash
 python scripts/cut-character-sprites.py   # needs Pillow + NumPy
 ```
 
-The script detects figures, drops the flat sheet background and writes individual PNGs to `src/assets/character/desk-hulk/frames/`. Do not edit `frames/` by hand. Naming and resolution rules: [ARCHITECTURE.md](ARCHITECTURE.md).
+The script detects figures, drops the flat background from legacy sheets and writes 42 individual PNGs to `src/assets/character/desk-hulk/frames/`. The neglect sheet has authored alpha: detection uses that alpha and cropping preserves its antialiased transparency. Its three rows are levels 1/2/3 and columns are lean/average/stocky; fixed equal-cell cuts would clip the first row's shoes. Generation used the built-in `image_gen` tool with the existing stage sheet as an identity/style reference; the exact prompt is [stored beside the source](../src/assets/character/desk-hulk/sprite-sheet-neglect.prompt.txt). Do not edit `frames/` by hand. Naming and resolution rules: [ARCHITECTURE.md](ARCHITECTURE.md).
+
+The approved [nine-character casting sheet](../src/assets/character/character-casting-sheet.png) now has 432 separate RGBA frames: three builds and sixteen states per character. Sources, exact prompts, the build comparison and regeneration commands live in the [character art library](../src/assets/character/README.md). Use `python scripts/cut-character-sprites.py --packs` for these packs. The runtime resolver and settings still use Desk Hulk; selecting the new packs is a separate integration step.
 
 ## Motion
 

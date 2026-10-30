@@ -1,6 +1,7 @@
 import type {
   CharacterBranch,
   CharacterBuild,
+  CharacterConditionLevel,
   CharacterEmotion,
   CharacterStage
 } from '../types/character'
@@ -56,9 +57,17 @@ function withBuildFallback(prefix: string, build: CharacterFrameBuild): string[]
 export function characterBodyCandidates(
   stage: CharacterStage,
   branch: CharacterBranch,
-  build: CharacterBuild
+  build: CharacterBuild,
+  condition: CharacterConditionLevel = 0
 ): string[] {
   const buildKey = frameBuild(build)
+  if (condition > 0) {
+    return [
+      ...withBuildFallback(`neglect-${condition}`, buildKey),
+      ...withBuildFallback('stage-0', buildKey),
+      CHARACTER_EMOJI_FRAME
+    ]
+  }
   const stageFrame = CHARACTER_STAGE_FRAME[stage]
   const hasBranchPose = stageFrame >= 4 && (branch === 'power' || branch === 'mobility')
   const pose = hasBranchPose ? withBuildFallback(`pose-${branch}`, buildKey) : []

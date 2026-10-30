@@ -1,0 +1,23 @@
+Generated with built-in image_gen on 2026-10-30.
+Reference: ../character-casting-sheet.png.
+
+Use case: stylized-concept. Production transparent character sprites.
+Input is the approved casting reference. Select ONLY Хипстер, located BOTTOM RIGHT. Preserve that exact face, hairstyle, clothing and accessories.
+IDENTITY: adult man early 30s with luxuriant ginger beard, round spectacles and tiny mustard beanie, rolled-sleeve red flannel shirt, cuffed indigo jeans, patterned socks, brown leather boots, cream canvas tote with abstract leaf print and small bicycle pump attached.
+PERSONALITY: exaggerated pour-over coffee connoisseur concentration; neglect makes his shoulders and beard droop and gives a softer belly, peak is upright outdoorsy athletic confidence.
+
+Generate a tall portrait transparent RGBA sheet, requested size 1536x3072, exactly FOUR COLUMNS and EIGHT ROWS, exactly THIRTY-TWO clearly separated sprites. No text, no numbers, no grid lines, no background, no checkerboard. Large transparent gutters, no overlapping figures, no cropped feet. Every body completely visible. Consistent clean dark ink contours and cel shading matching the reference.
+THIS SHEET HAS TWO BUILDS OF THE SAME CHARACTER:
+UPPER HALF, rows 1-4: LEAN BUILD, distinctly slender narrow shoulders, narrow hips, thin limbs, loosely hanging clothes, a slimmer jaw. Fit stage is still lean and wiry.
+LOWER HALF, rows 5-8: STOCKY BUILD, distinctly broad shoulders and torso, thick arms and legs, rounder face, wider hips, fuller body under the same fully covering clothes. Fit stage is broad and robust; neglect stage becomes softer and potbellied.
+The TWO builds must read as clearly different silhouettes, not scaled copies. Keep the hairstyle, identity, clothing design and personality unchanged. No sexualization, no nudity.
+EXACT ORDER, left to right:
+ROW 1 (LEAN): stage0 tired mildly hunched body; stage1 awakening body; stage2 straight relaxed body; stage3 energetic confident body.
+ROW 2 (LEAN): stage4 fit athletic body; stage5 peak heroic body hands on hips; neglect1 mild slouch body; neglect2 clearly stooped weary body.
+ROW 3 (LEAN): neglect3 maximum loss of form, scrawny and hunched body; tired head-and-shoulders bust; neutral head-and-shoulders bust; focused head-and-shoulders bust.
+ROW 4 (LEAN): happy head-and-shoulders bust; proud head-and-shoulders bust; power full-body lightly flexing athletic stance; mobility full-body moderate side lunge.
+ROW 5 (STOCKY): stage0 tired mildly hunched body; stage1 awakening body; stage2 straight relaxed body; stage3 energetic confident body.
+ROW 6 (STOCKY): stage4 fit athletic body; stage5 peak heroic body hands on hips; neglect1 mild slouch body; neglect2 clearly stooped weary and softer belly body.
+ROW 7 (STOCKY): neglect3 maximum loss of form, very round-bellied and hunched body; tired head-and-shoulders bust; neutral head-and-shoulders bust; focused head-and-shoulders bust.
+ROW 8 (STOCKY): happy head-and-shoulders bust; proud head-and-shoulders bust; power full-body lightly flexing athletic stance; mobility full-body moderate side lunge.
+Exactly 32 pictures, all rows must fit fully, both lean and stocky sets equally detailed, generous clear margins. Affectionate humorous game character, recognizable expressive faces.

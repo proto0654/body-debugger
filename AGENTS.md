@@ -44,6 +44,8 @@ Project docs and this file override global agent rules when they conflict.
 | Shared types & validation | `shared/` |
 | Exercise catalog + domain rules (picker, character, session extras, weight) | `shared/constants/exercises.ts`, `shared/domain/` |
 | Character assets (source sheets + cut frames) | `src/assets/character/desk-hulk/` |
+| Additional character art (nine packs, three builds) | [Art library](src/assets/character/README.md), `src/assets/character/packs.json` |
+| Temporary character condition (neglect / recovery) | `shared/domain/character-condition.ts` |
 | Character frame rules / resolver | `shared/domain/character-visual.ts`, `src/components/character/frames.ts` |
 | Sprite cutting script | `scripts/cut-character-sprites.py` |
 | Motion preference / exit timings | `src/motion.ts` |

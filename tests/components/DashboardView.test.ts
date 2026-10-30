@@ -6,6 +6,7 @@ import DashboardView from '@/views/DashboardView.vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useSessionsStore } from '@/stores/sessions'
 import { useCharacterStore } from '@/stores/character'
+import { useProgressStore } from '@/stores/progress'
 import { makeSession, makeSettings } from '../fixtures'
 import type { DataSnapshot } from '@shared/types/persistence'
 import type { AppSettings } from '@shared/types/settings'
@@ -72,6 +73,32 @@ afterEach(() => {
 })
 
 describe('DashboardView — optional layers', () => {
+  it('shows accumulated neglect and restores the earned form after five saved completions', async () => {
+    vi.useFakeTimers()
+    const skips = Array.from({ length: 10 }, () => makeSession({ exerciseId: 'neck-tilts', status: 'missed' }))
+    wrapper = mountDashboard(skips)
+    useProgressStore().hydrate({ ...progress, characterStage: 5, characterBranch: 'power', characterBuild: 'stocky' })
+    await nextTick()
+    const scene = wrapper.get('[data-testid="character-scene"]')
+    expect(scene.get('img').attributes('src')).toMatch(/neglect-3-stocky/)
+    expect(scene.get('.character-badge').text()).toContain('6 / 6')
+    expect(wrapper.get('[data-testid="character-condition"]').text()).toContain('Скуф · 10 / 10')
+    expect(wrapper.get('[data-testid="character-condition"]').text()).toContain('восстановления: 5')
+    useSessionsStore().hydrate([...skips, makeSession({ exerciseId: 'neck-tilts' })])
+    await nextTick()
+    vi.advanceTimersByTime(3500)
+    await nextTick()
+    expect(scene.get('img').attributes('src')).toMatch(/neglect-2-stocky/)
+    expect(wrapper.get('[data-testid="character-condition"]').text()).toContain('8 / 10')
+    useSessionsStore().hydrate([...skips, ...Array.from({ length: 5 }, () => makeSession({ exerciseId: 'neck-tilts' }))])
+    await nextTick()
+    vi.advanceTimersByTime(3500)
+    await nextTick()
+    expect(scene.get('img').attributes('src')).toMatch(/pose-power-stocky/)
+    expect(wrapper.find('[data-testid="character-condition"]').exists()).toBe(false)
+    expect(useProgressStore().characterStage).toBe(5)
+  })
+
   it('shows the proud portrait when a new day extends an existing streak', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date(2026, 9, 30, 12))

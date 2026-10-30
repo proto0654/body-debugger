@@ -20,6 +20,7 @@ import { CHARACTER_BRANCH_LABELS, CHARACTER_STAGE_LABELS } from '@shared/constan
 import { EXERCISE_CATALOG } from '@shared/constants/exercises'
 import { mergeCatalogs } from '@shared/domain/ai-proposal'
 import { characterJourney } from '@shared/domain/character-progress'
+import { CHARACTER_CONDITION_MAX_POINTS, CHARACTER_CONDITION_RECOVERY_POINTS } from '@shared/domain/character-condition'
 import type { CharacterReactionEvent } from '@shared/domain/character-reaction'
 import { computeStreak } from '@shared/domain/streak'
 import { localDateKey } from '@shared/domain/stats'
@@ -156,12 +157,17 @@ async function triggerReminder(): Promise<void> {
           </div>
           <p class="mt-4 text-xs" :class="reminder.paused ? 'text-amber-400' : 'text-slate-400'">{{ reminder.nextTriggerLabel }}</p>
           <p class="mt-3 text-xs text-emerald-400">{{ journey.nextStage === null ? 'Пиковая форма достигнута' : `${remainingLabel} до формы «${CHARACTER_STAGE_LABELS[journey.nextStage]}»` }}</p>
+          <div v-if="character.condition.points > 0" class="mt-4 max-w-sm rounded-xl border border-amber-400/25 bg-amber-400/5 p-3 text-xs leading-relaxed" data-testid="character-condition" role="status">
+            <p class="font-semibold text-amber-300">{{ character.conditionLabel }} · {{ character.condition.points }} / {{ CHARACTER_CONDITION_MAX_POINTS }}</p>
+            <p class="mt-1 text-slate-400">Пропуски ухудшают внешний вид. Разминка снимает {{ CHARACTER_CONDITION_RECOVERY_POINTS }} очка. До полного восстановления: {{ character.condition.recoverySessions }}.</p>
+            <p class="mt-1 text-slate-500">Достигнутая форма сохраняется.</p>
+          </div>
           <p v-if="actionError" class="mt-2 text-xs text-red-300" role="alert">{{ actionError }}</p>
         </div>
         <div class="hero-character" :class="{ 'hero-character--speaking': reactionActive }" data-testid="character-scene">
           <span class="character-badge">ФОРМА {{ character.state.stage + 1 }} / 6</span>
           <CharacterPortrait size="xl" :variant="reactionActive ? 'face' : 'body'" :show-label="false" :stage="character.state.stage" :branch="character.state.branch"
-            :build="character.state.build" :emotion="character.emotion" />
+            :build="character.state.build" :emotion="character.emotion" :condition="character.condition.level" />
           <p class="mt-1 text-lg font-semibold text-white">{{ CHARACTER_STAGE_LABELS[character.state.stage] }}</p>
           <p class="mt-1 text-xs text-emerald-400">{{ CHARACTER_BRANCH_LABELS[character.state.branch] }}</p>
         </div>

@@ -1,0 +1,6 @@
+Generated with built-in image_gen on 2026-10-30.
+Reference: sprite-sheet-stocky.png. Standalone full-body replacement for the cropped neglect cell.
+
+Create ONE SINGLE FULL-BODY transparent game sprite, NOT a sheet, of the same adult mother shown in the reference, using her STOCKY build. Same auburn ponytail, sunglasses on head, gold hoop earrings, burgundy sports jacket, fully covering cream top, black joggers, white sneakers, canvas tote with tiny dinosaur.
+This is the maximum NEGLECT state: visibly broad and round-bellied under her clothes, very hunched forward, drooping shoulders, tired mildly sheepish face, knees a little bent, both hands hanging near knees. Affectionate comic game caricature, same clean ink contours and cel shading.
+Show the ENTIRE figure including complete lower legs and BOTH ENTIRE WHITE SNEAKERS. Fit all of her inside a tall portrait canvas with ample clear transparent margin on every side. No cropping at thighs or waist. One person only. No text, no labels, no ground, no shadow, no background, actual alpha transparency. Fully clothed, nonsexual. Match identity and clothing exactly.

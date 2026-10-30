@@ -1,0 +1,6 @@
+Generated with built-in image_gen on 2026-10-30.
+Reference/edit target: sprite-sheet-average.png.
+
+Edit the provided exact sixteen-frame transparent sprite sheet. Preserve the SAME ADULT BEARDED MAN in EVERY cell, including both smiling portraits. Preserve the original 4-column x4-row layout and all SIXTEEN states in the exact same cells. Preserve entire bodies including both white shoes. Face: styled brown hair, masculine jaw, short brown beard; peach overshirt, white tee, sage trousers, white sneakers, watch.
+CHANGE ONLY BODY BUILD throughout EVERY body and face to LEAN: distinctly narrow shoulders, thin arms and legs, slender torso and slim masculine jaw, clothes hanging loosely on a light wiry adult man.
+Keep the six stages, three neglect bodies, tired/neutral/focused/happy/proud male portraits, power and mobility poses in the SAME original cells. Exactly16 isolated pictures in4rows4columns, spacious clear transparent gutters at least20pixels, no body touching any neighbour. No cropped feet, no woman or different identity, no swap of states. Actual transparent RGBA background, no text, no labels, no ground. Match the existing polished ink-and-cel-shaded style.

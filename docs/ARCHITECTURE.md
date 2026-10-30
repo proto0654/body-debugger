@@ -2,6 +2,11 @@
 
 What the code already reflects. Product rules: [CONCEPT.md](../CONCEPT.md).
 
+An [explorable architecture snapshot](../.archify/architecture-app-20261030-020407/body-debugger-architecture.html)
+captures the tray, windows, IPC and persistence flow as of 2026-10-30. Its saved
+sources and check receipts are archival evidence; current behavior, including
+popup geometry and character condition, is described below.
+
 ## Layout
 
 ```
@@ -265,7 +270,23 @@ The layer is off by default (`settings.photos.enabled`). `photoIds` are only car
 | Neutral fallback | Fewer than 3 points for the leader, or the leader does not beat the runner-up by 20% |
 | Streak | Day-based `current` / `max` recomputed on `done` (see above) |
 
-`characterBuild` stays a user preference; visuals resolve from stage + branch + build + emotion.
+`characterBuild` stays a user preference; visuals resolve from stage + branch + build + emotion + temporary condition.
+
+### Temporary character condition
+
+[shared/domain/character-condition.ts](../shared/domain/character-condition.ts) derives visual condition from saved sessions; `useCharacterStore` recomputes it after hydration and every history update.
+
+| Rule | Behaviour |
+|------|-----------|
+| Neglect | `skipped` (including closing a popup) / `missed` add 1 point, capped at 10 |
+| Recovery | `done` subtracts 2, floored at 0; no future credit; at most five completions fully restore condition |
+| Levels | 0 below 3 points; 1 at 3; 2 at 6; 3 at 10 |
+| No passive penalty | Snoozes and time passing without saved results do not change condition, including pause, idle and a closed app |
+| History | Chronological result timestamps (`completedAt`, otherwise `triggeredAt`); invalid timestamps ignored, duplicate ids counted once |
+| Presentation | `lean` becomes scrawny, `average` / unset build slouches, `stocky` becomes potbellied; earned stage, branch and selected build stay unchanged |
+| UI | Today shows condition points and completions needed for full recovery; completion portraits remain expressive |
+
+No field or schema version is added to JSON: existing saved results immediately determine condition, including historical skips. Rollback only requires reverting code/assets; session history and earned progression remain compatible.
 
 ### Character visuals
 
@@ -276,16 +297,25 @@ Rules: `shared/domain/character-visual.ts` (pure). Frames: `src/assets/character
 | Stage body | `stage-{0,2,4}-{build}` | `sprite-sheet-stages.png`, first three rows |
 | Branch pose | `pose-{branch}-{build}` | `sprite-sheet-branches.png` |
 | Emotion bust | `emotion-{emotion}-{build}` | `emotions/emotions-set-{1,2,3}.png` |
+| Neglect body | `neglect-{1,2,3}-{build}` | `sprite-sheet-neglect.png`, rows = severity, columns = lean / average / stocky |
 
 | Rule | Behaviour |
 |------|-----------|
 | Build | `neutral` (not chosen) → `average` body |
 | Stage tiers | Stages 0–1 → `stage-0`, 2–3 → `stage-2`, 4–5 → `stage-4` |
 | Branch pose | `power` / `mobility` replace the body from stage 4 (strong/peak form) |
+| Neglect | Condition levels 1–3 override stage and branch body; fallback: matching neglect build → average neglect → matching stage-0 body → average stage-0 → emoji |
 | Emotion | `emotion-*` busts feed the popup face; `surprised` uses the happy bust |
 | Fallback | exact build → `average` build → emoji; an image load error also shows the emoji |
 
 `CharacterPortrait` normally renders `variant="body"` on the dashboard and switches to a large `variant="face"` for 3.5 seconds after a completion or milestone; the popup uses `variant="face"`; `src/components/character/frames.ts` maps a winning key to the bundled URL. Source sheets stay in the repo as the only art source — never edit `frames/` by hand.
+
+The runtime glob currently bundles Desk Hulk only. Nine additional characters
+have 432 generated frames (three builds × sixteen states per character) in the
+[art library](../src/assets/character/README.md). Their [manifest](../src/assets/character/packs.json)
+drives `scripts/cut-character-sprites.py --packs`; it is not yet connected to a
+runtime pack resolver or settings selector. Their six individual stage bodies
+do not change Desk Hulk's existing three-tier mapping.
 
 ### Comic reactions
 
@@ -293,7 +323,7 @@ Rules: `shared/domain/character-visual.ts` (pure). Frames: `src/assets/character
 
 `ComicBubble.vue` renders text safely as text, with a heading variant for the hero and a compact variant for the popup. CSS paper, ink and milestone tokens support all themes. Cheer/milestone captions pop briefly; calm invitations, pause and skips do not. Global reduced-motion rules suppress those animations.
 
-The dashboard restores the stage body after a reaction and keeps skips/snoozes calm. The popup changes ready → focused on explicit start, then chooses first-done/done/stage-up only after durable acknowledgement. No caption is treated as proof of physical activity. Geometry reserves a 40 px dialogue row: 260 px base, 290 px collapsed details, 380 px expanded, plus 36 px for errors (max 420).
+The dashboard restores the current body (including temporary neglect) after a reaction and keeps skip/snooze captions calm. The popup changes ready → focused on explicit start, then chooses first-done/done/stage-up only after durable acknowledgement. No caption is treated as proof of physical activity. Geometry reserves a 40 px dialogue row: 260 px base, 290 px collapsed details, 380 px expanded, plus 36 px for errors (max 420).
 
 ### Motion
 
@@ -361,7 +391,7 @@ Preload: `electron/preload/index.ts`.
 | Optional session details (reps / feeling / weight) | Yes — popup block + dashboard switch; ROADMAP #8 (partial) |
 | Weight history (sparkline, manual entries, goal) | Yes — dashboard card; sessions backfilled once; ROADMAP #8 (partial) |
 | Tailwind + routed dashboard / popup views | Yes |
-| Desk Hulk source sheets + 33 cut frames under `src/assets/character/desk-hulk/` | Yes — [ROADMAP.md](ROADMAP.md) #6 |
+| Desk Hulk source sheets + 42 cut frames under `src/assets/character/desk-hulk/` | Yes — includes nine temporary neglect bodies |
 | CharacterPortrait (body / face frames + emoji fallback) | Yes |
 | Tray frame animation (pulse / sway / jump per state) | Yes — [ROADMAP.md](ROADMAP.md) #7 |
 | Motion preference (popup, character, tray) | Yes — dashboard switch + OS setting |
@@ -386,6 +416,7 @@ Preload: `electron/preload/index.ts`.
 | Weight ranges, series, goal gap | [shared/domain/weight.ts](../shared/domain/weight.ts) |
 | Popup geometry (heights / margins) | [shared/constants/popup.ts](../shared/constants/popup.ts) |
 | Stage / branch from history | [shared/domain/character-progress.ts](../shared/domain/character-progress.ts) |
+| Temporary neglect / recovery | [shared/domain/character-condition.ts](../shared/domain/character-condition.ts) |
 | Character frame keys + fallbacks | [shared/domain/character-visual.ts](../shared/domain/character-visual.ts) |
 | Motion keyframes + reduced-motion CSS | [src/styles/index.css](../src/styles/index.css) |
 | Motion preference + popup exit timings | [src/motion.ts](../src/motion.ts) |

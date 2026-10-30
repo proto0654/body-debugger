@@ -35,7 +35,7 @@ export const DEBUG_SCENARIOS: readonly DebugScenario[] = [
   {
     id: 'many-skips',
     title: 'Много пропусков',
-    description: '10 пропусков подряд, персонаж не растёт'
+    description: '10 пропусков подряд — максимальная визуальная деградация'
   },
   {
     id: 'upper-body',

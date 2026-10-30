@@ -29,6 +29,7 @@ tests/
 | Reminder loop | idempotent acknowledgement, mismatched identity rejection, retry after disk failure, manual trigger, single popup, done / snoozed / skipped / missed, tray states, success blink, pause, idle hold + long-break restart, interval reschedule, photo id filtering | `tests/unit/trigger-loop.test.ts` (Electron mocked) |
 | Picker | inventory gate, previous/today penalties, neglect cap, focus bonuses, four modes, deterministic roll edges | `tests/unit/exercise-picker.test.ts` |
 | Character progress | stage thresholds, branch window (last 30), 20% margin, status filtering | `tests/unit/character-progress.test.ts` |
+| Character condition | neglect thresholds, missed/closed popups, snooze exclusion, capped debt, recovery without future credit, chronology, replays, invalid timestamps, build variants, stage preservation and dashboard restoration | `tests/unit/character-condition.test.ts`, `tests/stores/character.test.ts`, `tests/components/DashboardView.test.ts` |
 | Streak | expiration on later snapshot reads, unique days, today/yesterday grace, gaps, longest run, bad timestamps, main recompute | `tests/unit/streak.test.ts`, `tests/unit/persistence-streak.test.ts` |
 | Frame rules | stage tiers, branch pose from stage 4, build fallback, every resolved frame exists on disk | `tests/unit/character-visual.test.ts` |
 | Severity | 80% unlock boundary, timer-less exercises, `mm:ss` rounding | `tests/unit/severity.test.ts` |
@@ -57,6 +58,12 @@ Optional hydration (`tests/stores/hydrate.test.ts`) also covers a failed photo q
 
 Rules for new tests: no snapshots for logic, inject time (`now`) and randomness (seeded RNG), assert on behaviour rather than internal constants. Write the test against the documented rule **before** the implementation; if the fixture assumption is wrong, fix the test, never the rule.
 
+The additional character art library has static completeness/PNG/build checks in
+`tests/unit/character-packs.test.ts`. Optional cutter tests run with
+`python -m unittest discover -s tests -p 'test_*.py'` (existing Pillow + NumPy tooling).
+These also check real transparency and nonempty foreground in all 432 delivered frames.
+Source mapping and regeneration: [character art library](../src/assets/character/README.md).
+
 ## Not covered yet
 
 - **Main-process windows, tray and IPC wiring** — needs a real Electron session; keep the manual smoke run (`npm run dev`).
@@ -70,6 +77,7 @@ Rules for new tests: no snapshots for logic, inject time (`now`) and randomness 
 - Popup: one exercise; wait before «Начать» and confirm the timer stays full. Start, verify Medium at 80% and Hardcore with pointer/Space/Enter hold. Saved confirmation lasts one second; closing without an answer = `skipped`.
 - Reliability: failed save offers retry without a success reaction; repeated delivery cannot add another result or close a different session. Photo/AI loading failures must not block the core renderer.
 - Comic dialogue: ready/start/saved captions, a large happy/proud portrait after a real result, body restored after 3.5 s; calm skips/pause, all themes and reduced motion. Confirm details plus an error still fit 420 px.
+- Character condition: apply «Много пропусков», check the three build variants in settings and the 10/10 indicator. Simulate completions to see 8/6/4/2/0 points and restoration of the earned body. Snooze and pause alone must not worsen condition; relaunch must preserve it. Check transparent sprite edges on all themes.
 - Today: character hero, day count, live streak across midnight and the next attainable form; optional switches are on «Настройки». Tray «Настройки» must select it in both a new and an existing dashboard.
 - Popup details: turn «Детали в попапе» on, expand, save reps / feeling / weight; turn «Фото» on, attach a photo, submit, confirm the thumbnail appears in the popup and the photo in the dashboard gallery.
 - Settings: change the interval (500 reverts), switch the picker mode, set a primary direction plus accents, change the build, relaunch and confirm all four persist.

@@ -6,6 +6,7 @@ import {
   type DebugScenarioId
 } from '@/debug/scenarios'
 import { computeCharacterProgress } from '@shared/domain/character-progress'
+import { computeCharacterCondition } from '@shared/domain/character-condition'
 import { EXERCISE_CATALOG } from '@shared/constants/exercises'
 import { sanitizeSessions } from '@shared/validation/session'
 import type { UserProgress } from '@shared/types/progress'
@@ -80,6 +81,7 @@ describe('debug scenarios', () => {
     expect(result.sessions.filter((session) => session.status === 'skipped').length).toBeGreaterThanOrEqual(8)
     expect(result.sessions.some((session) => session.status === 'done')).toBe(false)
     expect(result.progress.characterStage).toBe(0)
+    expect(computeCharacterCondition(result.sessions)).toMatchObject({ level: 3, points: 10 })
   })
 
   it('keeps the upper-body preset inside the upper group', () => {

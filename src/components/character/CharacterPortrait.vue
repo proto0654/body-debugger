@@ -3,10 +3,12 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import type {
   CharacterBranch,
   CharacterBuild,
+  CharacterConditionLevel,
   CharacterEmotion,
   CharacterStage
 } from '@shared/types/character'
 import { CHARACTER_BRANCH_LABELS, CHARACTER_EMOTION_LABELS, CHARACTER_STAGE_LABELS } from '@shared/constants/character'
+import { characterConditionLabel } from '@shared/domain/character-condition'
 import {
   characterBodyCandidates,
   characterFaceCandidates
@@ -19,6 +21,7 @@ const props = withDefaults(
     branch?: CharacterBranch
     build?: CharacterBuild
     emotion?: CharacterEmotion
+    condition?: CharacterConditionLevel
     emojiFallback?: string
     size?: 'sm' | 'md' | 'lg' | 'xl'
     showLabel?: boolean
@@ -30,6 +33,7 @@ const props = withDefaults(
     branch: 'neutral',
     build: 'average',
     emotion: 'neutral',
+    condition: 0,
     emojiFallback: '💪',
     size: 'md',
     variant: 'body',
@@ -45,12 +49,14 @@ const sizeClass = computed(() => {
 })
 
 const label = computed(() => CHARACTER_STAGE_LABELS[props.stage])
+const conditionLabel = computed(() => props.variant === 'body' && props.condition > 0
+  ? ` · ${characterConditionLabel(props.condition, props.build)}` : '')
 
 const frameUrl = computed(() =>
   resolveFrameUrl(
     props.variant === 'face'
       ? characterFaceCandidates(props.emotion, props.build)
-      : characterBodyCandidates(props.stage, props.branch, props.build)
+      : characterBodyCandidates(props.stage, props.branch, props.build, props.condition)
   )
 )
 const imageFailed = ref(false)
@@ -84,9 +90,10 @@ onBeforeUnmount(() => {
       :class="[sizeClass, { 'portrait-bounce': bouncing, 'fade-rise': variant === 'body', 'portrait-proud': emotion === 'proud', 'portrait-hero': size === 'xl', 'portrait-expression': variant === 'face' && size === 'xl' }]"
       :data-stage="stage"
       :data-emotion="emotion"
+      :data-condition="condition"
       role="img"
-      :aria-label="`${label} · ${CHARACTER_BRANCH_LABELS[branch]} · ${CHARACTER_EMOTION_LABELS[emotion]}`"
-      :title="`${label} · ${CHARACTER_BRANCH_LABELS[branch]}`"
+      :aria-label="`${label} · ${CHARACTER_BRANCH_LABELS[branch]} · ${CHARACTER_EMOTION_LABELS[emotion]}${conditionLabel}`"
+      :title="`${label} · ${CHARACTER_BRANCH_LABELS[branch]}${conditionLabel}`"
     >
       <Transition name="frame-fade">
         <img
@@ -103,7 +110,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
     <p v-if="variant === 'body' && showLabel" class="text-xs text-slate-400">
-      {{ label }} · {{ CHARACTER_BRANCH_LABELS[branch] }}
+      {{ label }} · {{ CHARACTER_BRANCH_LABELS[branch] }}{{ conditionLabel }}
     </p>
   </div>
 </template>

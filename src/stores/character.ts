@@ -7,11 +7,15 @@ import type {
 } from '@shared/types/character'
 import { DEFAULT_CHARACTER_PACK } from '@shared/constants/character'
 import { characterBodyCandidates } from '@shared/domain/character-visual'
+import { characterConditionLabel, computeCharacterCondition } from '@shared/domain/character-condition'
 import { characterReaction, type CharacterReactionEvent } from '@shared/domain/character-reaction'
 import { useProgressStore } from './progress'
 import { useSettingsStore } from './settings'
+import { useSessionsStore } from './sessions'
 
 export const useCharacterStore = defineStore('character', () => {
+  const condition = computed(() => computeCharacterCondition(useSessionsStore().history))
+  const conditionLabel = computed(() => characterConditionLabel(condition.value.level, state.value.build))
   const reaction = ref(characterReaction('welcome'))
   const emotion = computed(() => reaction.value.emotion)
   const reactionCounts: Partial<Record<CharacterReactionEvent, number>> = {}
@@ -42,7 +46,7 @@ export const useCharacterStore = defineStore('character', () => {
       branch: s.branch,
       build: s.build,
       emotion: s.emotion,
-      candidates: characterBodyCandidates(s.stage, s.branch, s.build)
+      candidates: characterBodyCandidates(s.stage, s.branch, s.build, condition.value.level)
     }
   })
 
@@ -56,6 +60,8 @@ export const useCharacterStore = defineStore('character', () => {
     react,
     state,
     visualKey,
+    condition,
+    conditionLabel,
     setEmotion
   }
 })

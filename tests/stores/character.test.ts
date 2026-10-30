@@ -3,10 +3,11 @@ import { createPinia, setActivePinia } from 'pinia'
 import { useCharacterStore } from '@/stores/character'
 import { useProgressStore } from '@/stores/progress'
 import { useSettingsStore } from '@/stores/settings'
+import { useSessionsStore } from '@/stores/sessions'
 import { characterBodyCandidates } from '@shared/domain/character-visual'
 import { DEFAULT_CHARACTER_PACK } from '@shared/constants/character'
 import type { UserProgress } from '@shared/types/progress'
-import { makeSettings } from '../fixtures'
+import { makeSession, makeSettings } from '../fixtures'
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -25,6 +26,30 @@ function hydrateProgress(overrides: Partial<UserProgress> = {}): void {
 }
 
 describe('character store', () => {
+  it('rebuilds condition from history while retaining the earned stage, branch and chosen build', () => {
+    hydrateProgress({ characterStage: 5, characterBranch: 'power', characterBuild: 'stocky' })
+    const sessions = useSessionsStore()
+    const history = Array.from({ length: 10 }, () => makeSession({ exerciseId: 'neck-tilts', status: 'skipped' }))
+    sessions.hydrate(history)
+    const store = useCharacterStore()
+    const before = useProgressStore().asUserProgress()
+    expect(store.condition).toEqual({ points: 10, level: 3, recoverySessions: 5 })
+    expect(store.conditionLabel).toBe('Скуф')
+    expect(store.visualKey.candidates[0]).toBe('neglect-3-stocky')
+    sessions.hydrate([...history, ...Array.from({ length: 5 }, () => makeSession({ exerciseId: 'neck-tilts' }))])
+    expect(store.condition.points).toBe(0)
+    expect(store.visualKey.candidates[0]).toBe('pose-power-stocky')
+    expect(useProgressStore().asUserProgress()).toEqual(before)
+    sessions.hydrate(history)
+    expect(store.condition.level).toBe(3)
+    useProgressStore().characterBuild = 'lean'
+    expect(store.conditionLabel).toBe('Дрыщ')
+    expect(store.visualKey.candidates[0]).toBe('neglect-3-lean')
+    useProgressStore().characterBuild = 'neutral'
+    expect(store.conditionLabel).toBe('Сутулый')
+    expect(store.visualKey.candidates[0]).toBe('neglect-3-average')
+  })
+
   it('changes captions and emotions without changing durable progress', () => {
     hydrateProgress({ characterStage: 2 })
     const store = useCharacterStore()

@@ -1,0 +1,13 @@
+Generated with the built-in image_gen tool on 2026-10-30.
+Reference: sprite-sheet-stages.png (style and identity only).
+
+Use case: stylized-concept.
+Asset type: transparent production sprite sheet for the existing Desk Hulk desktop game character.
+Input image 1 is a STYLE AND CHARACTER IDENTITY REFERENCE ONLY, not an edit target. Generate a NEW companion sprite sheet matching that illustrated character: same adult man with tousled brown hair, subtle stubble, black over-ear headphones, olive green hoodie with cream drawstrings, charcoal trousers and gray sneakers. Same clean dark ink contours, cel-shaded comic illustration, muted colors and three-quarter view facing slightly right.
+Primary request: exactly NINE full-body character sprites, arranged in a perfectly regular 3 COLUMN x 3 ROW grid with equal cells, generous transparent gutters. No text, no labels, no panels, no background, no floor or cast shadow. Every entire body and both shoes visible; no clipping or overlap. Match head size and body scale across cells. Center every figure in its cell.
+COLUMNS are fixed builds from left to right: LEAN, AVERAGE, STOCKY.
+ROWS are increasing neglect severity from top to bottom: mild loss of form, clear loss of form, maximum comic loss of form.
+Left column LEAN: same slim man gradually looking more scrawny with thin limbs and a baggier loose hoodie, tired and drooping; top slightly slumped, middle noticeably scrawny and wilted, bottom very scrawny and hunched, still clothed and friendly.
+Middle column AVERAGE: same average man progressively rounds his shoulders, pushes neck forward and hunches his upper back. Top mild slouch, middle clearly stooped, bottom deeply hunched office-worker posture, knees a little bent, arms hanging.
+Right column STOCKY: same stocky man progressively becomes rounder and more sedentary with a larger soft belly under a fully covering hoodie; top mildly round and slouched, middle visibly potbellied, bottom very round-bellied and slumped. No nudity or humiliation.
+All nine have tired, mildly sheepish expressions; an affectionate game caricature. Maximum severity must read distinctly from mild at a small UI size. Actual alpha transparency, no checkerboard drawn in the image. One 3x3 sprite sheet only.

@@ -61,6 +61,9 @@ Project docs and this file override global agent rules when they conflict.
 | Keyframes + reduced-motion CSS | `src/styles/index.css` |
 | Tray frames + animation specs | `electron/resources/tray/`, `electron/main/tray-icons.ts` |
 | Tray icon script | `scripts/build-tray-icons.py` |
+| Installer config + app icon | `electron-builder.yml`, `electron/resources/icon.ico`, `scripts/build-app-icon.py` |
+| Update feed, install gating, update UI | `electron/main/updater.ts`, `electron/main/ipc/updates.ts`, `shared/domain/update.ts`, `src/components/settings/AboutPanel.vue` |
+| Main-process log, build stamp, app info IPC | `electron/main/logger.ts`, `electron/main/build-info.ts`, `electron/main/ipc/app.ts`, `src/components/settings/AboutPanel.vue` |
 | Tests (Vitest) | `tests/`, `vitest.config.ts` |
 | Docs | `docs/` |
 | `/actualize` | [.cursor/commands/actualize.md](.cursor/commands/actualize.md) |
@@ -71,6 +74,8 @@ Project docs and this file override global agent rules when they conflict.
 npm run dev          # electron-vite: tray + dashboard
 npm run dev:lab      # isolated native visual laboratory + tray + dashboard
 npm run build
+npm run build:win    # NSIS installer + latest.yml in dist/ (see docs/DELIVERY.md)
+npm run build:dir    # unpacked Windows package for a quick packaged run
 npm run typecheck    # main + renderer + tests
 npm test             # Vitest suite
 ```

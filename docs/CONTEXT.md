@@ -80,6 +80,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Product rules (cycle, severity, character model, picker) | [CONCEPT.md](../CONCEPT.md) |
 | What code already reflects | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | How to run / caches | [DEVELOPMENT.md](DEVELOPMENT.md) |
+| Installer, updates, build stamp | [DELIVERY.md](DELIVERY.md) |
 | Optional sound cues + packs | [SOUNDS.md](SOUNDS.md) |
 | Tests + native laboratory | [TESTING.md](TESTING.md) |
 | Next work | [ROADMAP.md](ROADMAP.md) |
@@ -103,7 +104,8 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 - Core preferences: the «Настройки» tab edits interval (5–240 min), picker mode and Focus; character identity and build on «Персонаж»; values are normalized on load, and an interval change reschedules the loop.
 - Renderer CSP lists `photo:` in `img-src`, so progress photos load through the custom scheme.
 - Native laboratory: `npm run dev:lab` or the dev dashboard «Лаборатория» entry starts a separate profile under `.userdata/laboratory/`. Main owns six chronological stories, silent timeline seeking, native phased replay with automatic/interactive modes, original/manual branches, seeded 7/30/90-day calendars, format-2 saved/exported action plans and popup/idle/write-failure controls. Six laboratory sections («Сценарии», «Попап и цикл», «Ручная проверка», «Звуки», «Данные», «Настройки») expose all user settings, optional data layers, a validated exercise selector and held/repeated local reactions; «Звуки» auditions every generated variant and effect take. Replay uses the profile's live sound settings — a scenario snapshot never carries a mute. «Ручная проверка» exposes clickable forms, condition, branches, builds, emotions and popup states; an independent native preview synchronizes visual overrides without writing sessions or changing scenario time. The permanent transport stays above a responsive live/profile scene with completion/condition charts. Replay waits for completed popup feedback and actual window closure; only the popup owns its result audio. Shared app time follows the virtual cursor/rate; pause freezes deadlines and dispatch while animation/hold time stays real. The driver is available only to the active isolated popup. See [TESTING.md](TESTING.md).
-- Tests: Vitest covers domain rules, stores, persistence, preferences, popup/portrait/weight/heatmap/stats/photo/AI components and the isolated native laboratory.
+- Distribution: NSIS per-user installer (`Body Debugger`, Desk Hulk happy icon from `scripts/build-app-icon.py`), packaged profile at `%APPDATA%\Body Debugger`, main-process log and build stamp in «О программе». Auto-update reads `latest.yml` from the public release repository: checks 25 s after start and every 4 hours, downloads silently, refuses a restart while a popup is open and installs on quit. A version change backs up `data/` to `data-backup/`. See [DELIVERY.md](DELIVERY.md).
+- Tests: Vitest covers domain rules, stores, persistence, preferences, popup/portrait/weight/heatmap/stats/photo/AI components, the isolated native laboratory and the update schedule/gating.
 - Known gaps: six distinct body illustrations for the default Desk Hulk (still three tiers), personal exercise-level progression, automatic AI analysis, export, external-event triggers and Playwright E2E. Window/tray integration still needs manual Electron smoke checks.
 
 ## Doc index
@@ -113,6 +115,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | [README.md](README.md) | Hub / TOC |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Structure, IPC, persistence |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Dev commands, E: caches |
+| [DELIVERY.md](DELIVERY.md) | Installer, update feed, build stamp, release flow |
 | [SOUNDS.md](SOUNDS.md) | Optional sound layer + default pack |
 | [TESTING.md](TESTING.md) | Vitest suite + native laboratory workflow and limits |
 | [ROADMAP.md](ROADMAP.md) | Post-skeleton milestones |

@@ -45,6 +45,8 @@ tests/
 | Calendar / stats | local-day buckets, Monday-first weeks, intensity cap, window size, status counts, seven-day bars, zone shares, top exercises | `tests/unit/stats.test.ts`, `tests/components/CalendarHeatmap.test.ts`, `tests/components/StatsPanel.test.ts` |
 | Laboratory | isolated profile gate, six chronological stories, seeded calendars, import validation, virtual clock, rewind without future data, popup cancellation, main-owned playback, manual interruption, timeout, one-shot write failure and idempotent retry, saved runs, UI entry and commands | `tests/unit/lab-environment.test.ts`, `tests/unit/laboratory-scenarios.test.ts`, `tests/unit/laboratory-controller.test.ts`, `tests/unit/native-playback.test.ts`, `tests/unit/laboratory-ipc.test.ts`, `tests/unit/clock.test.ts`, `tests/components/LaboratoryPanel.test.ts`, `tests/components/DebugPanel.test.ts` |
 | Settings defaults | merge of an older settings file, nested arrays, sound/theme/AI/photo blocks | `tests/unit/persistence-defaults.test.ts` |
+| Updates | check schedule and interval gate, progress clamping, install gating (not ready, open popup), «О программе» statuses, install action and pushed state | `tests/unit/update.test.ts`, `tests/components/AboutPanel.test.ts` |
+| Version backup | first-run marker, no-op on the same version, copy before the new version reads, existing backup preserved, rotation to two, unusable data directory | `tests/unit/persistence-backup.test.ts` |
 | Core preferences | interval bounds / presets / rejection, picker mode guard, Focus normalization (dedupe, primary exclusion), store setters, «Настройки» tab + hash deep link, `photo:` CSP guard | `tests/unit/preferences.test.ts`, `tests/stores/settings.test.ts`, `tests/components/PreferencesPanel.test.ts`, `tests/components/DashboardView.test.ts`, `tests/unit/csp.test.ts` |
 | Exercise payloads | required/optional fields, bad numbers, group/focus tags, `assertExercise` | `tests/unit/exercise-validation.test.ts` |
 | Catalog | 34 entries, unique ids/titles, valid focus tags, inventory equipment | `tests/unit/exercise-catalog.test.ts` |
@@ -68,6 +70,7 @@ Source mapping and regeneration: [character art library](../src/assets/character
 ## Not covered yet
 
 - **Main-process windows, tray and IPC wiring** — needs a real Electron session; keep the manual smoke run (`npm run dev`).
+- **Update download and install against a real feed** — the schedule, gating and panel are unit-tested, but a real download, `quitAndInstall` and relaunch were verified by hand once; repeat the recipe in [DELIVERY.md](DELIVERY.md#verifying-an-update-without-a-public-release) before a release.
 - **`photo://` protocol and native file handling** — main store logic is unit-tested with real temp files; the protocol needs a running Electron app.
 - **E2E (Playwright)** — future work; the tray flow still needs the manual checklist.
 - **Visual regression** — frame/gallery/heatmap appearance is checked by hand.

@@ -6,6 +6,8 @@
 npm run dev          # tray + dashboard (electron-vite)
 npm run dev:lab      # isolated native visual laboratory
 npm run build
+npm run build:dir    # unpacked Windows package in dist/win-unpacked (no installer)
+npm run build:win    # NSIS installer + latest.yml in dist/
 npm run preview
 npm run typecheck    # main + preload + shared (tsc), renderer and tests (vue-tsc)
 npm test             # Vitest suite (see TESTING.md)
@@ -36,10 +38,15 @@ Heavy downloads stay on **E:**, never the system partition.
 |------|--------|
 | npm cache | `E:/Electron/.cache/npm` ([.npmrc](../.npmrc)) |
 | Electron zip cache | `E:/Electron/.cache/electron` (`electron_config_cache` / `ELECTRON_CACHE`) |
+| electron-builder downloads (NSIS, winCodeSign) | `E:/Electron/.cache/electron-builder` (`ELECTRON_BUILDER_CACHE`) |
 | Unpacked runtime | `node_modules/electron/dist/` |
-| Chromium userData | `.userdata/` at repo root (`app.setPath` in `electron/main/index.ts`) |
+| Chromium userData (development) | `.userdata/` at repo root (`app.setPath` in `electron/main/index.ts`) |
+| Chromium userData (installed build) | `app.getPath('userData')` = `%APPDATA%\Body Debugger` — a packaged app cannot write next to `resources/app.asar` |
+| Main-process log | `<userData>/logs/app.log`, rotated once to `app.1.log` at 512 KB |
 | App JSON (settings / progress / sessions / weights / photos / AI) | `.userdata/data/*.json` (main persistence; gitignored with `.userdata/`) |
 | Progress photo files | `.userdata/photos/` (gitignored; metadata in `data/photos.json`) |
+
+An installed build writes to the OS profile and keeps its log there; how a build is identified and how updates reach testers: [DELIVERY.md](DELIVERY.md).
 
 Before / during Electron postinstall:
 
@@ -59,7 +66,27 @@ Do **not** download Electron into `%LOCALAPPDATA%\electron` or park the profile 
 - Dashboard sections: **Сегодня** (character, day totals, next form, quick weight entry), **Персонаж** (identity/build, preview, evolution), **Прогресс** (calendar, statistics, weight history, photos), **Настройки** (rhythm/strictness, selection/Focus, inventory/AI, sounds and appearance); the dev-only **Лаборатория** entry is a separate header action — see [ARCHITECTURE.md](ARCHITECTURE.md#core-preferences).
 - Renderer routes: `#/dashboard`, `#/popup`, `#/laboratory` (controls in an isolated laboratory process); `#/dashboard?tab=settings` opens the settings tab directly (direct links and the tray settings action).
 - After a **Готово** in the popup, streak, sessions and character survive quit/relaunch (check `.userdata/data/`).
-- If the shell exports `ELECTRON_RUN_AS_NODE=1` (some editors/agents do), `electron.exe .` boots as plain Node and crashes on `electron.app`. Clear the variable for smoke runs.
+- If the shell exports `ELECTRON_RUN_AS_NODE=1` (some editors/agents do), `electron.exe .` boots as plain Node and crashes on `electron.app`. Clear the variable for smoke runs — it also makes a packaged `Body Debugger.exe` exit instantly with no profile and no log.
+
+## Packaging
+
+`electron-builder` produces an NSIS one-click per-user installer; configuration and publish target: [electron-builder.yml](../electron-builder.yml), described in [DELIVERY.md](DELIVERY.md).
+
+```powershell
+$env:ELECTRON_BUILDER_CACHE = "E:\Electron\.cache\electron-builder"
+npm run build:win   # rebuilds out/ first; dist\Body-Debugger-Setup-<version>.exe, .blockmap, latest.yml
+npm run build:dir   # dist\win-unpacked\Body Debugger.exe for a quick packaged run
+```
+
+Both scripts rebuild `out/` themselves; a packaged run never uses a stale bundle.
+
+The installed application writes its profile to `%APPDATA%\Body Debugger` (not the repo), takes the single-instance lock, and keeps user data across uninstall.
+
+The app icon is generated from the Desk Hulk happy emotion, not hand-drawn:
+
+```bash
+python scripts/build-app-icon.py   # needs Pillow + NumPy; writes electron/resources/icon.ico + icon.png
+```
 
 ## Reminder loop
 

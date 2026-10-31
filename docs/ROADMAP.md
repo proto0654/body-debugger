@@ -17,8 +17,9 @@ Post-skeleton milestones. Product detail: [CONCEPT.md](../CONCEPT.md).
 | 11 | Dashboard depth | **Done** — 13-week calendar heatmap with day details, stats cards, seven-day chart, zone distribution, top exercises |
 | 12 | Core preferences UI | **Done** — «Настройки» tab: interval (5–240 + presets), picker mode, Focus (primary + accents), character build; normalized on load, interval changes reschedule the loop |
 | 13 | Character selection + synchronized native scenario playback | **Implemented; native acceptance pending** — character picker, semantic native phases, automatic/interactive modes, preserved branches and compact dynamics; remaining Windows checks below |
+| 14 | Distribution + auto-update | **Done** — NSIS per-user installer, Desk Hulk icon, public release feed, background updates with popup-safe restart, data backup on version change — [DELIVERY.md](DELIVERY.md) |
 
-Prototype milestones 1–12 are implemented; they do not mean that every long-term idea in the concept is shipped. Milestone 13 is implemented and awaiting the remaining native acceptance checks. The current dashboard includes the tray settings deep link, a character-led «Сегодня» screen, next-form progress and durable result feedback.
+Prototype milestones 1–12 are implemented; they do not mean that every long-term idea in the concept is shipped. Milestone 13 is implemented and awaiting the remaining native acceptance checks. Milestone 14 is delivery infrastructure: a tester installs once and receives later versions automatically. The current dashboard includes the tray settings deep link, a character-led «Сегодня» screen, next-form progress and durable result feedback.
 
 Remaining product gaps, not scheduled: six distinct body illustrations for the default Desk Hulk (currently three tiers), custom pack import, personal exercise-level progression and difficulty weighting, automatic AI analysis (currently manual import), external-event triggers, automatic streak audio/tray milestones, theme sound packs, user-data export and Playwright E2E. Runtime selection/resolution of the nine supplied character packs is implemented in milestone 13.
 

@@ -5,11 +5,11 @@ import { reactionDuration, REACTION_TIMING_MS } from '@shared/domain/reaction-ti
 
 describe('character reactions', () => {
   it('keeps reading time independent of animation or scenario speed', () => {
-    expect(reactionDuration('done')).toBe(2500)
-    expect(reactionDuration('stage-up')).toBe(3500)
-    expect(reactionDuration('streak')).toBe(3500)
-    expect(reactionDuration('skipped')).toBe(1200)
-    expect(reactionDuration('snoozed')).toBe(1200)
+    expect(reactionDuration('done')).toBe(4500)
+    expect(reactionDuration('stage-up')).toBe(6000)
+    expect(reactionDuration('streak')).toBe(6000)
+    expect(reactionDuration('skipped')).toBe(2500)
+    expect(reactionDuration('snoozed')).toBe(2500)
     expect(REACTION_TIMING_MS.exit).toBe(180)
   })
   it('selects comic silhouettes deterministically without losing the emotion contract', () => {

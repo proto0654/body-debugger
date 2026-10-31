@@ -8,6 +8,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useCharacterStore } from '@/stores/character'
 import { useProgressStore } from '@/stores/progress'
 import { makeSession, makeSettings } from '../fixtures'
+import { REACTION_TIMING_MS } from '@shared/domain/reaction-timing'
 import type { DataSnapshot } from '@shared/types/persistence'
 import type { AppSettings } from '@shared/types/settings'
 import type { Session } from '@shared/types/session'
@@ -102,13 +103,13 @@ describe('DashboardView — optional layers', () => {
     expect(wrapper.get('[data-testid="character-condition"]').text()).toContain('восстановления: 5')
     useSessionsStore().hydrate([...skips, makeSession({ exerciseId: 'neck-tilts' })])
     await nextTick()
-    vi.advanceTimersByTime(3500)
+    vi.advanceTimersByTime(REACTION_TIMING_MS.milestone)
     await nextTick()
     expect(scene.get('img').attributes('src')).toMatch(/neglect-2-stocky/)
     expect(wrapper.get('[data-testid="character-condition"]').text()).toContain('8 / 10')
     useSessionsStore().hydrate([...skips, ...Array.from({ length: 5 }, () => makeSession({ exerciseId: 'neck-tilts' }))])
     await nextTick()
-    vi.advanceTimersByTime(3500)
+    vi.advanceTimersByTime(REACTION_TIMING_MS.milestone)
     await nextTick()
     expect(scene.get('img').attributes('src')).toMatch(/pose-power-stocky/)
     expect(wrapper.find('[data-testid="character-condition"]').exists()).toBe(false)
@@ -138,7 +139,7 @@ describe('DashboardView — optional layers', () => {
     expect(scene.get('img').attributes('src')).toMatch(/emotion-happy-average/)
     expect(wrapper.get('.hero-speech > span').text()).toBe(useCharacterStore().reaction.caption)
     expect(wrapper.get('.hero-speech').attributes('data-tone')).toBe('cheer')
-    vi.advanceTimersByTime(3500)
+    vi.advanceTimersByTime(REACTION_TIMING_MS.milestone)
     await nextTick()
     expect(scene.get('img').attributes('src')).toMatch(/stage-0-average/)
     expect(wrapper.get('.hero-speech').attributes('data-tone')).toBe('calm')

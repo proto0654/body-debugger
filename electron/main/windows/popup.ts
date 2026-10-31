@@ -45,8 +45,11 @@ export function createPopupWindow(): BrowserWindow {
     minimizable: false,
     skipTaskbar: true,
     alwaysOnTop: true,
-    transparent: false,
-    backgroundColor: '#020617',
+    // The popup card paints itself (index.css `html.window-popup`); the window
+    // stays transparent so the rounded corners show the desktop underneath.
+    transparent: true,
+    hasShadow: false,
+    backgroundColor: '#00000000',
     webPreferences: {
       preload: preloadPath(),
       contextIsolation: true,

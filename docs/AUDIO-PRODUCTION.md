@@ -269,7 +269,7 @@ Wired on 2026-10-31; behaviour is documented in [Sounds](SOUNDS.md#character-voi
 - **Listening tool.** Laboratory «Звуки» (`src/debug/SoundAuditionPanel.vue`) plays any variant, all variants of an event in order, and every effect take, ignoring the switch. It writes nothing.
 - **Not implemented.** Queueing or interrupting a previous line, `welcome`/`paused`/`streak`/`alert` narration, per-event mixing controls, OS DND detection, cross-window arbitration and any automatic greeting. The popup remains the sole automatic owner of its result audio; `missed` stays silent.
 - **Mixed-take caveat.** The layer plays whatever take-1 file exists. 45 takes exceed their catalog budget and four chuckles are under 0.2 s; until those IDs are rewritten and regenerated, an over-long skip/snooze line is cut by the 2.5 s feedback window.
-- **Feedback windows.** Existing waits are 2.5 seconds for ordinary completion, 3.5 for milestones and 1.2 for skip/snooze, plus a 180 ms exit. Over-budget takes simply do not finish inside the skip/snooze window; nothing currently cancels the audio when the window closes.
+- **Feedback windows.** Existing waits are 4.5 seconds for ordinary completion, 6 for milestones and 2.5 for skip/snooze, plus a 180 ms exit. Over-budget takes simply do not finish inside the skip/snooze window; nothing currently cancels the audio when the window closes.
 - **Offline.** Clips are bundled with the renderer through `import.meta.glob` (418 mp3 assets, ~11 MB), so the voice works without network access.
 
 ## Repository verification

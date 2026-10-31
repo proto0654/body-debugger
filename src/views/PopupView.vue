@@ -432,7 +432,7 @@ function finishFeedback(): void {
 </script>
 
 <template>
-  <div class="relative flex h-full flex-col gap-2 overflow-hidden rounded-xl border border-slate-800 bg-slate-950/95 p-3" :class="shellClass" :style="{ '--popup-exit-duration': `${REACTION_TIMING_MS.exit}ms` }">
+  <div class="relative flex h-full flex-col gap-2 overflow-hidden rounded-xl p-3" :class="shellClass" :style="{ '--popup-exit-duration': `${REACTION_TIMING_MS.exit}ms` }">
     <div
       v-if="resolved && exitKind === 'done' && !reduced"
       class="popup-flash pointer-events-none absolute inset-0 z-20"

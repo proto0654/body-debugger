@@ -183,6 +183,16 @@ html.window-popup body {
   overflow: hidden;
 }
 
+/*
+ * The popup window is transparent (electron/main/windows/popup.ts): the card
+ * draws its own surface, everything outside its border-radius stays unpainted.
+ */
+html.window-popup,
+html.window-popup body,
+html.window-popup #app {
+  background: transparent;
+}
+
 /* Product surfaces share theme tokens; no new art is needed for the stage framing. */
 .brand-label {
   font-size: 10px;
@@ -381,9 +391,6 @@ html.window-popup body {
 button:focus-visible, input:focus-visible {
   outline: 2px solid var(--color-emerald-400);
   outline-offset: 3px;
-}
-.popup-success {
-  background: var(--color-slate-950);
 }
 @media (max-width: 760px) {
   .hero-copy {
@@ -633,7 +640,7 @@ button { touch-action: manipulation; }
 .reaction-portrait::before { content: ''; position: absolute; inset: 5px 0; z-index: -1; border: 2px solid var(--color-emerald-400); border-radius: 23px 13px 24px 15px; transform: rotate(-4deg); background: radial-gradient(ellipse, color-mix(in srgb, var(--color-emerald-500) 20%, transparent), transparent 75%); animation: reaction-impact 450ms ease-out both; }
 .reaction-portrait[data-tone='milestone']::before { border-color: var(--color-amber-300); background: radial-gradient(ellipse, color-mix(in srgb, var(--color-amber-400) 20%, transparent), transparent 75%); }
 .reaction-accent { position: absolute; right: 1px; top: 5px; color: var(--color-amber-300); font-weight: 900; font-size: 32px; transform: rotate(15deg); animation: reaction-impact 400ms ease-out both; pointer-events: none; }
-.popup-success { overflow-y: auto; background: var(--color-slate-950); }
+.popup-success { overflow-y: auto; }
 .popup-success .comic-bubble { flex-shrink: 0; }
 .popup-success [data-testid='close-result'] { min-height: 26px; padding: 3px 12px; font-size: 11px; }
 .popup-success[data-result='quiet'] .reaction-portrait::before { border-color: var(--color-slate-500); }

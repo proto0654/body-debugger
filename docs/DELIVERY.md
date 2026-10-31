@@ -139,7 +139,7 @@ npm run publish:dev    # dev.yml + prerelease release
 npm run publish:prod   # latest.yml + normal release
 ```
 
-`scripts/publish-build.mjs` validates the channel against the version, requires `GH_TOKEN`/`GITHUB_TOKEN`, rebuilds `out/` and calls `electron-builder --publish always`. Dev builds set `EP_PRE_RELEASE=true`; prod uses `releaseType: release` from the config, so it creates a normal release rather than a draft.
+`scripts/publish-build.mjs` validates the channel against the version, requires `GH_TOKEN`/`GITHUB_TOKEN`, rebuilds `out/`, runs electron-builder with `--publish never` and uploads one complete asset set (`installer`, `.blockmap`, `dev.yml`/`latest.yml`) with `gh release create`/`gh release upload`. The config `publish` block still defines the updater feed written into `app-update.yml`. electron-builder's own GitHub publisher is intentionally not used: it created the same release twice from concurrent artifact tasks, which left `dev.yml` and the blockmap out of the release.
 
 The stable command produces `dist\Body-Debugger-Setup-<version>.exe`, `.blockmap` and `latest.yml`. The dev command produces the same set in `dist-dev\` and `dev.yml` **when the version contains `-dev.N`**; a stable-version dev build is only a local identity smoke and is rejected by `publish:dev`. `npm run build:win` and `npm run build:dev` build installers without publishing.
 

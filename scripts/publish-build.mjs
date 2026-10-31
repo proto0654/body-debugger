@@ -17,6 +17,7 @@ import { join, resolve } from 'node:path'
 const ROOT = resolve(import.meta.dirname, '..')
 const RELEASE_REPO = 'proto0654/body-debugger-releases'
 const CHANNELS = new Set(['prod', 'dev'])
+const GH = process.platform === 'win32' ? 'gh.exe' : 'gh'
 
 function run(command, args, env) {
   console.log(`\n> ${command} ${args.join(' ')}`)
@@ -31,6 +32,19 @@ function run(command, args, env) {
   if (result.status !== 0) process.exit(result.status ?? 1)
 }
 
+/** gh is a native executable, so keep its arguments intact (titles contain spaces). */
+function runGh(args, env) {
+  console.log(`\n> gh ${args.join(' ')}`)
+  const result = spawnSync(GH, args, {
+    cwd: ROOT,
+    env,
+    stdio: 'inherit',
+    shell: false
+  })
+  if (result.error) throw result.error
+  if (result.status !== 0) process.exit(result.status ?? 1)
+}
+
 function fail(message) {
   console.error(`\n[publish] ${message}`)
   process.exit(1)
@@ -40,7 +54,7 @@ function commandExists(command) {
   const result = spawnSync(command, ['--version'], {
     cwd: ROOT,
     stdio: 'ignore',
-    shell: process.platform === 'win32'
+    shell: false
   })
   return !result.error && result.status === 0
 }
@@ -63,7 +77,7 @@ if (channel === 'prod' && prerelease) {
 const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN
 if (!token) fail('GH_TOKEN (or GITHUB_TOKEN) is required to publish to the release repository')
 process.env.GH_TOKEN = token
-if (!commandExists('gh')) fail('the GitHub CLI (gh) is required to create the release and upload assets')
+if (!commandExists(GH)) fail('the GitHub CLI (gh) is required to create the release and upload assets')
 
 const status = spawnSync('git', ['status', '--porcelain'], {
   cwd: ROOT,
@@ -130,11 +144,11 @@ for (const file of artifacts) {
   if (!existsSync(file)) fail(`expected release asset is missing: ${file}`)
 }
 
-const view = spawnSync('gh', ['release', 'view', tag, '--repo', RELEASE_REPO], {
+const view = spawnSync(GH, ['release', 'view', tag, '--repo', RELEASE_REPO], {
   cwd: ROOT,
   env,
   stdio: 'ignore',
-  shell: process.platform === 'win32'
+  shell: false
 })
 if (view.error) fail(view.error.message)
 const releaseExists = view.status === 0
@@ -145,11 +159,7 @@ const notes = channel === 'dev'
 
 if (releaseExists) {
   console.log(`[publish] release ${tag} exists; uploading/replacing assets`)
-  run(
-    'gh',
-    ['release', 'upload', tag, ...artifacts, '--repo', RELEASE_REPO, '--clobber'],
-    env
-  )
+  runGh(['release', 'upload', tag, ...artifacts, '--repo', RELEASE_REPO, '--clobber'], env)
 } else {
   const args = [
     'release',
@@ -165,7 +175,7 @@ if (releaseExists) {
   ]
   if (channel === 'dev') args.push('--prerelease')
   else args.push('--latest')
-  run('gh', args, env)
+  runGh(args, env)
 }
 
 console.log(

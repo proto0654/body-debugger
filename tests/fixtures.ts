@@ -71,7 +71,7 @@ export function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings 
     sessionExtras: { enabled: false },
     ai: { enabled: false },
     photos: { enabled: false },
-    sound: { enabled: false, volume: 0.4, packId: 'default', voiceEnabled: false },
+    sound: { enabled: false, volume: 0.4, packId: 'default', voiceEnabled: true },
     weight: { enabled: false, targetKg: null },
     themeId: 'default',
     characterPackId: 'desk-hulk',

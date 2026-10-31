@@ -84,7 +84,7 @@ describe('store — load hardening', () => {
     } as unknown as AppSettings)
 
     expect(settings.settings.themeId).toBe('default')
-    expect(settings.settings.sound).toEqual({ enabled: true, volume: 1, packId: 'default', voiceEnabled: false })
+    expect(settings.settings.sound).toEqual({ enabled: true, volume: 1, packId: 'default', voiceEnabled: true })
 
     const next = store.updateProgress({
       ...progress,

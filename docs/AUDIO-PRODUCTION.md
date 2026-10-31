@@ -246,7 +246,7 @@ node scripts/generate-audio-api.mjs --character desk-hulk --all --skip-existing
 - 45 voice takes exceed their catalog budget and are recorded as `over-budget`: `skipped` 18, `ready` 10, `snoozed` 7, `welcome` 6, `done` 4. The 1-second skip/snooze window is the real gap — those roasts were written for a longer read, so the next pass shortens the lines under the same stable IDs and regenerates small batches instead of accelerating the delivery.
 - Effects were generated with `eleven_text_to_sound_v2`: `skip` 0.48 s, `snooze` 0.48 s, `stage-up` 1.00 s, `streak` 0.88 s, `alert` 0.46 s, `error` 0.48 s. `popup` and `done` keep their manual take 1; `start` take 2 replaces the rejected take 1 and measures 0.28 s. All nine are pending listening.
 - Roughly 6 400 credits were spent on this pass (account counter 52 732 → 59 134; the counter lags behind generation).
-- Nothing is wired into the renderer at that point: the player still plays only `default/*.mp3`. The opt-in voice layer landed later the same day — see [Runtime integration](#runtime-integration).
+- Nothing is wired into the renderer at that point: the player still plays only `default/*.mp3`. The voice layer landed later the same day and is now on by default — see [Runtime integration](#runtime-integration).
 
 ## Files, takes and acceptance
 
@@ -263,12 +263,12 @@ Accept a take only after listening confirms the exact words or intended nonverba
 
 ## Runtime integration
 
-Wired on 2026-10-31; behaviour is documented in [Sounds](SOUNDS.md#character-voice-layer-opt-in).
+Wired on 2026-10-31; behaviour is documented in [Sounds](SOUNDS.md#character-voice-layer-default-on).
 
-- **Implemented.** `sound.voiceEnabled` (default off) switches the voice layer on; the identity is `settings.characterPackId`. `VOICE_CUE_EVENTS` maps `popup → ready`, `done → done`, `skip → skipped`, `snooze → snoozed`, `stage-up → stage-up`; the popup speaks `error/01` only from its rejected-save path. One clip per event: lines and vocal reactions of that event rotate through `pickVoiceVariant`, which never repeats the previous take. The voice replaces the effect for the same event and falls back to it when the layer is off or the take is missing. The gate is unchanged (mute, volume, pause, quiet). The manifest is `src/voice-assets.ts`; the catalog itself is still not imported by the renderer.
+- **Implemented.** The generated package is the default experience: `sound.voiceEnabled` is on for new and existing profiles, and an explicit opt-out is the only way to silence it. Cue files are the generated `system/` takes (newest take wins, `default/*.mp3` only as fallback). The identity is `settings.characterPackId`. `VOICE_CUE_EVENTS` maps `popup → ready`, `done → done`, `skip → skipped`, `snooze → snoozed`, `stage-up → stage-up`; `active` (timer start) and `first-done` are spoken directly through `playVoiceEvent`, and the popup also speaks `error/01` from its rejected-save path. One clip per event: lines and vocal reactions rotate through `pickVoiceVariant`, which never repeats the previous take. The line of the same event replaces the signal, so one event never plays both; a missing take or a gated layer leaves the signal alone. The gate is unchanged (mute, volume, pause, quiet). The manifest is `src/voice-assets.ts`; the catalog itself is still not imported by the renderer.
 - **Listening tool.** Laboratory «Звуки» (`src/debug/SoundAuditionPanel.vue`) plays any variant, all variants of an event in order, and every effect take, ignoring the switch. It writes nothing.
-- **Not implemented.** Queueing or interrupting a previous line, `welcome`/`paused`/`streak`/`alert` narration, effect-plus-voice balancing, OS DND detection, cross-window arbitration and any automatic greeting. The popup remains the sole automatic owner of its result audio; `missed` stays silent.
-- **Mixed-take caveat.** The layer plays whatever take-1 file exists. 45 takes exceed their catalog budget and four chuckles are under 0.2 s, so an accepted take must be replaced by a retake under the same stable ID before the voice is enabled for a release.
+- **Not implemented.** Queueing or interrupting a previous line, `welcome`/`paused`/`streak`/`alert` narration, per-event mixing controls, OS DND detection, cross-window arbitration and any automatic greeting. The popup remains the sole automatic owner of its result audio; `missed` stays silent.
+- **Mixed-take caveat.** The layer plays whatever take-1 file exists. 45 takes exceed their catalog budget and four chuckles are under 0.2 s; until those IDs are rewritten and regenerated, an over-long skip/snooze line is cut by the 2.5 s feedback window.
 - **Feedback windows.** Existing waits are 2.5 seconds for ordinary completion, 3.5 for milestones and 1.2 for skip/snooze, plus a 180 ms exit. Over-budget takes simply do not finish inside the skip/snooze window; nothing currently cancels the audio when the window closes.
 - **Offline.** Clips are bundled with the renderer through `import.meta.glob` (418 mp3 assets, ~11 MB), so the voice works without network access.
 
@@ -276,7 +276,7 @@ Wired on 2026-10-31; behaviour is documented in [Sounds](SOUNDS.md#character-voi
 
 Run the catalog acceptance tests with `npm test -- tests/unit/audio-production.test.ts`. They check cast coverage, event/reaction counts, IDs, filenames, duration budgets, context-sensitive messages, ready-to-copy inputs and profanity annotations. They do not synthesize or listen to audio.
 
-The runtime layer has its own coverage: `tests/unit/voice-assets.test.ts` (manifest parsing and full package coverage), `tests/unit/sounds.test.ts` (cue → event map and rotation), `tests/unit/sound-player.test.ts` (gating, fallback, explicit variant), `tests/components/SoundAuditionPanel.test.ts` (sequential audition) and `tests/components/PopupView.test.ts` (voice replaces the effect, failed-save line only after a rejected save).
+The runtime layer has its own coverage: `tests/unit/voice-assets.test.ts` (manifest parsing and full package coverage), `tests/unit/sounds.test.ts` (cue → event map, rotation, default-on setting), `tests/unit/sound-player.test.ts` (gating, generated effect preference, direct events, explicit variant), `tests/components/SoundAuditionPanel.test.ts` (sequential audition) and `tests/components/PopupView.test.ts` (signal plus line, active on start, first-done, failed-save line only after a rejected save).
 
 Run cutter boundary, padding, count and path checks with `python -m unittest discover -s tests -p test_audio_batch_cutter.py`. Real generated sources also need the exact-count cutting check and listening review; silence detection does not establish transcript correctness.
 

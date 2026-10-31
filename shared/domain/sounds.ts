@@ -73,7 +73,7 @@ export const DEFAULT_SOUND_SETTINGS: SoundSettings = {
   enabled: true,
   volume: 0.4,
   packId: 'default',
-  voiceEnabled: false
+  voiceEnabled: true
 }
 
 export function isSoundPackId(value: unknown): value is SoundPackId {
@@ -100,7 +100,9 @@ export function normalizeSoundSettings(
     enabled: stored.enabled === true,
     volume,
     packId: isSoundPackId(stored.packId) ? stored.packId : DEFAULT_SOUND_SETTINGS.packId,
-    voiceEnabled: stored.voiceEnabled === true
+    // The generated voice is the default experience; only an explicit opt-out
+    // keeps it silent on an existing profile.
+    voiceEnabled: stored.voiceEnabled !== false
   }
 }
 

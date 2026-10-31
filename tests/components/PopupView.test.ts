@@ -18,7 +18,12 @@ import type { SeverityLevel } from '@shared/types/settings'
 import type { SessionResultPayload } from '@shared/types/events'
 import { makeExercise, makeSession, makeSettings } from '../fixtures'
 
-const soundPlayer = vi.hoisted(() => ({ play: vi.fn(), playVoice: vi.fn(() => false), preload: vi.fn() }))
+const soundPlayer = vi.hoisted(() => ({
+  play: vi.fn(),
+  playVoice: vi.fn(() => true),
+  playVoiceEvent: vi.fn(() => true),
+  preload: vi.fn()
+}))
 
 vi.mock('@/sounds', () => ({
   useSoundPlayer: () => soundPlayer
@@ -95,6 +100,7 @@ beforeEach(() => {
   api.listPhotos.mockClear()
   soundPlayer.play.mockClear()
   soundPlayer.playVoice.mockClear()
+  soundPlayer.playVoiceEvent.mockClear()
   soundPlayer.preload.mockClear()
   Object.defineProperty(window, 'api', { configurable: true, value: api })
   vi.useFakeTimers()
@@ -130,7 +136,7 @@ describe('PopupView — done flow', () => {
     expect(api.closePopup).not.toHaveBeenCalled()
   })
 
-  it('keeps a new form readable for 3500 ms before fading out', async () => {
+  it('keeps a new form readable for the whole milestone window before fading out', async () => {
     wrapper = await mountPopup()
     useSessionsStore().hydrate([
       makeSession({ id: 'prior-1', exerciseId: 'neck-tilts' }),
@@ -204,33 +210,54 @@ describe('PopupView — done flow', () => {
     expect(useSessionsStore().current?.id).toBe('session-1')
   })
 
-  it('lets the character voice replace the effect and falls back without a take', async () => {
+  it('lets the character line replace the short signal', async () => {
     wrapper = await mountPopup()
 
-    // Without a voice take the plain effect still plays (mock returns false).
     await findButton(wrapper, 'Готово').trigger('click')
     await flushMicrotasks()
-    expect(soundPlayer.playVoice).toHaveBeenCalledWith('done')
-    expect(soundPlayer.play).toHaveBeenCalledWith('done')
 
-    wrapper.unmount()
-    soundPlayer.play.mockClear()
-    wrapper = await mountPopup()
-    soundPlayer.playVoice.mockReturnValueOnce(true)
-    await findButton(wrapper, 'Готово').trigger('click')
-    await flushMicrotasks()
+    // Nothing was completed today yet, so the first-done line is the honest one.
+    expect(soundPlayer.playVoiceEvent).toHaveBeenCalledWith('first-done')
     expect(soundPlayer.play).not.toHaveBeenCalledWith('done')
+  })
+
+  it('switches to the regular done line when today already has a completion', async () => {
+    wrapper = await mountPopup()
+    useSessionsStore().hydrate([
+      makeSession({
+        id: 'prior-1',
+        exerciseId: 'neck-tilts',
+        status: 'done',
+        triggeredAt: new Date().toISOString(),
+        completedAt: new Date().toISOString()
+      })
+    ])
+
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+
+    expect(soundPlayer.playVoiceEvent).toHaveBeenCalledWith('done')
+    expect(soundPlayer.play).not.toHaveBeenCalledWith('done')
+  })
+
+  it('voices the start of the timer with the active line', async () => {
+    wrapper = await mountPopup({ start: false })
+
+    await findButton(wrapper, 'Начать').trigger('click')
+
+    expect(soundPlayer.playVoiceEvent).toHaveBeenCalledWith('active')
   })
 
   it('speaks the failed-save line only after a rejected save', async () => {
     wrapper = await mountPopup()
     api.sessionResult.mockRejectedValueOnce(new Error('IPC unavailable'))
 
-    expect(soundPlayer.playVoice).not.toHaveBeenCalledWith('error', expect.anything())
+    expect(soundPlayer.playVoiceEvent).not.toHaveBeenCalledWith('error', expect.anything())
     await findButton(wrapper, 'Готово').trigger('click')
     await flushMicrotasks()
 
-    expect(soundPlayer.playVoice).toHaveBeenCalledWith('error', { variant: '01' })
+    expect(soundPlayer.playVoiceEvent).toHaveBeenCalledWith('error', { variant: '01' })
+    expect(soundPlayer.play).not.toHaveBeenCalledWith('error')
   })
 
   it('reports the result, plays the exit animation and closes the window', async () => {
@@ -256,7 +283,7 @@ describe('PopupView — done flow', () => {
     expect(api.closePopup).toHaveBeenCalledTimes(1)
   })
 
-  it('plays the stage-up cue when done unlocks a new stage', async () => {
+  it('speaks the stage-up line when done unlocks a new stage', async () => {
     wrapper = await mountPopup()
     useSessionsStore().hydrate([
       makeSession({ id: 'prior-1', exerciseId: 'neck-tilts', status: 'done' }),
@@ -266,11 +293,13 @@ describe('PopupView — done flow', () => {
     await findButton(wrapper, 'Готово').trigger('click')
     await flushMicrotasks()
 
-    expect(soundPlayer.play).toHaveBeenCalledWith('stage-up')
+    expect(soundPlayer.playVoiceEvent).toHaveBeenCalledWith('stage-up')
+    expect(soundPlayer.play).not.toHaveBeenCalledWith('stage-up')
   })
 
-  it('plays the plain done cue while the stage is unchanged', async () => {
+  it('falls back to the plain done cue when the character has no take', async () => {
     wrapper = await mountPopup()
+    soundPlayer.playVoiceEvent.mockImplementationOnce(() => false)
 
     await findButton(wrapper, 'Готово').trigger('click')
     await flushMicrotasks()
@@ -338,12 +367,12 @@ describe('PopupView — severity gate', () => {
 })
 
 describe('PopupView — skip flow', () => {
-  it('keeps snooze readable for 1200 ms with reduced motion', async () => {
+  it('keeps snooze readable for the whole quiet window with reduced motion', async () => {
     wrapper = await mountPopup({ reduceMotion: true })
     await findButton(wrapper, 'Отложить').trigger('click')
     await flushMicrotasks()
     expect(wrapper.get('[role="status"]').text()).toContain('через пять минут')
-    vi.advanceTimersByTime(1199)
+    vi.advanceTimersByTime(REACTION_TIMING_MS.quiet - 1)
     await flushMicrotasks()
     expect(api.closePopup).not.toHaveBeenCalled()
     vi.advanceTimersByTime(2)

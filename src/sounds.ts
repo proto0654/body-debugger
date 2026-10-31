@@ -16,10 +16,10 @@ import {
 } from '@shared/domain/sounds'
 import type { SoundSettings } from '@shared/types/settings'
 import { useSettingsStore } from '@/stores/settings'
-import { voiceClips, type VoiceClip } from '@/voice-assets'
+import { EFFECT_CLIPS, voiceClips, type VoiceClip } from '@/voice-assets'
 
-/** Bundled files of the shipped pack; keys are the stable event ids. */
-export const SOUND_CUE_URLS: Record<SoundCue, string> = {
+/** Files of the original shipped pack; used only when a generated take is absent. */
+const FALLBACK_CUE_URLS: Record<SoundCue, string> = {
   popup: popupSrc,
   done: doneSrc,
   skip: skipSrc,
@@ -28,6 +28,24 @@ export const SOUND_CUE_URLS: Record<SoundCue, string> = {
   streak: streakSrc,
   alert: alertSrc,
   error: errorSrc
+}
+
+/** The newest archived take wins, so a retake replaces the rejected one. */
+function generatedCueUrls(): Partial<Record<SoundCue, string>> {
+  const urls: Partial<Record<SoundCue, string>> = {}
+  for (const cue of SOUND_CUES) {
+    const take = EFFECT_CLIPS
+      .filter((clip) => clip.event === cue)
+      .sort((a, b) => b.take - a.take)[0]
+    if (take) urls[cue] = take.url
+  }
+  return urls
+}
+
+/** Generated effect takes ship as the default pack; keys are the stable event ids. */
+export const SOUND_CUE_URLS: Record<SoundCue, string> = {
+  ...FALLBACK_CUE_URLS,
+  ...generatedCueUrls()
 }
 
 /** The subset of HTMLAudioElement playback needs, injectable for tests. */
@@ -59,10 +77,12 @@ export interface SoundPlayer {
   /** Returns whether a cue was actually started. */
   play: (cue: SoundCue | null | undefined) => boolean
   /**
-   * Speak the mapped event instead of the plain cue. Returns false when the voice
-   * layer is off or the character has no take, so the caller can fall back.
+   * Speak the mapped event. Returns false when the voice layer is off or the
+   * character has no take, so the caller can decide about a fallback.
    */
   playVoice: (cue: SoundCue | null | undefined, options?: VoicePlaybackOptions) => boolean
+  /** Speak a catalogued event directly, e.g. `active` on the start of the timer. */
+  playVoiceEvent: (event: VoiceEvent, options?: VoicePlaybackOptions) => boolean
   /** Warm the pack so the first cue is not delayed by decoding. */
   preload: () => void
 }
@@ -103,13 +123,16 @@ export function createSoundPlayer(deps: SoundPlayerDeps): SoundPlayer {
   }
 
   function playVoice(cue: SoundCue | null | undefined, options: VoicePlaybackOptions = {}): boolean {
-    if (!cue) return false
+    const event = cue ? VOICE_CUE_EVENTS[cue] : null
+    return event ? playVoiceEvent(event, options) : false
+  }
+
+  function playVoiceEvent(event: VoiceEvent, options: VoicePlaybackOptions = {}): boolean {
     const settings = audibleSettings()
     if (!settings?.voiceEnabled) return false
 
-    const event = VOICE_CUE_EVENTS[cue]
     const characterId = deps.getCharacterId?.()
-    if (!event || !characterId) return false
+    if (!characterId) return false
 
     const clips = (deps.resolveVoiceClips ?? voiceClips)(characterId, event)
       .filter((clip) => !options.variant || clip.variant === options.variant)
@@ -135,7 +158,7 @@ export function createSoundPlayer(deps: SoundPlayerDeps): SoundPlayer {
     }
   }
 
-  return { play, playVoice, preload }
+  return { play, playVoice, playVoiceEvent, preload }
 }
 
 /** Renderer-side player bound to the settings store. */

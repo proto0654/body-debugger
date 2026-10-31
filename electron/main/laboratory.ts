@@ -132,7 +132,13 @@ function seek(next: number, silent = true): void {
   detached = false
   interrupted = false
   setLaboratoryClock({ at: plan.events[cursor]!.at, running: false, silent })
-  applyDebugState({ sessions: labSessionsAt(plan, cursor), settings: plan.settings, progress: plan.progress })
+  // Sound is a user preference, not a scenario parameter: a plan snapshot must not
+  // mute the laboratory, otherwise a legacy muted profile silences every replay.
+  applyDebugState({
+    sessions: labSessionsAt(plan, cursor),
+    settings: { ...plan.settings, sound: { ...getSnapshot().settings.sound } },
+    progress: plan.progress
+  })
   syncLoopFromSettings()
   notifyDataUpdated()
   message = plan.events[cursor]!.label

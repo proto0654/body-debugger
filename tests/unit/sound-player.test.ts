@@ -63,6 +63,12 @@ describe('sound player', () => {
     expect(new Set(Object.values(SOUND_CUE_URLS)).size).toBe(SOUND_CUES.length)
   })
 
+  it('prefers the generated effect take over the shipped default file', () => {
+    expect(SOUND_CUE_URLS.done).toMatch(/system__done__01__take-\d+\.mp3/)
+    expect(SOUND_CUE_URLS.skip).toMatch(/system__skip__01__take-\d+\.mp3/)
+    expect(SOUND_CUE_URLS['stage-up']).toMatch(/system__stage-up__01__take-\d+\.mp3/)
+  })
+
   it('plays the mapped file at the configured volume', () => {
     const { instance, factory } = player({ enabled: true, volume: 0.35 })
 
@@ -138,6 +144,18 @@ describe('character voice playback', () => {
     expect(factory.created).toHaveLength(1)
     expect(factory.created[0].src).toBe('voice/desk-hulk__done__01.mp3')
     expect(factory.created[0].volume).toBe(0.3)
+  })
+
+  it('speaks a catalogued event directly, outside the cue map', () => {
+    const { instance, factory } = player(
+      { enabled: true, voiceEnabled: true },
+      {},
+      fakeFactory(),
+      { variants: { active: ['01'] } }
+    )
+
+    expect(instance.playVoiceEvent('active')).toBe(true)
+    expect(factory.created[0].src).toBe('voice/desk-hulk__active__01.mp3')
   })
 
   it('stays out of the way when the voice layer is off so the caller can fall back', () => {

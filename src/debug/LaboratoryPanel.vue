@@ -195,6 +195,9 @@ onBeforeUnmount(() => { unsubscribe?.(); clearInterval(clock); clearTimeout(reac
           <button type="button" class="setting-chip" :disabled="busy || !plan" @click="command({ action: 'restart' })">Сначала</button>
         </div>
         <div class="rounded-lg bg-slate-950 p-2" aria-live="polite"><p class="text-xs font-semibold text-amber-200">{{ phaseLabel }}</p><p class="mt-1 text-[11px] text-slate-400">{{ state?.playback?.action || 'Выберите историю и нажмите «Проиграть сценарий»' }}</p><p class="mt-1 text-[10px] text-slate-500">{{ dateLabel }}</p></div>
+        <p v-if="!settings.sound.enabled" data-testid="lab-sound-off" class="flex flex-wrap items-center gap-2 text-xs text-amber-300">Звук выключен в настройках этого профиля — сценарий проигрывается без звука.
+          <button type="button" class="setting-chip" :disabled="busy" @click="changeSetting(() => settings.setSoundEnabled(true))">Включить звук</button>
+        </p>
         <p v-if="state?.playback?.error" role="alert" class="text-xs text-red-300">{{ state.playback.error }}</p>
         <p v-if="state?.playback?.waiting && state.playback.mode === 'interactive'" class="text-xs text-amber-300">Выберите действие в настоящем попапе у трея.</p>
         <div v-if="state?.hasOriginal" class="flex flex-wrap gap-2"><button type="button" class="setting-chip" :disabled="busy" @click="command({ action: 'popup', preset: 'normal' })">Продолжить вручную</button><button type="button" class="setting-chip" :disabled="busy" @click="command({ action: 'original' })">Вернуться к исходному</button></div>

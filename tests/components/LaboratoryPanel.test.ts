@@ -8,6 +8,7 @@ import { buildLabScenario, type LabCommand, type LabState } from '@shared/domain
 import { setLaboratoryClock } from '@shared/domain/clock'
 import { defaultProgress, defaultSettings } from '../../electron/main/persistence/defaults'
 import { useCharacterStore } from '@/stores/character'
+import { useSettingsStore } from '@/stores/settings'
 import { makeSession } from '../fixtures'
 
 const preview = vi.hoisted(() => ({ play: vi.fn() }))
@@ -68,6 +69,19 @@ describe('laboratory controls', () => {
     expect(view.find('[data-testid="sound-audition"]').exists()).toBe(true)
     expect(view.find('[data-testid="sound-audition"]').text()).toContain('Голос персонажа')
     expect(preview.play).not.toHaveBeenCalled()
+  })
+
+  it('warns when the laboratory profile is muted and enables sound in one click', async () => {
+    applySnapshot({ laboratory: { at: state.now, running: false, silent: true },
+      settings: { ...defaultSettings(), sound: { ...defaultSettings().sound, enabled: false } },
+      progress: defaultProgress(), sessions: [], weights: [] })
+    const view = await panel()
+    expect(view.get('[data-testid="lab-sound-off"]').text()).toContain('без звука')
+
+    await view.get('[data-testid="lab-sound-off"] button').trigger('click')
+
+    expect(useSettingsStore().sound.enabled).toBe(true)
+    expect(view.find('[data-testid="lab-sound-off"]').exists()).toBe(false)
   })
 
   it('keeps replay silent in the control window and only plays explicit sound previews', async () => {

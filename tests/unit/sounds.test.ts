@@ -18,6 +18,7 @@ describe('sound settings', () => {
   it('starts enabled for new profiles, with the default pack and an audible volume', () => {
     expect(DEFAULT_SOUND_SETTINGS.enabled).toBe(true)
     expect(DEFAULT_SOUND_SETTINGS.packId).toBe('default')
+    expect(DEFAULT_SOUND_SETTINGS.voiceEnabled).toBe(true)
     expect(DEFAULT_SOUND_SETTINGS.volume).toBeGreaterThan(0)
     expect(DEFAULT_SOUND_SETTINGS.volume).toBeLessThanOrEqual(1)
   })
@@ -30,10 +31,13 @@ describe('sound settings', () => {
   it('keeps the stored switch, pack and volume', () => {
     expect(
       normalizeSoundSettings({ enabled: true, volume: 0.35, packId: 'default' })
-    ).toEqual({ enabled: true, volume: 0.35, packId: 'default', voiceEnabled: false })
+    ).toEqual({ enabled: true, volume: 0.35, packId: 'default', voiceEnabled: true })
     expect(
       normalizeSoundSettings({ enabled: true, volume: 0.35, packId: 'default', voiceEnabled: true })
     ).toEqual({ enabled: true, volume: 0.35, packId: 'default', voiceEnabled: true })
+    expect(
+      normalizeSoundSettings({ enabled: true, volume: 0.35, packId: 'default', voiceEnabled: false }).voiceEnabled
+    ).toBe(false)
   })
 
   it('clamps volume into 0..1 and rejects a non-finite value', () => {

@@ -68,7 +68,7 @@ async function setLayer(key: keyof typeof setters, enabled: boolean): Promise<vo
             :aria-label="`Голос персонажа: ${settings.sound.voiceEnabled ? 'выключить' : 'включить'}`" :aria-pressed="settings.sound.voiceEnabled"
             @click="save(() => settings.setVoiceEnabled(!settings.sound.voiceEnabled))">{{ settings.sound.voiceEnabled ? 'Вкл' : 'Выкл' }}</button>
         </label>
-        <p class="text-xs leading-relaxed text-slate-400">Реплики выбранного персонажа заменяют короткие сигналы тех же событий. Пакет ещё не прошёл прослушивание, поэтому голос выключен по умолчанию.</p>
+        <p class="text-xs leading-relaxed text-slate-400">Реплики выбранного персонажа звучат вместе с короткими сигналами тех же событий. Пакет ещё не прошёл прослушивание — если голос мешает, его можно выключить.</p>
         <details><summary class="text-xs text-slate-400 cursor-pointer">Прослушать сигналы</summary>
           <div class="mt-3 flex flex-wrap gap-2"><button v-for="cue in SOUND_CUES" :key="cue" type="button" class="setting-chip" @click="preview.play(cue)">{{ SOUND_CUE_LABELS[cue] }}</button></div>
           <p class="mt-2 text-xs text-slate-400">Прослушивание использует минимум 10% громкости, даже при нулевом уровне.</p>

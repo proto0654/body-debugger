@@ -30,7 +30,7 @@ import {
 import { useMotionPreference } from '@/motion'
 import { reactionDuration, REACTION_TIMING_MS } from '@shared/domain/reaction-timing'
 import type { CharacterReactionEvent } from '@shared/domain/character-reaction'
-import { cueForSessionStatus, type SoundCue } from '@shared/domain/sounds'
+import { cueForSessionStatus, type SoundCue, type VoiceEvent } from '@shared/domain/sounds'
 import { computeCharacterProgress } from '@shared/domain/character-progress'
 import { CHARACTER_STAGE_LABELS } from '@shared/constants/character'
 import { localDateKey } from '@shared/domain/stats'
@@ -167,6 +167,7 @@ function startExercise(): void {
   if (!sessions.current || busy.value || started.value) return
   started.value = true
   character.react('active', sessions.history.length)
+  sounds.playVoiceEvent('active')
   startTimer()
 }
 
@@ -330,8 +331,9 @@ onMounted(async () => {
       .catch(cause => console.warn('[laboratory] readiness failed', cause))
   }
   sounds.preload()
-  // The voice replaces the plain cue for the same event; without a take the
-  // shipped effect stays the audible feedback (docs/AUDIO-PRODUCTION.md).
+  // One sound per event: the character line replaces the short signal, and the
+  // shipped effect stays as the fallback when the layer is off or has no take
+  // (docs/SOUNDS.md).
   if (!sounds.playVoice('popup')) sounds.play('popup')
 })
 
@@ -359,6 +361,10 @@ async function submit(status: SessionStatus): Promise<void> {
     localDateKey(new Date(session.completedAt ?? session.triggeredAt)) === today)
   const reactionSequence = sessions.history.length + 1
   const cue: SoundCue | null = stageUp ? 'stage-up' : cueForSessionStatus(status)
+  const voiceEvent: VoiceEvent = stageUp ? 'stage-up'
+    : status === 'snoozed' ? 'snoozed'
+      : status === 'skipped' ? 'skipped'
+        : firstDoneToday ? 'first-done' : 'done'
   try {
     const response = await window.api?.sessionResult({
       sessionId: current.id,
@@ -382,7 +388,7 @@ async function submit(status: SessionStatus): Promise<void> {
       successLabel.value = status === 'snoozed' ? 'Разминка отложена' : 'Разминка пропущена'
       successDetail.value = status === 'snoozed' ? 'Вернёмся через пять минут' : 'Следующая возможность впереди'
     }
-    if (!sounds.playVoice(cue)) sounds.play(cue)
+    if (!sounds.playVoiceEvent(voiceEvent)) sounds.play(cue)
     exitKind.value = status === 'done' ? 'done' : 'quiet'
     const event: CharacterReactionEvent = status === 'done' ? stageUp ? 'stage-up' : 'done'
       : status === 'snoozed' ? 'snoozed' : 'skipped'
@@ -392,7 +398,7 @@ async function submit(status: SessionStatus): Promise<void> {
     errorMessage.value = 'Не удалось сохранить. Попробуйте ещё раз.'
     // `error/01` is the catalogued failed-session-save line: it may play only
     // after a failed durable save, which is exactly this path.
-    sounds.playVoice('error', { variant: '01' })
+    if (!sounds.playVoiceEvent('error', { variant: '01' })) sounds.play('error')
     driverAck('failed')
   } finally {
     busy.value = false

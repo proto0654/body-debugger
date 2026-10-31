@@ -10,23 +10,25 @@ Optional feedback layer. Product rule: sounds must not affect the core cycle (re
 
 ## Event → cue
 
-| Event | File (default pack) | Priority |
-|-------|---------------------|----------|
-| Popup appears | `popup.mp3` | Optional |
-| Timer start | *(not in pack yet — soft tick)* | Optional |
-| Result `done` | `done.mp3` | Recommended |
-| Result `skipped` / dismiss | `skip.mp3` | Optional |
-| Result `snoozed` | `snooze.mp3` | Optional |
-| Stage up | `stage-up.mp3` | Optional |
-| Streak record | `streak.mp3` | Optional |
-| Soft alert / warning | `alert.mp3` | Optional |
-| Error / invalid action | `error.mp3` | Optional |
+| Event | Cue file | Voice event | Priority |
+|-------|----------|-------------|----------|
+| Popup appears | `system__popup__01` | `ready` | Recommended |
+| Timer start | *(no cue; the `active` line plays)* | `active` | Optional |
+| Result `done` | `system__done__01` | `done` / `first-done` | Recommended |
+| Result `skipped` / dismiss | `system__skip__01` | `skipped` | Optional |
+| Result `snoozed` | `system__snooze__01` | `snoozed` | Optional |
+| Stage up | `system__stage-up__01` | `stage-up` | Recommended |
+| Streak record | `system__streak__01` | `streak` | Optional |
+| Soft alert / warning | `system__alert__01` | `alert` | Optional |
+| Error / invalid action | `system__error__01` | `error/01` after a rejected save | Optional |
+
+Cue files are the generated takes in `src/assets/sounds/system/`; the rows list the ids, and the newest take of an id wins. `default/*.mp3` is only the fallback when a take is missing. The voice column is the spoken event of the cue: with the voice on, the line is the sound of that event and the cue stays as the fallback. `start` has no cue yet, its effect stays reserve.
 
 ## Principles
 
 1. Master switch off = no playback.
-2. Volume is user-controlled; new profiles start enabled at 40%. Explicit stored mute/volume choices and legacy profiles without a sound block are preserved.
-3. Current default effect clips stay short (~0.3–1.5 s). Planned voice production has separate budgets in [Audio production](AUDIO-PRODUCTION.md).
+2. Volume is user-controlled; new profiles start enabled at 40% with the generated voice on. Explicit stored mute/volume/voice choices are preserved, and a legacy profile without a sound block stays muted.
+3. Generated effect takes stay short (0.28–1.0 s); character lines have their own budgets in [Audio production](AUDIO-PRODUCTION.md).
 4. While paused / DND / on a call, do not play.
 5. Visual themes may point at different sound packs (`themeId` / future `soundPackId`).
 6. Optional layer only — core cycle works with audio disabled.
@@ -36,7 +38,7 @@ Optional feedback layer. Product rule: sounds must not affect the core cycle (re
 ```
 src/assets/sounds/
   production.json    # authored generation catalog; not imported by the renderer
-  default/           # shipped pack (mp3)
+  default/           # original cue pack, now only a fallback (mp3)
     popup.mp3
     done.mp3
     skip.mp3
@@ -48,42 +50,46 @@ src/assets/sounds/
   <character>/       # generated voice takes, one file per position
     <character>__<event>__<variant>__take-1.mp3
     source/          # archived API responses, casting previews and cut tracks
-  system/            # shared effect takes: system__<event>__01__take-N.mp3
+  system/            # generated effect takes: system__<event>__01__take-N.mp3
   silent/            # optional near-silent stubs (future)
 ```
 
 Settings live in `AppSettings.sound` (`shared/types/settings.ts`): `{ enabled, volume, packId, voiceEnabled }`.
-Defaults for new or explicitly reset profiles: on, volume `0.4`, pack `default`, voice off. `normalizeSettings` keeps an existing profile with no sound block muted, defaults the missing `voiceEnabled` to `false` and preserves explicit settings. See [ARCHITECTURE.md](ARCHITECTURE.md#sounds).
+Defaults for new or explicitly reset profiles: on, volume `0.4`, pack `default`, voice on. `normalizeSettings` keeps an existing profile with no sound block muted, defaults a missing `voiceEnabled` to `true` and preserves an explicit opt-out. See [ARCHITECTURE.md](ARCHITECTURE.md#sounds).
 
 ## Implementation
 
 - Renderer player: `src/sounds.ts` (`createSoundPlayer` + `useSoundPlayer`), lightweight `Audio` elements.
-- Pack URLs are imported through Vite (`?url`), so the default pack ships with the renderer bundle.
+- Cue files come from the generated effect takes in `src/assets/sounds/system/`; `default/*.mp3` is the fallback when a take is missing. The newest archived take wins, so a retake supersedes a rejected one.
+- Pack URLs are imported through Vite (`?url`), so the effects ship with the renderer bundle.
 - The player preloads the pack on popup start and logs+swallows an autoplay rejection.
 - Playback is gated by the master switch, volume > 0, `settings.paused` and a `quiet` context
   (DND/call). The app does not detect OS DND yet; the gate is ready for it.
 - Event → cue map: `shared/domain/sounds.ts`; `missed` has no cue.
-- Popup: `popup` on mount, `done` / `skip` / `snooze` after a durable result acknowledgement, `stage-up` when a done session
-  raises the character stage.
+- Popup: the selected character speaks `ready` on mount, `active` when the timer starts, `first-done` / `done` / `skipped` / `snoozed` / `stage-up` after a durable result acknowledgement, and `error/01` after a rejected save. The generated cue is the fallback when the layer is off or the take is missing.
 - Laboratory «Попап и цикл»: every cue has a preview button that ignores the master switch — see [TESTING.md](TESTING.md).
 - The native popup is the sole owner of popup/result audio; laboratory controls never replay those cues on snapshot changes. Explicit cue previews remain available in sound settings and the laboratory and use at least 10% volume.
-- `streak` has a bundled file and a preview button; no automatic milestone trigger yet.
+- `streak` has a generated effect and a preview button; no automatic milestone trigger yet.
 - Theme packs are future work: keep cue keys stable and swap the URL map by `packId`.
 
-## Character voice layer (opt-in)
+## Character voice layer (default on)
 
 The generated voice package plays through the same gate and the same player:
 
-- `sound.voiceEnabled` (default **off**) switches it on; the toggle is in «Настройки → Звуки». The voice is keyed by
-  `settings.characterPackId`, so the character identity owns the voice.
+- `sound.voiceEnabled` is **on** by default; the toggle is in «Настройки → Звуки». Only an explicit opt-out keeps a
+  profile silent. The voice is keyed by `settings.characterPackId`, so the character identity owns the voice.
 - `VOICE_CUE_EVENTS` maps a cue to a spoken event: `popup → ready`, `done → done`, `skip → skipped`,
-  `snooze → snoozed`, `stage-up → stage-up`, `streak → streak`, `alert → alert`, `error → error`.
-- One principal clip per event. Variants of that event (lines and vocal reactions) rotate through
+  `snooze → snoozed`, `stage-up → stage-up`, `streak → streak`, `alert → alert`, `error → error`. Two moments are
+  spoken outside the cue map: `active` when the timer starts and `first-done` for the first completion of a day
+  (`playVoiceEvent`).
+- One principal voice clip per event. Variants of that event (lines and vocal reactions) rotate through
   `pickVoiceVariant`, which never repeats the previous take; the rotation state is per character and event.
-- The voice **replaces** the effect for the same event. When the layer is off, the character has no take, or
-  playback is gated, the shipped effect remains the audible feedback, so nothing depends on the generated files.
+- The line plays **instead of** the short signal of the same event: one sound per event, never both at once. If the voice is off,
+  the character has no take, or playback is gated, the signal still plays, so the feedback never depends on the generated
+  files.
 - `error/01` is the catalogued *failed-session-save* line and the popup speaks it only from the rejected-save
-  path; `error/02` stays a generic acknowledgement and is not triggered automatically.
+  path, standing in for the `error` signal; `error/02` stays a generic acknowledgement and is not triggered
+  automatically.
 - Manifest: `src/voice-assets.ts` imports the take-1 files with `import.meta.glob` and exposes
   `voiceClips(characterId, event)` and `EFFECT_CLIPS`. The catalog is still not imported by the renderer.
 - Bundle cost: the build emits 418 mp3 assets (~11 MB) next to the existing art; the scripts return URLs, so the
@@ -91,15 +97,19 @@ The generated voice package plays through the same gate and the same player:
 - Laboratory «Звуки» (`src/debug/SoundAuditionPanel.vue`) lists every variant per event and every effect take,
   plays one clip or all variants of an event in sequence, and ignores the master switch and the voice toggle.
   It changes no setting, profile or history.
+- Scenario replay in the laboratory uses the profile's live sound settings, not the scenario snapshot: a saved or
+  imported plan cannot mute the laboratory. A muted profile is called out in the transport with a one-click
+  «Включить звук», because the isolation profile may predate the sound layer and its legacy mute is preserved.
 
 Not wired: automatic `welcome`/`paused`/`streak` narration, voice for `alert`, queueing or interrupting a
-previous line, effect-plus-voice mixing, OS DND detection and cross-window arbitration. The popup remains the
+previous line, per-event mixing controls, OS DND detection and cross-window arbitration. The popup remains the
 only automatic voice owner.
 
 ## Status
 
-Default pack, settings, playback, gating, popup cues and the opt-in character voice are **implemented**.
-Automatic `streak` milestones, theme sound packs, voice queueing and DND detection are **not** wired yet.
+Generated effects, settings, playback, gating, popup cues (one signal or one line per event) and the character voice are
+**implemented and on by default**. Automatic `streak` milestones, theme sound packs, voice queueing and DND
+detection are **not** wired yet.
 
 ## Authored production package
 

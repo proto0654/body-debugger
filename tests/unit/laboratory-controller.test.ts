@@ -149,10 +149,23 @@ describe('main-owned laboratory', () => {
     expect(store.getSnapshot().progress.characterBuild).toBe('average')
   })
 
+  it('keeps the live sound preference out of the scenario snapshot', async () => {
+    const base = store.getSnapshot().settings
+    store.updateSettings({ ...base, sound: { ...base.sound, enabled: false } })
+    await command({ action: 'scenario', id: 'growth' })
+    // The plan now carries the muted block; enabling sound must survive a seek.
+    store.updateSettings({ ...store.getSnapshot().settings, sound: { ...base.sound, enabled: true } })
+
+    await command({ action: 'seek', cursor: 2 })
+
+    expect(store.getSnapshot().settings.sound.enabled).toBe(true)
+    expect(store.getSnapshot().settings.sound.voiceEnabled).toBe(true)
+  })
+
   it('resets history while keeping profile preferences and weight entries', async () => {
     await command({ action: 'scenario', id: 'growth' })
     await command({ action: 'seek', cursor: 5 })
-    store.updateSettings({ ...store.getSnapshot().settings, characterPackId: 'engineer', sound: { enabled: false, volume: 0.2, packId: 'default', voiceEnabled: false } })
+    store.updateSettings({ ...store.getSnapshot().settings, characterPackId: 'engineer', sound: { enabled: false, volume: 0.2, packId: 'default', voiceEnabled: true } })
     store.updateProgress({ ...store.getSnapshot().progress, characterBuild: 'stocky' })
     store.addWeightEntry({ weightKg: 75 })
     const before = store.getSnapshot()

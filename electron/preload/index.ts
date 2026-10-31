@@ -3,6 +3,9 @@ import type { LabCommand, LabState } from '../../shared/domain/laboratory'
 import type { LabDriverAck, LabDriverCommand } from '../../shared/domain/laboratory-playback'
 import {
   IpcChannels,
+  type AppInfoPayload,
+  type UpdateInstallResult,
+  type UpdateStatePayload,
   type DataAddWeightPayload,
   type DataRemoveWeightPayload,
   type DataSaveProgressPayload,
@@ -26,6 +29,16 @@ import {
 } from '../../shared/types/events'
 
 const api = {
+  getAppInfo: (): Promise<AppInfoPayload> => ipcRenderer.invoke(IpcChannels.AppGetInfo),
+  openLogs: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.AppOpenLogs),
+  getUpdateState: (): Promise<UpdateStatePayload> => ipcRenderer.invoke(IpcChannels.AppUpdateState),
+  checkForUpdates: (): Promise<UpdateStatePayload> => ipcRenderer.invoke(IpcChannels.AppUpdateCheck),
+  installUpdate: (): Promise<UpdateInstallResult> => ipcRenderer.invoke(IpcChannels.AppUpdateInstall),
+  onUpdateState: (handler: (state: UpdateStatePayload) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: UpdateStatePayload): void => handler(state)
+    ipcRenderer.on(IpcChannels.AppUpdateChanged, listener)
+    return () => ipcRenderer.removeListener(IpcChannels.AppUpdateChanged, listener)
+  },
   labDriverAck: (ack: LabDriverAck): Promise<void> => ipcRenderer.invoke(IpcChannels.LabDriverAck, ack),
   onLabDriver: (handler: (command: LabDriverCommand) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, command: LabDriverCommand): void => handler(command)

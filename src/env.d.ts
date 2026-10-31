@@ -3,6 +3,9 @@ import type { LabCommand, LabState } from '@shared/domain/laboratory'
 import type { LabDriverAck, LabDriverCommand } from '@shared/domain/laboratory-playback'
 
 import type {
+  AppInfoPayload,
+  UpdateInstallResult,
+  UpdateStatePayload,
   DataAddWeightPayload,
   DataRemoveWeightPayload,
   DataSaveProgressPayload,
@@ -32,6 +35,12 @@ declare module '*.vue' {
 }
 
 export interface BodyDebuggerApi {
+  getAppInfo: () => Promise<AppInfoPayload>
+  openLogs: () => Promise<boolean>
+  getUpdateState: () => Promise<UpdateStatePayload>
+  checkForUpdates: () => Promise<UpdateStatePayload>
+  installUpdate: () => Promise<UpdateInstallResult>
+  onUpdateState: (handler: (state: UpdateStatePayload) => void) => () => void
   labDriverAck: (ack: LabDriverAck) => Promise<void>
   onLabDriver: (handler: (command: LabDriverCommand) => void) => () => void
   openLaboratory: () => Promise<void>

@@ -13,6 +13,7 @@ import ComicBubble from '@/components/character/ComicBubble.vue'
 import WeightCard from '@/components/weight/WeightCard.vue'
 import PreferencesPanel from '@/components/settings/PreferencesPanel.vue'
 import ComfortSettingsPanel from '@/components/settings/ComfortSettingsPanel.vue'
+import AboutPanel from '@/components/settings/AboutPanel.vue'
 import { useProgressStore } from '@/stores/progress'
 import { useCharacterStore } from '@/stores/character'
 import { useSettingsStore } from '@/stores/settings'
@@ -196,7 +197,7 @@ async function triggerReminder(): Promise<void> {
     </template>
     <div v-else-if="tab === 'character'" class="space-y-4"><CharacterSettingsPanel /><CharacterJourney /></div>
     <ProgressPanel v-else-if="tab === 'progress'" :now="now" :initial-section="progressSection" @settings="tab = 'settings'" />
-    <template v-else-if="tab === 'settings'"><PreferencesPanel /><ComfortSettingsPanel group="presentation" /></template>
+    <template v-else-if="tab === 'settings'"><PreferencesPanel /><ComfortSettingsPanel group="presentation" /><AboutPanel /></template>
     <DebugPanel v-else />
   </div>
 </template>

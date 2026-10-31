@@ -4,6 +4,7 @@ import type { AppSettings } from './settings'
 import type { UserProgress } from './progress'
 import type { DataSnapshot } from './persistence'
 import type { PhotoEntry } from './photo'
+import type { UpdateState } from '../domain/update'
 
 /** Tray visual states from CONCEPT.md §4 / §13 */
 export type TrayState = 'idle' | 'soon' | 'standup' | 'success' | 'streak'
@@ -46,7 +47,13 @@ export const IpcChannels = {
   ExerciseListCustom: 'exercise:list-custom',
   ExerciseAddCustom: 'exercise:add-custom',
   ExerciseRemoveCustom: 'exercise:remove-custom',
-  ExercisesUpdated: 'exercise:updated'
+  ExercisesUpdated: 'exercise:updated',
+  AppGetInfo: 'app:get-info',
+  AppOpenLogs: 'app:open-logs',
+  AppUpdateState: 'app:update-state',
+  AppUpdateCheck: 'app:update-check',
+  AppUpdateInstall: 'app:update-install',
+  AppUpdateChanged: 'app:update-changed'
 } as const
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels]
@@ -154,4 +161,29 @@ export type ExerciseListCustomPayload = Exercise[]
 
 export interface ExercisesUpdatedPayload {
   exercises: Exercise[]
+}
+
+/**
+ * Build identity for «О программе» — lets a tester report the exact build
+ * and gives support the profile and log locations without asking for them.
+ */
+export interface AppInfoPayload {
+  version: string
+  buildCommit: string
+  buildDate: string
+  packaged: boolean
+  platform: string
+  dataPath: string
+  logDir: string
+}
+
+export type UpdateStatePayload = UpdateState
+
+/**
+ * `reason` explains a refused restart: an open popup must never be interrupted
+ * by an update, and a not-ready update cannot be installed.
+ */
+export interface UpdateInstallResult {
+  started: boolean
+  reason: 'not-ready' | 'popup-open' | null
 }

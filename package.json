@@ -1,6 +1,7 @@
 {
   "name": "body-debugger",
-  "version": "0.1.0",
+  "productName": "Body Debugger",
+  "version": "0.2.1",
   "description": "Desktop tray app for short desk workouts — Body Debugger",
   "main": "./out/main/index.js",
   "author": "Body Debugger",
@@ -9,6 +10,8 @@
     "dev": "electron-vite dev",
     "dev:lab": "electron-vite dev -- --body-debugger-lab",
     "build": "electron-vite build",
+    "build:win": "npm run build && electron-builder --win nsis",
+    "build:dir": "npm run build && electron-builder --dir",
     "preview": "electron-vite preview",
     "typecheck": "npm run typecheck:node && npm run typecheck:web && npm run typecheck:test",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
@@ -19,6 +22,7 @@
     "postinstall": "node scripts/ensure-electron.js"
   },
   "dependencies": {
+    "electron-updater": "^6.8.11",
     "pinia": "^3.0.3",
     "vue": "^3.5.22",
     "vue-router": "^4.5.1"
@@ -29,6 +33,7 @@
     "@vitejs/plugin-vue": "^6.0.1",
     "@vue/test-utils": "^2.5.1",
     "electron": "^38.2.1",
+    "electron-builder": "^26.18.0",
     "electron-vite": "^5.0.0",
     "happy-dom": "^21.0.4",
     "tailwindcss": "^4.1.14",

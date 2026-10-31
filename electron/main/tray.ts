@@ -10,6 +10,9 @@ export interface TrayHandlers {
   isReducedMotion: () => boolean
   onTogglePause: () => void
   onTriggerNow: () => void
+  /** Version of a downloaded update that installs on quit; null when there is none. */
+  getUpdateReadyVersion: () => string | null
+  onInstallUpdate: () => void
 }
 
 let tray: Tray | null = null
@@ -27,7 +30,8 @@ const TRAY_LABELS: Record<TrayState, string> = {
 }
 
 function buildContextMenu(): Menu {
-  return Menu.buildFromTemplate([
+  const readyVersion = handlers?.getUpdateReadyVersion() ?? null
+  const template: Electron.MenuItemConstructorOptions[] = [
     {
       label: 'Дашборд',
       click: () => {
@@ -39,7 +43,19 @@ function buildContextMenu(): Menu {
       click: () => {
         handlers?.onTriggerNow()
       }
-    },
+    }
+  ]
+
+  if (readyVersion) {
+    template.push({
+      label: `Обновление ${readyVersion} — перезапустить`,
+      click: () => {
+        handlers?.onInstallUpdate()
+      }
+    })
+  }
+
+  template.push(
     { type: 'separator' },
     {
       label: paused ? 'Продолжить' : 'Пауза',
@@ -58,12 +74,16 @@ function buildContextMenu(): Menu {
         app.quit()
       }
     }
-  ])
+  )
+
+  return Menu.buildFromTemplate(template)
 }
 
 function updateTooltip(): void {
   if (!tray) return
-  tray.setToolTip(`${isLabProcess() ? 'Лаборатория · ' : ''}${paused ? 'Body Debugger — пауза' : TRAY_LABELS[trayState]}`)
+  const ready = handlers?.getUpdateReadyVersion() ?? null
+  const base = `${isLabProcess() ? 'Лаборатория · ' : ''}${paused ? 'Body Debugger — пауза' : TRAY_LABELS[trayState]}`
+  tray.setToolTip(ready ? `${base} · обновление готово` : base)
 }
 
 function stopFrameTimer(): void {

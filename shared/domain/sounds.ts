@@ -19,6 +19,51 @@ export const SOUND_CUE_LABELS: Record<SoundCue, string> = {
   'stage-up': 'Новая форма', streak: 'Серия', alert: 'Внимание', error: 'Ошибка'
 }
 
+/**
+ * Spoken events of the character voice package (docs/AUDIO-PRODUCTION.md). The
+ * catalog owns the lines; this list only fixes the order and the UI labels.
+ */
+export const VOICE_EVENTS = [
+  'ready', 'done', 'first-done', 'stage-up', 'streak', 'welcome',
+  'active', 'paused', 'skipped', 'snoozed', 'error', 'alert'
+] as const
+
+export type VoiceEvent = (typeof VOICE_EVENTS)[number]
+
+export const VOICE_EVENT_LABELS: Record<VoiceEvent, string> = {
+  ready: 'Напоминание', done: 'Выполнено', 'first-done': 'Первое за день',
+  'stage-up': 'Новая форма', streak: 'Серия', welcome: 'Приветствие',
+  active: 'Старт', paused: 'Пауза', skipped: 'Пропуск', snoozed: 'Отложено',
+  error: 'Ошибка', alert: 'Внимание'
+}
+
+/** One principal voice clip per cue; the effect remains the fallback. */
+export const VOICE_CUE_EVENTS: Record<SoundCue, VoiceEvent | null> = {
+  popup: 'ready',
+  done: 'done',
+  skip: 'skipped',
+  snooze: 'snoozed',
+  'stage-up': 'stage-up',
+  streak: 'streak',
+  alert: 'alert',
+  error: 'error'
+}
+
+export function isVoiceEvent(value: unknown): value is VoiceEvent {
+  return typeof value === 'string' && (VOICE_EVENTS as readonly string[]).includes(value)
+}
+
+/**
+ * Rotate through the variants of one event so the same take never plays twice in
+ * a row; an unknown previous variant restarts the rotation (docs/AUDIO-PRODUCTION.md
+ * requires stable event identity without immediate repeats).
+ */
+export function pickVoiceVariant(variants: readonly string[], last: string | null): string | null {
+  if (!variants.length) return null
+  const index = last === null ? -1 : variants.indexOf(last)
+  return variants[(index + 1) % variants.length] ?? null
+}
+
 /** Packs shipped with the app. Theme packs can extend this list later. */
 export const SOUND_PACK_IDS = ['default'] as const
 
@@ -27,7 +72,8 @@ export type SoundPackId = (typeof SOUND_PACK_IDS)[number]
 export const DEFAULT_SOUND_SETTINGS: SoundSettings = {
   enabled: true,
   volume: 0.4,
-  packId: 'default'
+  packId: 'default',
+  voiceEnabled: false
 }
 
 export function isSoundPackId(value: unknown): value is SoundPackId {
@@ -53,7 +99,8 @@ export function normalizeSoundSettings(
   return {
     enabled: stored.enabled === true,
     volume,
-    packId: isSoundPackId(stored.packId) ? stored.packId : DEFAULT_SOUND_SETTINGS.packId
+    packId: isSoundPackId(stored.packId) ? stored.packId : DEFAULT_SOUND_SETTINGS.packId,
+    voiceEnabled: stored.voiceEnabled === true
   }
 }
 

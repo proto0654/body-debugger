@@ -9,10 +9,10 @@ import type { AppSettings } from '@shared/types/settings'
 
 describe('settings defaults', () => {
   it('enables new profiles while preserving a legacy mute and explicit sound preferences', () => {
-    expect(normalizeSettings(undefined).sound).toEqual({ enabled: true, volume: 0.4, packId: 'default' })
+    expect(normalizeSettings(undefined).sound).toEqual({ enabled: true, volume: 0.4, packId: 'default', voiceEnabled: false })
     expect(normalizeSettings({}).sound.enabled).toBe(false)
-    expect(normalizeSettings({ sound: { enabled: false, volume: 0.2, packId: 'default' } }).sound)
-      .toEqual({ enabled: false, volume: 0.2, packId: 'default' })
+    expect(normalizeSettings({ sound: { enabled: false, volume: 0.2, packId: 'default', voiceEnabled: false } }).sound)
+      .toEqual({ enabled: false, volume: 0.2, packId: 'default', voiceEnabled: false })
   })
   it('fills a setting added after the stored file was written', () => {
     const stored = { severity: 'soft', intervalMinutes: 25 } as Partial<AppSettings>
@@ -23,7 +23,7 @@ describe('settings defaults', () => {
     expect(settings.sessionExtras).toEqual({ enabled: false })
     expect(settings.inventory).toEqual({ enabled: false, items: [] })
     expect(settings.weight).toEqual({ enabled: false, targetKg: null })
-    expect(settings.sound).toEqual({ enabled: false, volume: 0.4, packId: 'default' })
+    expect(settings.sound).toEqual({ enabled: false, volume: 0.4, packId: 'default', voiceEnabled: false })
     expect(settings.photos).toEqual({ enabled: false })
     expect(settings.ai).toEqual({ enabled: false })
   })
@@ -35,8 +35,11 @@ describe('settings defaults', () => {
 
   it('sanitizes a stored sound block', () => {
     expect(
-      normalizeSettings({ sound: { enabled: true, volume: 4, packId: 'rave' } }).sound
-    ).toEqual({ enabled: true, volume: 1, packId: 'default' })
+      normalizeSettings({ sound: { enabled: true, volume: 4, packId: 'rave', voiceEnabled: false } }).sound
+    ).toEqual({ enabled: true, volume: 1, packId: 'default', voiceEnabled: false })
+    expect(
+      normalizeSettings({ sound: { enabled: true, volume: 0.3, packId: 'default', voiceEnabled: true } }).sound.voiceEnabled
+    ).toBe(true)
   })
 
   it('keeps stored nested values and copies their arrays', () => {

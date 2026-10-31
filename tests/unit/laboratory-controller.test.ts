@@ -152,7 +152,7 @@ describe('main-owned laboratory', () => {
   it('resets history while keeping profile preferences and weight entries', async () => {
     await command({ action: 'scenario', id: 'growth' })
     await command({ action: 'seek', cursor: 5 })
-    store.updateSettings({ ...store.getSnapshot().settings, characterPackId: 'engineer', sound: { enabled: false, volume: 0.2, packId: 'default' } })
+    store.updateSettings({ ...store.getSnapshot().settings, characterPackId: 'engineer', sound: { enabled: false, volume: 0.2, packId: 'default', voiceEnabled: false } })
     store.updateProgress({ ...store.getSnapshot().progress, characterBuild: 'stocky' })
     store.addWeightEntry({ weightKg: 75 })
     const before = store.getSnapshot()

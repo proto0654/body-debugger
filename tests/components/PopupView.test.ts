@@ -18,7 +18,7 @@ import type { SeverityLevel } from '@shared/types/settings'
 import type { SessionResultPayload } from '@shared/types/events'
 import { makeExercise, makeSession, makeSettings } from '../fixtures'
 
-const soundPlayer = vi.hoisted(() => ({ play: vi.fn(), preload: vi.fn() }))
+const soundPlayer = vi.hoisted(() => ({ play: vi.fn(), playVoice: vi.fn(() => false), preload: vi.fn() }))
 
 vi.mock('@/sounds', () => ({
   useSoundPlayer: () => soundPlayer
@@ -94,6 +94,7 @@ beforeEach(() => {
   api.removePhoto.mockClear()
   api.listPhotos.mockClear()
   soundPlayer.play.mockClear()
+  soundPlayer.playVoice.mockClear()
   soundPlayer.preload.mockClear()
   Object.defineProperty(window, 'api', { configurable: true, value: api })
   vi.useFakeTimers()
@@ -201,6 +202,35 @@ describe('PopupView — done flow', () => {
     expect(wrapper.find('[role="status"]').exists()).toBe(false)
     expect(wrapper.get('[role="alert"]').text()).toContain('Не удалось сохранить')
     expect(useSessionsStore().current?.id).toBe('session-1')
+  })
+
+  it('lets the character voice replace the effect and falls back without a take', async () => {
+    wrapper = await mountPopup()
+
+    // Without a voice take the plain effect still plays (mock returns false).
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+    expect(soundPlayer.playVoice).toHaveBeenCalledWith('done')
+    expect(soundPlayer.play).toHaveBeenCalledWith('done')
+
+    wrapper.unmount()
+    soundPlayer.play.mockClear()
+    wrapper = await mountPopup()
+    soundPlayer.playVoice.mockReturnValueOnce(true)
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+    expect(soundPlayer.play).not.toHaveBeenCalledWith('done')
+  })
+
+  it('speaks the failed-save line only after a rejected save', async () => {
+    wrapper = await mountPopup()
+    api.sessionResult.mockRejectedValueOnce(new Error('IPC unavailable'))
+
+    expect(soundPlayer.playVoice).not.toHaveBeenCalledWith('error', expect.anything())
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+
+    expect(soundPlayer.playVoice).toHaveBeenCalledWith('error', { variant: '01' })
   })
 
   it('reports the result, plays the exit animation and closes the window', async () => {

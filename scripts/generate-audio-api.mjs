@@ -101,6 +101,10 @@ function trimSilence(raw, target) {
   );
 }
 
+function isTagOnlyInput(detail) {
+  return /"status"\s*:\s*"input_text_empty"/.test(String(detail));
+}
+
 async function apiJson(key, url, init = {}) {
   const response = await fetch(url, {
     ...init,
@@ -196,10 +200,22 @@ async function main() {
     fs.mkdirSync(path.dirname(raw), { recursive: true });
 
     console.log(`generate ${clip.id} ...`);
-    let result = await synthesize(key, character.selectedVoiceId, clip.taggedText, model, format);
-    if (!result.ok && result.status === 422 && format !== 'mp3_44100_128') {
+    let inputText = clip.taggedText;
+    let usedFormat = format;
+    let inputFallback = null;
+    let result = await synthesize(key, character.selectedVoiceId, inputText, model, usedFormat);
+    if (!result.ok && result.status === 422 && usedFormat !== 'mp3_44100_128') {
       console.log('  format rejected, retrying mp3_44100_128');
-      result = await synthesize(key, character.selectedVoiceId, clip.taggedText, model, 'mp3_44100_128');
+      usedFormat = 'mp3_44100_128';
+      result = await synthesize(key, character.selectedVoiceId, inputText, model, usedFormat);
+    }
+    // A tag-only nonverbal input has no text after tag removal, so the API rejects it as
+    // empty. A terminal period is not pronounceable; the trimmed take keeps the reaction.
+    if (!result.ok && result.status === 400 && isTagOnlyInput(result.detail) && !clip.spokenText) {
+      inputFallback = 'terminal period';
+      inputText = `${clip.taggedText} .`;
+      console.log('  tag-only input rejected, retrying with a terminal period');
+      result = await synthesize(key, character.selectedVoiceId, inputText, model, usedFormat);
     }
     if (!result.ok) {
       console.log(`  FAILED ${result.status}: ${String(result.detail).slice(0, 300)}`);
@@ -231,8 +247,9 @@ async function main() {
       takeNumber: args.take,
       voiceId: character.selectedVoiceId,
       model,
-      outputFormat: format,
-      inputText: clip.taggedText,
+      outputFormat: usedFormat,
+      inputText,
+      ...(inputFallback ? { inputFallback } : {}),
       rawFile: path.relative(ROOT, raw).replace(/\\/g, '/'),
       deliveryFile: path.relative(ROOT, target).replace(/\\/g, '/'),
       measuredDurationSec: duration,

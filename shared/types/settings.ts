@@ -35,6 +35,8 @@ export interface SoundSettings {
   volume: number
   /** Shipped cue pack id */
   packId: string
+  /** Speak the selected character's voice package instead of the plain cue */
+  voiceEnabled: boolean
 }
 
 export interface AppSettings {

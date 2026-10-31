@@ -25,7 +25,8 @@ electron/preload/           # contextBridge → window.api
 src/                        # Vue renderer
 src/bootstrap/              # hydrate Pinia from main snapshot + optional layers
 src/motion.ts               # Motion preference (settings + OS) and popup exit timings
-src/sounds.ts               # Cue URLs + gated renderer player
+src/sounds.ts               # Cue URLs + gated renderer player (effects and character voice)
+src/voice-assets.ts         # Manifest of the generated voice/effect takes (import.meta.glob)
 src/photos.ts               # photo:// URL helper
 src/styles/index.css        # Tailwind entry, keyframes, theme tokens, reduced-motion overrides
 src/stores/                 # sessions, progress, settings, character, reminder, weight, photos, AI
@@ -33,6 +34,8 @@ src/components/             # UI (character, weight, stats, photos, AI)
 src/debug/                  # Dev-only panel + scenario builders
 src/assets/character/       # Manifest, ten selectable identities and cut frames
 src/assets/sounds/default/  # Default cue pack (mp3)
+src/assets/sounds/<character>/ # Generated voice takes + archived sources
+src/assets/sounds/system/   # Shared effect takes
 shared/types/               # Exercise, Session, Character, Progress, Settings, Photo, Events, Persistence
 shared/domain/              # Pure rules: picker, character, severity, extras, weight, sounds, photos, AI, streak, stats
 shared/validation/          # Exercise + Session payload guards
@@ -205,13 +208,14 @@ Main stores it on `done` and recomputes it when reading a snapshot; the historic
 
 | Rule | Behaviour |
 |------|-----------|
-| Settings | `sound { enabled, volume 0..1, packId }`, normalized on load; unknown pack → `default` |
+| Settings | `sound { enabled, volume 0..1, packId, voiceEnabled }`, normalized on load; unknown pack → `default`; missing voice flag → off |
 | Gate | Master switch, audible volume, paused reminders and quiet/DND context suppress playback |
 | Cues | `popup`, `done`, `skip`, `snooze`, `stage-up`, `streak`, `alert`, `error` map to bundled mp3 files |
-| Popup | Plays `popup` on mount; result cue after the durable acknowledgement; a done session that raises the stage plays `stage-up` instead of `done` |
+| Voice | With `voiceEnabled`, `VOICE_CUE_EVENTS` maps a cue to a spoken event; variants rotate without immediate repeats and the effect is the fallback |
+| Popup | Plays `popup` on mount; result cue after the durable acknowledgement; a done session that raises the stage plays `stage-up` instead of `done`; `error/01` only after a rejected save |
 | Failure | A rejected `audio.play()` is logged and swallowed; audio never breaks the core cycle |
 
-Stage-up is automatic; `streak` has a file and a debug preview but no automatic milestone trigger yet.
+Stage-up is automatic; `streak` has a file and a debug preview but no automatic milestone trigger yet. The generated voice is authored in [Audio production](AUDIO-PRODUCTION.md) and auditioned in the laboratory «Звуки» tab.
 
 ### Progress photos
 

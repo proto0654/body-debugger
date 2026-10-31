@@ -36,13 +36,21 @@ function fakeFactory(options: { reject?: boolean } = {}) {
 function player(
   settings: Partial<SoundSettings> = {},
   state: { paused?: boolean; quiet?: boolean } = {},
-  factory = fakeFactory()
+  factory = fakeFactory(),
+  voice: { characterId?: string; variants?: Record<string, string[]> } = {}
 ) {
   const instance = createSoundPlayer({
     createAudio: factory.createAudio,
     getSettings: () => ({ ...DEFAULT_SOUND_SETTINGS, ...settings }),
     isPaused: () => state.paused ?? false,
-    isQuiet: () => state.quiet ?? false
+    isQuiet: () => state.quiet ?? false,
+    getCharacterId: () => voice.characterId ?? 'desk-hulk',
+    resolveVoiceClips: (characterId, event) => (voice.variants?.[event] ?? []).map((variant) => ({
+      characterId,
+      event,
+      variant,
+      url: `voice/${characterId}__${event}__${variant}.mp3`
+    }))
   })
   return { instance, factory }
 }
@@ -114,6 +122,95 @@ describe('sound player', () => {
     instance.preload()
 
     expect(factory.created).toHaveLength(0)
+  })
+})
+
+describe('character voice playback', () => {
+  it('plays a generated take instead of the effect when the voice layer is on', () => {
+    const { instance, factory } = player(
+      { enabled: true, voiceEnabled: true, volume: 0.3 },
+      {},
+      fakeFactory(),
+      { variants: { done: ['01', '02'] } }
+    )
+
+    expect(instance.playVoice('done')).toBe(true)
+    expect(factory.created).toHaveLength(1)
+    expect(factory.created[0].src).toBe('voice/desk-hulk__done__01.mp3')
+    expect(factory.created[0].volume).toBe(0.3)
+  })
+
+  it('stays out of the way when the voice layer is off so the caller can fall back', () => {
+    const { instance, factory } = player(
+      { enabled: true, voiceEnabled: false },
+      {},
+      fakeFactory(),
+      { variants: { done: ['01'] } }
+    )
+
+    expect(instance.playVoice('done')).toBe(false)
+    expect(factory.created).toHaveLength(0)
+    expect(instance.play('done')).toBe(true)
+    expect(factory.created).toHaveLength(1)
+  })
+
+  it('never repeats the previous take of the same event', () => {
+    const { instance, factory } = player(
+      { enabled: true, voiceEnabled: true },
+      {},
+      fakeFactory(),
+      { variants: { skipped: ['01', '02', '03'] } }
+    )
+
+    instance.playVoice('skip')
+    instance.playVoice('skip')
+    instance.playVoice('skip')
+    instance.playVoice('skip')
+
+    expect(factory.created.map((audio) => audio.src)).toEqual([
+      'voice/desk-hulk__skipped__01.mp3',
+      'voice/desk-hulk__skipped__02.mp3',
+      'voice/desk-hulk__skipped__03.mp3',
+      'voice/desk-hulk__skipped__01.mp3'
+    ])
+  })
+
+  it('honours an explicit variant for the save-failure error line', () => {
+    const { instance, factory } = player(
+      { enabled: true, voiceEnabled: true },
+      {},
+      fakeFactory(),
+      { variants: { error: ['01', '02'] } }
+    )
+
+    expect(instance.playVoice('error', { variant: '01' })).toBe(true)
+    expect(instance.playVoice('error', { variant: '02' })).toBe(true)
+    expect(factory.created.map((audio) => audio.src)).toEqual([
+      'voice/desk-hulk__error__01.mp3',
+      'voice/desk-hulk__error__02.mp3'
+    ])
+  })
+
+  it('reports no voice when the character has no take for the event', () => {
+    const { instance, factory } = player(
+      { enabled: true, voiceEnabled: true },
+      {},
+      fakeFactory(),
+      { variants: { done: ['01'] } }
+    )
+
+    expect(instance.playVoice('popup')).toBe(false)
+    expect(factory.created).toHaveLength(0)
+  })
+
+  it('respects mute and pause exactly like the effect layer', () => {
+    const muted = player({ enabled: false, voiceEnabled: true }, {}, fakeFactory(), { variants: { done: ['01'] } })
+    expect(muted.instance.playVoice('done')).toBe(false)
+    expect(muted.factory.created).toHaveLength(0)
+
+    const paused = player({ enabled: true, voiceEnabled: true }, { paused: true }, fakeFactory(), { variants: { done: ['01'] } })
+    expect(paused.instance.playVoice('done')).toBe(false)
+    expect(paused.factory.created).toHaveLength(0)
   })
 })
 

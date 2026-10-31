@@ -3,10 +3,15 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_SOUND_SETTINGS,
   SOUND_CUES,
+  VOICE_CUE_EVENTS,
+  VOICE_EVENTS,
+  VOICE_EVENT_LABELS,
   canPlayCue,
   cueForSessionStatus,
   isSoundPackId,
-  normalizeSoundSettings
+  isVoiceEvent,
+  normalizeSoundSettings,
+  pickVoiceVariant
 } from '@shared/domain/sounds'
 
 describe('sound settings', () => {
@@ -25,7 +30,10 @@ describe('sound settings', () => {
   it('keeps the stored switch, pack and volume', () => {
     expect(
       normalizeSoundSettings({ enabled: true, volume: 0.35, packId: 'default' })
-    ).toEqual({ enabled: true, volume: 0.35, packId: 'default' })
+    ).toEqual({ enabled: true, volume: 0.35, packId: 'default', voiceEnabled: false })
+    expect(
+      normalizeSoundSettings({ enabled: true, volume: 0.35, packId: 'default', voiceEnabled: true })
+    ).toEqual({ enabled: true, volume: 0.35, packId: 'default', voiceEnabled: true })
   })
 
   it('clamps volume into 0..1 and rejects a non-finite value', () => {
@@ -92,5 +100,38 @@ describe('sound playback gate', () => {
 
   it('stays silent in do-not-disturb / call mode', () => {
     expect(canPlayCue(enabled, { quiet: true })).toBe(false)
+  })
+})
+
+describe('character voice mapping', () => {
+  it('maps every cue that has a spoken event and keeps the rest effects-only', () => {
+    expect(VOICE_CUE_EVENTS).toEqual({
+      popup: 'ready',
+      done: 'done',
+      skip: 'skipped',
+      snooze: 'snoozed',
+      'stage-up': 'stage-up',
+      streak: 'streak',
+      alert: 'alert',
+      error: 'error'
+    })
+    for (const cue of SOUND_CUES) expect(isVoiceEvent(VOICE_CUE_EVENTS[cue])).toBe(true)
+  })
+
+  it('rotates variants and never repeats the previous one', () => {
+    const variants = ['01', '02', '03']
+    expect(pickVoiceVariant(variants, null)).toBe('01')
+    expect(pickVoiceVariant(variants, '01')).toBe('02')
+    expect(pickVoiceVariant(variants, '03')).toBe('01')
+    expect(pickVoiceVariant(['01'], '01')).toBe('01')
+    expect(pickVoiceVariant([], '01')).toBeNull()
+  })
+
+  it('restarts the rotation when the previous variant is unknown', () => {
+    expect(pickVoiceVariant(['01', '02'], 'stale')).toBe('01')
+  })
+
+  it('keeps a Russian label for every spoken event', () => {
+    for (const event of VOICE_EVENTS) expect(VOICE_EVENT_LABELS[event]).toMatch(/[А-Яа-яЁё]/)
   })
 })

@@ -154,7 +154,7 @@ describe('settings store', () => {
     await settings.setSoundEnabled(true)
     await settings.setSoundVolume(0.35)
 
-    expect(settings.sound).toEqual({ enabled: true, volume: 0.35, packId: 'default' })
+    expect(settings.sound).toEqual({ enabled: true, volume: 0.35, packId: 'default', voiceEnabled: false })
     expect(saveSettings.mock.calls[0][0]).toMatchObject({ sound: { enabled: true } })
     expect(saveSettings.mock.calls[1][0]).toMatchObject({ sound: { volume: 0.35 } })
   })

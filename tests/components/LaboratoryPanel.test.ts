@@ -62,6 +62,14 @@ describe('laboratory controls', () => {
     expect(command).toHaveBeenCalledWith({ action: 'popup', preset: 'normal', exerciseId: 'neck-tilts' })
   })
 
+  it('opens the generated sound package in its own tab without playing anything', async () => {
+    const view = await panel()
+    await view.findAll('nav button').find(button => button.text() === 'Звуки')!.trigger('click')
+    expect(view.find('[data-testid="sound-audition"]').exists()).toBe(true)
+    expect(view.find('[data-testid="sound-audition"]').text()).toContain('Голос персонажа')
+    expect(preview.play).not.toHaveBeenCalled()
+  })
+
   it('keeps replay silent in the control window and only plays explicit sound previews', async () => {
     const view = await panel()
     listener?.({ ...state, playing: true })

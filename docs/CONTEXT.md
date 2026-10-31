@@ -38,7 +38,8 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Weight history rules (range, series, goal, backfill) | `shared/domain/weight.ts` |
 | Weight store / dashboard card | `src/stores/weight.ts`, `src/components/weight/` |
 | Streak rules (day-based current / max) | `shared/domain/streak.ts` |
-| Sounds rules + renderer player | `shared/domain/sounds.ts`, `src/sounds.ts` |
+| Sounds rules + renderer player + generated voice manifest | `shared/domain/sounds.ts`, `src/sounds.ts`, `src/voice-assets.ts` |
+| Sound auditioning (laboratory tab) | `src/debug/SoundAuditionPanel.vue` |
 | Photo rules / main store / protocol / UI | `shared/domain/photos.ts`, `electron/main/photos.ts`, `electron/main/photo-protocol.ts`, `src/components/photos/` |
 | AI proposal parsing + approval | `shared/domain/ai-proposal.ts`, `electron/main/custom-exercises.ts`, `src/components/ai/` |
 | Themes + equipment catalogs | `shared/constants/themes.ts`, `shared/constants/equipment.ts` |
@@ -69,6 +70,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Tray icon script | `scripts/build-tray-icons.py` |
 | Tests (Vitest) | `tests/` (unit / stores / components), config `vitest.config.ts` |
 | Sound packs (default mp3) | `src/assets/sounds/default/` |
+| Generated voice + effect takes | `src/assets/sounds/<character>/`, `src/assets/sounds/system/` |
 | Electron userData + JSON | `.userdata/` → `.userdata/data/*.json` (gitignored) |
 
 ## Source of truth
@@ -95,7 +97,8 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 - Character art is cut per frame; emoji fallback also handles a failed image load. Motion respects the dashboard switch and the OS setting.
 - Nine additional character packs have 432 source-derived frames (three builds × sixteen states each), indexed by `src/assets/character/packs.json`. They are selectable alongside Desk Hulk through the manifest-backed picker; their six distinct stages resolve across all windows. See the [character art library](../src/assets/character/README.md).
 - Optional layers are live (new profiles enable sounds at 40%; other layers are off by default): session details, weight history, photos, inventory, sounds, AI proposals, themes.
-- The [audio production package](AUDIO-PRODUCTION.md) authors ten voice profiles, 400 voice positions and nine shared effect prompts in `src/assets/sounds/production.json`. Manual pilots use separated batch tracks with `scripts/cut-audio-batch.py`; per-clip API generation uses `scripts/generate-audio-api.mjs` and logs takes in `src/assets/sounds/api-report.json`. Selection, duration and review records live with the catalog/sources. The player does not load the new clips; full production, listening approval and runtime integration remain separate work.
+- The [audio production package](AUDIO-PRODUCTION.md) authors ten voice profiles, 400 voice positions and nine shared effect prompts in `src/assets/sounds/production.json`. Manual pilots use separated batch tracks with `scripts/cut-audio-batch.py`; Voice Design casting, per-clip speech and Sound Effects generation use `scripts/cast-voices-api.mjs`, `scripts/generate-audio-api.mjs` and `scripts/generate-effects-api.mjs`, logging takes in `src/assets/sounds/api-report.json`. Selection, duration and review records live with the catalog/sources. All ten voices are cast and every position has a first take, but nothing has been listened to: 45 takes exceed their budget and four chuckles are under 0.2 s.
+- The generated voice plays through an opt-in layer (`sound.voiceEnabled`, default off; toggle in «Настройки → Звуки»). The popup speaks `ready`, `done`, `skipped`, `snoozed`, `stage-up` and the failed-save error line; variants rotate without immediate repeats and the shipped effect remains the fallback. Clips are bundled through `src/voice-assets.ts` (418 mp3 assets, ~11 MB). Queueing, `streak`/`welcome` narration, effect-plus-voice balancing and OS DND detection are not implemented. Laboratory «Звуки» auditions every variant and effect take without changing settings.
 - Dashboard: «Сегодня» foregrounds the large character, day totals, current streak and progress to the next form. «Персонаж» groups identity/build, preview and evolution; «Прогресс» groups calendar/stats, weight history and photos. «Настройки» groups rhythm/strictness, picker/Focus with inventory/AI, sound and appearance; current-day values refresh while open.
 - Core preferences: the «Настройки» tab edits interval (5–240 min), picker mode and Focus; character identity and build on «Персонаж»; values are normalized on load, and an interval change reschedules the loop.
 - Renderer CSP lists `photo:` in `img-src`, so progress photos load through the custom scheme.

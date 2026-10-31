@@ -1892,10 +1892,35 @@
       "persona": "A rebellious punk; energetic refusals to obey a chair and rough-edged approval.",
       "voiceDesignPrompt": "An adult male voice speaking native Russian, in his early thirties. Mid-low pitch with a rough rasp, firm attacks and a clipped, percussive cadence. A rebellious punk with explosive energy and a friendly conspiratorial grin. Commands are short and sharp; joy has grit without sustained yelling. Sarcasm targets lazy routines, not a threatening confrontation. Distinct from a deep gym voice: lighter, rougher and more staccato. Expressive but comfortable for repeated short desktop notifications. Clean, dry studio recording.",
       "previewText": "Так, сидячий режим отменяется. Кресло тебе не начальник, чтобы весь день ему подчиняться. Поднялись, размялись, устроили маленький бунт. Во! Уже живой человек, а не приложение к стулу. Вот это я понимаю, движение!",
-      "selectedVoiceId": null,
-      "usedModel": null,
-      "castingCandidates": [],
-      "selectionHistory": [],
+      "selectedVoiceId": "7Gih8YAujX5UXBpf2xVi",
+      "usedModel": "eleven_v4",
+      "castingCandidates": [
+        {
+          "previewNumber": 1,
+          "voiceId": "7Gih8YAujX5UXBpf2xVi",
+          "selected": true
+        },
+        {
+          "previewNumber": 2,
+          "voiceId": null,
+          "selected": false
+        },
+        {
+          "previewNumber": 3,
+          "voiceId": null,
+          "selected": false
+        }
+      ],
+      "selectionHistory": [
+        {
+          "date": "2026-10-31",
+          "voiceId": "7Gih8YAujX5UXBpf2xVi",
+          "model": "eleven_v4",
+          "candidateNumber": 1,
+          "method": "api-first-preview",
+          "notes": "Voice Design API (eleven_multilingual_ttv_v2) returned 3 previews in one response; the request has no option for a single preview, so preview 1 was saved without auditioning. All previews are archived under source/design__punk__candidate-<n>__2026-10-31.mp3. Provider voice description truncated to 500 characters; generation prompt unchanged."
+        }
+      ],
       "takes": [],
       "clips": [
         {
@@ -2490,10 +2515,35 @@
       "persona": "A young adult gamer; quick gaming metaphors, playful disbelief and energetic wins.",
       "voiceDesignPrompt": "An adult male voice speaking native Russian, in his mid-twenties. Mid pitch, clear and agile, with a bright forward resonance and quick conversational changes in intonation. A playful gamer with amused disbelief and compact energetic celebrations. Use modern Russian gaming slang naturally without an exaggerated teenage voice or forced English accent. Quick but intelligible; very short replies must remain distinct. Expressive but comfortable for repeated short desktop notifications. Clean, dry studio recording.",
       "previewText": "Так, АФК затянулся. Ты сейчас фармишь только отпечаток на кресле. Встаём, делаем короткий квест и возвращаемся в катку. Опа, выполнено! Вот это уже нормальный лут. Ладно, этот раунд ты реально затащил.",
-      "selectedVoiceId": null,
-      "usedModel": null,
-      "castingCandidates": [],
-      "selectionHistory": [],
+      "selectedVoiceId": "9FYxYscXAeu75I7ZtZu6",
+      "usedModel": "eleven_v4",
+      "castingCandidates": [
+        {
+          "previewNumber": 1,
+          "voiceId": "9FYxYscXAeu75I7ZtZu6",
+          "selected": true
+        },
+        {
+          "previewNumber": 2,
+          "voiceId": null,
+          "selected": false
+        },
+        {
+          "previewNumber": 3,
+          "voiceId": null,
+          "selected": false
+        }
+      ],
+      "selectionHistory": [
+        {
+          "date": "2026-10-31",
+          "voiceId": "9FYxYscXAeu75I7ZtZu6",
+          "model": "eleven_v4",
+          "candidateNumber": 1,
+          "method": "api-first-preview",
+          "notes": "Voice Design API (eleven_multilingual_ttv_v2) returned 3 previews in one response; the request has no option for a single preview, so preview 1 was saved without auditioning. All previews are archived under source/design__zoomer__candidate-<n>__2026-10-31.mp3. Provider voice description truncated to 500 characters; generation prompt unchanged."
+        }
+      ],
       "takes": [],
       "clips": [
         {
@@ -3088,10 +3138,35 @@
       "persona": "An assured mature woman; caring but commanding domestic roasts and matter-of-fact praise.",
       "voiceDesignPrompt": "An adult female voice speaking native Russian, in her early forties. Warm low-mid pitch, full-bodied resonance, clear consonants and brisk practical pacing. A confident, witty grown woman who can deliver a caring dressing-down without baby talk. Commands are concise, sarcasm has a knowing smile, praise is warm and earned. Not seductive or breathlessly intimate. Keep brief replies naturally short. Expressive but comfortable for repeated short desktop notifications. Clean, dry studio recording.",
       "previewText": "Так, родной, кресло уже выучило твою биографию. Давай дадим ему отдохнуть от твоей задницы. Встал, размялся, вернулся — делов на минуту. Вот! Можешь же, когда перестаёшь торговаться. Я даже горжусь, только не зазнавайся.",
-      "selectedVoiceId": null,
-      "usedModel": null,
-      "castingCandidates": [],
-      "selectionHistory": [],
+      "selectedVoiceId": "oIcU9Xgozk5stPCb8BOW",
+      "usedModel": "eleven_v4",
+      "castingCandidates": [
+        {
+          "previewNumber": 1,
+          "voiceId": "oIcU9Xgozk5stPCb8BOW",
+          "selected": true
+        },
+        {
+          "previewNumber": 2,
+          "voiceId": null,
+          "selected": false
+        },
+        {
+          "previewNumber": 3,
+          "voiceId": null,
+          "selected": false
+        }
+      ],
+      "selectionHistory": [
+        {
+          "date": "2026-10-31",
+          "voiceId": "oIcU9Xgozk5stPCb8BOW",
+          "model": "eleven_v4",
+          "candidateNumber": 1,
+          "method": "api-first-preview",
+          "notes": "Voice Design API (eleven_multilingual_ttv_v2) returned 3 previews in one response; the request has no option for a single preview, so preview 1 was saved without auditioning. All previews are archived under source/design__cool-mom__candidate-<n>__2026-10-31.mp3. Provider voice description truncated to 500 characters; generation prompt unchanged."
+        }
+      ],
       "takes": [],
       "clips": [
         {
@@ -3686,10 +3761,35 @@
       "persona": "A polished, exacting aesthete; posture, grooming and dry attention to detail.",
       "voiceDesignPrompt": "An adult male voice speaking native Russian, in his mid-thirties. Smooth mid-low pitch, clean controlled resonance and unusually precise diction, with an even conversational pace. A polished aesthete with understated, exacting humor about posture and presentation. Sarcasm is cool and economical; approval is quietly satisfied, never a sales pitch. Keep short replies crisp and avoid long luxuriant vowels. Expressive but comfortable for repeated short desktop notifications. Clean, dry studio recording.",
       "previewText": "С рубашкой всё хорошо. С этой позой — вопросы. Давай на минуту встанем, пока кресло окончательно не испортило композицию. Прекрасно. Вот теперь и движение есть, и вид совсем другой. Маленькая деталь, а впечатление уже лучше.",
-      "selectedVoiceId": null,
-      "usedModel": null,
-      "castingCandidates": [],
-      "selectionHistory": [],
+      "selectedVoiceId": "nT2uMcfwNUHlNKQk7PGO",
+      "usedModel": "eleven_v4",
+      "castingCandidates": [
+        {
+          "previewNumber": 1,
+          "voiceId": "nT2uMcfwNUHlNKQk7PGO",
+          "selected": true
+        },
+        {
+          "previewNumber": 2,
+          "voiceId": null,
+          "selected": false
+        },
+        {
+          "previewNumber": 3,
+          "voiceId": null,
+          "selected": false
+        }
+      ],
+      "selectionHistory": [
+        {
+          "date": "2026-10-31",
+          "voiceId": "nT2uMcfwNUHlNKQk7PGO",
+          "model": "eleven_v4",
+          "candidateNumber": 1,
+          "method": "api-first-preview",
+          "notes": "Voice Design API (eleven_multilingual_ttv_v2) returned 3 previews in one response; the request has no option for a single preview, so preview 1 was saved without auditioning. All previews are archived under source/design__metro__candidate-<n>__2026-10-31.mp3. Provider voice description truncated to 500 characters; generation prompt unchanged."
+        }
+      ],
       "takes": [],
       "clips": [
         {
@@ -4284,10 +4384,35 @@
       "persona": "A relaxed street-style friend; easy rhythm, movement and friendly pointed teasing.",
       "voiceDesignPrompt": "An adult male voice speaking native Russian, in his late twenties. Warm mid-low pitch with an open rounded resonance and a relaxed rhythmic flow. A street-style friend with an easy grin, casual confidence and pointed but companionable teasing. Speak standard native Russian without an invented ethnic accent. Distinct from the gamer: grounded and rhythm-led rather than bright or hurried. Celebrations bounce without shouting; short replies stay compact. Expressive but comfortable for repeated short desktop notifications. Clean, dry studio recording.",
       "previewText": "Кроссы свежие, а ты опять припаркован. Ну давай, добавим этому образу немного движения. Кресло ведь никуда не уедет. Во, совсем другой вайб! Вот так уже можно. Короткий перерыв, зато не весь день в режиме вешалки.",
-      "selectedVoiceId": null,
-      "usedModel": null,
-      "castingCandidates": [],
-      "selectionHistory": [],
+      "selectedVoiceId": "B4yT5jxB7PfjbOKRZNSv",
+      "usedModel": "eleven_v4",
+      "castingCandidates": [
+        {
+          "previewNumber": 1,
+          "voiceId": "B4yT5jxB7PfjbOKRZNSv",
+          "selected": true
+        },
+        {
+          "previewNumber": 2,
+          "voiceId": null,
+          "selected": false
+        },
+        {
+          "previewNumber": 3,
+          "voiceId": null,
+          "selected": false
+        }
+      ],
+      "selectionHistory": [
+        {
+          "date": "2026-10-31",
+          "voiceId": "B4yT5jxB7PfjbOKRZNSv",
+          "model": "eleven_v4",
+          "candidateNumber": 1,
+          "method": "api-first-preview",
+          "notes": "Voice Design API (eleven_multilingual_ttv_v2) returned 3 previews in one response; the request has no option for a single preview, so preview 1 was saved without auditioning. All previews are archived under source/design__streetwear__candidate-<n>__2026-10-31.mp3. Provider voice description truncated to 500 characters; generation prompt unchanged."
+        }
+      ],
       "takes": [],
       "clips": [
         {
@@ -4882,10 +5007,35 @@
       "persona": "A theatrical content creator; angles, filters and mock-glamorous praise.",
       "voiceDesignPrompt": "An adult female voice speaking native Russian, in her late twenties. Bright mid-high pitch, ringing but smooth resonance, crisp diction and buoyant theatrical intonation. A self-assured content creator with glamorous mock enthusiasm and witty comments about angles, filters and presentation. Not a squeaky caricature; keep the upper register comfortable and avoid piercing peaks. Praise sparkles, sarcasm smiles, short replies are clipped rather than stretched. Expressive but comfortable for repeated short desktop notifications. Clean, dry studio recording.",
       "previewText": "Так, ракурс кресла мы уже изучили со всех сторон. Давай теперь снимем редкий контент: ты встал и размялся. Без фильтров, представляешь? О, вот это уже кадр! Можешь же, когда перестаёшь изображать декоративную подушку.",
-      "selectedVoiceId": null,
-      "usedModel": null,
-      "castingCandidates": [],
-      "selectionHistory": [],
+      "selectedVoiceId": "K7KwlSszl2I22DqzZqxH",
+      "usedModel": "eleven_v4",
+      "castingCandidates": [
+        {
+          "previewNumber": 1,
+          "voiceId": "K7KwlSszl2I22DqzZqxH",
+          "selected": true
+        },
+        {
+          "previewNumber": 2,
+          "voiceId": null,
+          "selected": false
+        },
+        {
+          "previewNumber": 3,
+          "voiceId": null,
+          "selected": false
+        }
+      ],
+      "selectionHistory": [
+        {
+          "date": "2026-10-31",
+          "voiceId": "K7KwlSszl2I22DqzZqxH",
+          "model": "eleven_v4",
+          "candidateNumber": 1,
+          "method": "api-first-preview",
+          "notes": "Voice Design API (eleven_multilingual_ttv_v2) returned 3 previews in one response; the request has no option for a single preview, so preview 1 was saved without auditioning. All previews are archived under source/design__insta-diva__candidate-<n>__2026-10-31.mp3. Provider voice description truncated to 500 characters; generation prompt unchanged."
+        }
+      ],
       "takes": [],
       "clips": [
         {
@@ -6428,10 +6578,35 @@
       "persona": "A mellow ironic snob; craft, authenticity and absurdly refined descriptions of ordinary movement.",
       "voiceDesignPrompt": "An adult male voice speaking native Russian, in his late thirties. Velvety mid-low pitch with a soft rounded resonance, relaxed phrasing and clear understated diction. An ironic craft-culture snob, gently languid and amused by his own precise observations. Warm, dry humor rather than sleepy mumbling. Distinct from the engineer: rounded vowels and conversational ease rather than clipped diagnostics. Keep one-word replies compact despite the relaxed persona. Expressive but comfortable for repeated short desktop notifications. Clean, dry studio recording.",
       "previewText": "Это, конечно, очень аутентичная неподвижность. Но кресло уже слишком массовый выбор, не находишь? Предлагаю короткую разминку ручной работы. О, получилось. Чистое движение, без добавок. Вот за такую маленькую привычку я бы даже поставил хорошую оценку.",
-      "selectedVoiceId": null,
-      "usedModel": null,
-      "castingCandidates": [],
-      "selectionHistory": [],
+      "selectedVoiceId": "vKf6RrToDB48gZOGT7Ff",
+      "usedModel": "eleven_v4",
+      "castingCandidates": [
+        {
+          "previewNumber": 1,
+          "voiceId": "vKf6RrToDB48gZOGT7Ff",
+          "selected": true
+        },
+        {
+          "previewNumber": 2,
+          "voiceId": null,
+          "selected": false
+        },
+        {
+          "previewNumber": 3,
+          "voiceId": null,
+          "selected": false
+        }
+      ],
+      "selectionHistory": [
+        {
+          "date": "2026-10-31",
+          "voiceId": "vKf6RrToDB48gZOGT7Ff",
+          "model": "eleven_v4",
+          "candidateNumber": 1,
+          "method": "api-first-preview",
+          "notes": "Voice Design API (eleven_multilingual_ttv_v2) returned 3 previews in one response; the request has no option for a single preview, so preview 1 was saved without auditioning. All previews are archived under source/design__hipster__candidate-<n>__2026-10-31.mp3. Provider voice description truncated to 500 characters; generation prompt unchanged."
+        }
+      ],
       "takes": [],
       "clips": [
         {
@@ -7078,7 +7253,7 @@
           "deliveryFile": "src/assets/sounds/system/system__start__01__take-1.mp3",
           "sourceFormat": "wav",
           "sourceSha256": "618cec0cb028a4700375072cad175c5f5459c2991252e54c4423b385c791082c",
-          "sourceDurationSec": 8.0,
+          "sourceDurationSec": 8,
           "measuredDurationSec": 5.985354,
           "segmentStartSec": 0.787615,
           "segmentEndSec": 6.772979,

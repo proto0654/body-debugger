@@ -16,6 +16,7 @@ import CalendarHeatmap from '@/components/stats/CalendarHeatmap.vue'
 import StatsPanel from '@/components/stats/StatsPanel.vue'
 import AppearancePanel from './AppearancePanel.vue'
 import ProgressDynamics from './ProgressDynamics.vue'
+import SoundAuditionPanel from './SoundAuditionPanel.vue'
 import { LAB_PHASE_LABELS } from '@shared/domain/laboratory-playback'
 import { resolveFrameUrl } from '@/components/character/frames'
 import { useCharacterStore } from '@/stores/character'
@@ -36,13 +37,14 @@ import { characterReaction } from '@shared/domain/character-reaction'
 import type { LabVisualPreview } from '@shared/domain/laboratory-preview'
 
 const state = ref<LabState | null>(null)
-type LabTab = 'history' | 'popup' | 'appearance' | 'data' | 'settings'
+type LabTab = 'history' | 'popup' | 'appearance' | 'sound' | 'data' | 'settings'
 const tab = ref<LabTab>('history')
 const manualVisual = ref<LabVisualPreview | null>(null)
 const inspecting = computed(() => tab.value === 'appearance' && manualVisual.value !== null)
 const tabs: { id: LabTab; label: string }[] = [
   { id: 'history', label: 'Сценарии' }, { id: 'popup', label: 'Попап и цикл' },
-  { id: 'appearance', label: 'Ручная проверка' }, { id: 'data', label: 'Данные' }, { id: 'settings', label: 'Настройки' }
+  { id: 'appearance', label: 'Ручная проверка' }, { id: 'sound', label: 'Звуки' },
+  { id: 'data', label: 'Данные' }, { id: 'settings', label: 'Настройки' }
 ]
 const photos = usePhotosStore()
 const customExercises = useCustomExercisesStore()
@@ -283,6 +285,10 @@ onBeforeUnmount(() => { unsubscribe?.(); clearInterval(clock); clearTimeout(reac
 
     <div v-else-if="tab === 'appearance'" class="space-y-4">
       <p class="text-xs text-slate-400">Состояния ниже меняют только ручной предпросмотр. Персонажа профиля можно выбрать рядом со сценой слева.</p>
+    </div>
+    <div v-else-if="tab === 'sound'" class="space-y-4">
+      <p class="text-xs text-slate-400">Прослушивание сгенерированного пакета. Это ручная проверка: она не меняет настройки звука, профиль или историю.</p>
+      <SoundAuditionPanel />
     </div>
     <div v-else-if="tab === 'data'" class="space-y-4">
       <p class="text-xs text-slate-400">Данные сохраняются только в тестовом профиле. Фотографии добавляются в деталях настоящей разминки.</p>

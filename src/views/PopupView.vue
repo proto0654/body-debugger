@@ -330,7 +330,9 @@ onMounted(async () => {
       .catch(cause => console.warn('[laboratory] readiness failed', cause))
   }
   sounds.preload()
-  sounds.play('popup')
+  // The voice replaces the plain cue for the same event; without a take the
+  // shipped effect stays the audible feedback (docs/AUDIO-PRODUCTION.md).
+  if (!sounds.playVoice('popup')) sounds.play('popup')
 })
 
 onBeforeUnmount(() => {
@@ -380,7 +382,7 @@ async function submit(status: SessionStatus): Promise<void> {
       successLabel.value = status === 'snoozed' ? 'Разминка отложена' : 'Разминка пропущена'
       successDetail.value = status === 'snoozed' ? 'Вернёмся через пять минут' : 'Следующая возможность впереди'
     }
-    sounds.play(cue)
+    if (!sounds.playVoice(cue)) sounds.play(cue)
     exitKind.value = status === 'done' ? 'done' : 'quiet'
     const event: CharacterReactionEvent = status === 'done' ? stageUp ? 'stage-up' : 'done'
       : status === 'snoozed' ? 'snoozed' : 'skipped'
@@ -388,6 +390,9 @@ async function submit(status: SessionStatus): Promise<void> {
   } catch (cause) {
     console.error('[popup] failed to save result', cause)
     errorMessage.value = 'Не удалось сохранить. Попробуйте ещё раз.'
+    // `error/01` is the catalogued failed-session-save line: it may play only
+    // after a failed durable save, which is exactly this path.
+    sounds.playVoice('error', { variant: '01' })
     driverAck('failed')
   } finally {
     busy.value = false
@@ -421,7 +426,7 @@ function finishFeedback(): void {
 </script>
 
 <template>
-  <div class="relative flex h-full flex-col gap-2 p-3" :class="shellClass" :style="{ '--popup-exit-duration': `${REACTION_TIMING_MS.exit}ms` }">
+  <div class="relative flex h-full flex-col gap-2 overflow-hidden rounded-xl border border-slate-800 bg-slate-950/95 p-3" :class="shellClass" :style="{ '--popup-exit-duration': `${REACTION_TIMING_MS.exit}ms` }">
     <div
       v-if="resolved && exitKind === 'done' && !reduced"
       class="popup-flash pointer-events-none absolute inset-0 z-20"

@@ -235,6 +235,13 @@ export const useSettingsStore = defineStore('settings', () => {
     await persist()
   }
 
+  /** Character voice playback is opt-in: the generated takes are still unreviewed. */
+  async function setVoiceEnabled(next: boolean): Promise<void> {
+    if (sound.value.voiceEnabled === next) return
+    sound.value = { ...sound.value, voiceEnabled: next }
+    await persist()
+  }
+
   /** Toggles the optional weight history card on the dashboard. */
   async function setWeightEnabled(next: boolean): Promise<void> {
     if (weight.value.enabled === next) return
@@ -287,6 +294,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setSoundEnabled,
     setSoundVolume,
     setSoundPack,
+    setVoiceEnabled,
     setWeightEnabled,
     setWeightTarget
   }

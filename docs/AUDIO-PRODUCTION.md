@@ -2,7 +2,7 @@
 
 ## Status and ownership
 
-This is a **production package with pilot recordings**, not shipped audio. The [production catalog](../src/assets/sounds/production.json) is the only source of truth for voice descriptions, Russian scripts, tagged inputs, durations and output names: ten characters × (32 lines + eight vocal reactions) = **400 voice positions**, plus **nine shared effects**. Selection and take records distinguish generated material from pending positions. Empty records mean that generation/selection has not happened; no listening approval is inferred from generation or measured duration.
+This is a **production package with pilot recordings**, not shipped audio. The [production catalog](../src/assets/sounds/production.json) is the only source of truth for voice descriptions, Russian scripts, tagged inputs, durations and output names: ten characters × (32 lines + eight vocal reactions) = **400 voice positions**, plus **nine shared effects**. Selection and take records distinguish generated material from pending positions. Empty records mean that generation/selection has not happened; no listening approval is inferred from generation or measured duration. All ten voices are cast and every position has a first take, but that material is unreviewed — see the 2026-10-31 checkpoint.
 
 The current player, preferences and laboratory are unchanged. See [Sounds](SOUNDS.md) for implemented behavior and [CONCEPT.md](../CONCEPT.md) for the approved product direction. The catalog is not imported by the renderer, is not a runtime manifest and does not extend public application types. Production supports two paths: manual browser downloads with the batch cutter, and per-clip generation through the ElevenLabs API (`scripts/generate-audio-api.mjs`). The API path reads a local `ELEVENLABS_API_KEY` from `.env` (gitignored), adds no package dependencies, and writes a take report beside the catalog; neither path changes the renderer.
 
@@ -61,7 +61,7 @@ The two error entries are deliberately context-specific, not interchangeable var
 
 ## Copying prompts into ElevenLabs
 
-Use the website manually. No API setup or key is required for this workflow. Check the subscription's saved-voice slots, generation allowance and available export formats before mass casting. Do not discard an approved saved voice to free a slot without first confirming that it remains usable for later retakes. If slots are insufficient, stop expansion and keep the approved pilot voices intact.
+Two paths exist. The API scripts in this document are the default for casting, per-clip speech and effects; the website remains the fallback for manual batches and for casting that must be judged by ear first. Check the subscription's saved-voice slots, generation allowance and available export formats before mass casting. Do not discard an approved saved voice to free a slot without first confirming that it remains usable for later retakes. If slots are insufficient, stop expansion and keep the approved pilot voices intact.
 
 The following PowerShell commands run from the repository root and copy the exact catalog fields. Keep this shell open between commands. The catalog supplies finished prompts, not text templates that an operator must complete.
 
@@ -73,7 +73,25 @@ $audioCharacter.voiceDesignPrompt | Set-Clipboard
 
 ### 1. Voice Design: save a consistent identity
 
-Open Voices → My Voices → Add a new voice → Voice Design. Paste `voiceDesignPrompt` as the voice description. It specifies adult age, native Russian, timbre, pacing, personality and dry recording quality. Copy the full Russian preview paragraph separately:
+Both paths use the same `voiceDesignPrompt` and `previewText` from the catalog; the prompt specifies adult age, native Russian, timbre, pacing, personality and dry recording quality.
+
+#### API path — default
+
+```powershell
+node scripts/cast-voices-api.mjs --character punk --dry-run
+node scripts/cast-voices-api.mjs --character punk
+node scripts/cast-voices-api.mjs --missing
+```
+
+[`scripts/cast-voices-api.mjs`](../scripts/cast-voices-api.mjs) calls `POST /v1/text-to-voice/design` with `voiceDesignPrompt`, `previewText`, `model_id: eleven_multilingual_ttv_v2`, `quality 0.9` and `loudness 0.5`, then saves the chosen candidate with `POST /v1/text-to-voice`.
+
+The Voice Design request has **no preview-count or single-preview option** (checked against the provider OpenAPI schema on 2026-10-31): one design call returns its whole preview batch. There is therefore nothing to compare or draw from on this path — the script archives every returned preview as `source/design__<character>__candidate-<n>__<date>.mp3` and saves candidate 1 by default (`--preview N` saves another one). Do not describe an API cast as a listening evaluation; the archived previews are the material for a later retake.
+
+The script writes `selectedVoiceId`, `usedModel`, `castingCandidates` and a `selectionHistory` entry with `method: api-first-preview`. Voice names follow `Body Debugger - <Character>`, and the provider voice description is truncated to its 500-character metadata limit; the generation prompt stays unchanged.
+
+#### Website path
+
+Use the website when candidates must be judged by ear before a voice exists in the account. Open Voices → My Voices → Add a new voice → Voice Design. Paste `voiceDesignPrompt` as the voice description. Copy the full Russian preview paragraph separately:
 
 ```powershell
 $audioCharacter.previewText | Set-Clipboard
@@ -81,9 +99,9 @@ $audioCharacter.previewText | Set-Clipboard
 
 The paragraph demonstrates ordinary speech, sarcasm and approval; it is a casting script, not a duration-limited runtime clip. Compare three candidates for the same character using the same paragraph. Preserve native Russian pronunciation and character distinction before optimizing expressive range. Record real candidate information in `castingCandidates`: candidate label, provider voice ID if assigned, actual model shown, preview filename and listening notes. Do not invent voice IDs for unsaved previews.
 
-Desk Hulk uses the user's chosen Voice 2. For future characters, the user has authorized a random choice among the three candidates: draw an integer from 1 through 3 once per casting batch, save that numbered candidate and record `method: random`. Do not describe random selection as a listening evaluation.
+Desk Hulk uses the user's chosen Voice 2. For characters cast through the website, the user has authorized a random choice among the three candidates: draw an integer from 1 through 3 once per casting batch, save that numbered candidate and record `method: random`. Do not describe random selection as a listening evaluation.
 
-After selection, populate `selectedVoiceId` and `usedModel`, and append `selectionHistory` with the date, actual voice/model IDs and reason. Record the exact model displayed by the provider; a Voice Design model and a later speech model may differ. Preserve superseded selections for provenance.
+After a manual selection, populate `selectedVoiceId` and `usedModel`, and append `selectionHistory` with the date, actual voice/model IDs and reason. Record the exact model displayed by the provider; a Voice Design model and a later speech model may differ. Preserve superseded selections for provenance.
 
 ### 2. Text to Speech: direct one performance
 
@@ -97,7 +115,7 @@ $audioClip | Select-Object id, maxDurationSec, usageContext, outputFile
 
 Paste **only `taggedText`** into the speech input. `persona`, `emotion`, `performanceDirection`, `usageContext` and transcripts are operator directions, not extra spoken text. Use directions to judge the result; the saved voice establishes timbre. The supplied short English tags direct delivery, followed by Russian text. Do not add SSML break tags for v4/v3. Tags are performance hints, not guaranteed commands; reject spoken tags and extraneous sound effects.
 
-For tag-only chuckles, hums and sighs, first try the supplied input with the same saved voice. If it produces silence, spoken tags or added words, record the failed take. Then generate a short contextual sentence containing the same reaction tag, record the actual input, and manually isolate the clean nonverbal segment. Preserve the uncut source and segment offsets. Do not substitute an unrelated SFX voice. If no clean segment fits, leave the position pending rather than marking it accepted.
+For tag-only chuckles, hums and sighs, first try the supplied input with the same saved voice. If it produces silence, spoken tags or added words, record the failed take. Then generate a short contextual sentence containing the same reaction tag, record the actual input, and manually isolate the clean nonverbal segment. Preserve the uncut source and segment offsets. Do not substitute an unrelated SFX voice. If no clean segment fits, leave the position pending rather than marking it accepted. On the API path the generator already retries a rejected tag-only input with a terminal period, so this manual route is the fallback for a take that still fails; see the nonverbal note under [API generation](#api-generation--one-clip-per-request).
 
 Never force a long line into its budget by accelerating it into unintelligibility. Rewrite a too-long line in the catalog under the same ID, preserve its earlier take/input in the log, and regenerate. A breath, chuckle and trailing silence count toward the clip budget. Only generated take records have measured durations; catalog limits are targets, not measurements.
 
@@ -129,13 +147,29 @@ $audioEffect | Select-Object targetDurationSec, maxDurationSec, outputFile
 
 Use the Sound Effects tool, not the character TTS voice. The initial candidate is `eleven_text_to_sound_v2`. SFX v3 is an optional later audition with limited availability; record the actual model per take. Set the target duration when the UI supports it and measure the exported result regardless of the setting. Do not enable looping. Reject music beds, voices, alarms, long tails and piercing high-frequency peaks. Most cues cap at **0.7 seconds**; `stage-up` and `streak` cap at **1.2 seconds**.
 
+#### API path
+
+```powershell
+node scripts/generate-effects-api.mjs --dry-run
+node scripts/generate-effects-api.mjs
+node scripts/generate-effects-api.mjs --event start --take 2
+node scripts/generate-effects-api.mjs --retrim
+```
+
+[`scripts/generate-effects-api.mjs`](../scripts/generate-effects-api.mjs) sends each catalogued prompt to `POST /v1/sound-generation` with `prompt_influence 0.5` and writes `system/source/api__<effectId>__take-N.mp3` plus the delivery file.
+
+- The endpoint rejects `duration_seconds` below **0.5 s**, so a shorter catalogued target (`start` 0.2 s, `skip` 0.35 s) is requested at 0.5 s. The take record keeps both `requestedDurationSec` and the measured length.
+- Only **leading** silence is trimmed. Short cues decay fast, so trimming the tail as well removed the sound itself and left sub-0.2 s blips on the first pass; `--retrim` re-derives every delivery file from the archived source without spending credits and updates the measured duration in the report.
+- Take records go to [`api-report.json`](../src/assets/sounds/api-report.json) with `kind: "effect"`. The catalog is not edited; merge accepted takes into the effect's `takes` after listening.
+- Regenerate a rejected effect under a new take number; keep the earlier source.
+
 ## API generation — one clip per request
 
-[`scripts/generate-audio-api.mjs`](../scripts/generate-audio-api.mjs) generates one catalog clip per TTS request. It is the low-friction path for short feedback lines: no browser, no track cutting and no per-line manual download. It covers character clips only; the nine shared effects still use the manual Sound Effects flow.
+[`scripts/generate-audio-api.mjs`](../scripts/generate-audio-api.mjs) generates one catalog clip per TTS request. It is the low-friction path for short feedback lines: no browser, no track cutting and no per-line manual download. It covers character clips only; shared effects use [`scripts/generate-effects-api.mjs`](../scripts/generate-effects-api.mjs).
 
 ### Setup
 
-- Create a restricted ElevenLabs key: **Text to Speech**, **Voices: Read** and **User: Read**. Add **Sound Effects** only if effects will move to the API later. Do not grant account, billing or admin access.
+- Create a restricted ElevenLabs key with Text to Speech, Sound Effects, Voice Design (saving a designed voice needs write access to voices), Voices: Read and User: Read. Do not grant account, billing or admin access.
 - Put the key in `.env` at the repository root:
 
   ```dotenv
@@ -180,7 +214,7 @@ node scripts/generate-audio-api.mjs --character desk-hulk --all --skip-existing
 - Identity comes from the saved `voiceId`, not from a single track. The script always uses the selected voice with `eleven_v4` and the same `voice_settings` (`stability 0.5`, `similarity_boost 0.75`, `style 0`, speaker boost on), so separate requests keep the timbre.
 - Separate requests vary slightly in prosody. Generate **one take per clip** for the MVP; produce a second take only when the first fails listening, and record the reason.
 - Credits are billed per character, the same as the web UI. The API does not reduce ElevenLabs spend; it removes model tokens and UI work. `GET /v1/user/subscription` may lag behind generation, so compare `character_count` before and after a batch rather than per request.
-- Nonverbal clips (`done.chuckle`) may return silence when only a tag is sent. Use the manual contextual-sentence fallback described above and keep the clean segment.
+- A tag-only nonverbal input (`[chuckles]`, `[skeptical hum]`, `[sighs]`) has no text left after tag removal and fails with `400 input_text_empty`. The generator retries exactly once with a terminal period appended (`[sighs] .`). A period is not pronounceable, so the take keeps the reaction instead of adding words. Measured trimmed desk-hulk results: 0.62 s sigh, 0.64 s skeptical hum, 0.19 s chuckle; the API returns roughly 1.2 s of audio for such an input, so the trim does most of the work. The report records the changed `inputText` and `inputFallback: "terminal period"`. Listening still decides whether the take is the intended reaction; fall back to the manual contextual-sentence route for a take that fails.
 
 ## Pilot and expansion
 
@@ -200,9 +234,19 @@ node scripts/generate-audio-api.mjs --character desk-hulk --all --skip-existing
 
 ### API pilot — 2026-10-31
 
-- The per-clip API path was validated on Desk Hulk: `ready__02` 2.00 s, `done__02` 1.46 s and `stage-up__02` 0.878 s, all within their budgets and pending listening.
-- A second take of `stage-up__02` (0.910 s) confirmed that separate requests vary in prosody; it was removed as a test artifact. [`api-report.json`](../src/assets/sounds/api-report.json) keeps the three delivery takes.
+- The first per-clip batch covered the Desk Hulk runtime set: 19 clips selected, 17 generated, two rejected by the API as tag-only nonverbal inputs (`skipped__skeptic-01`, `snoozed__sigh-01`, `input_text_empty`), and two generated takes exceeded their 1 s skip/snooze budget (`skipped__02` 1.51 s, `snoozed__02` 1.14 s).
+- The remaining takes are pending listening. [`api-report.json`](../src/assets/sounds/api-report.json) holds 20 records: the three earlier pilot clips plus the 17 generated runtime clips.
 - The catalog and renderer are unchanged. Credits are billed per character, and the subscription counter lags behind generation.
+
+### Full-set API production — 2026-10-31
+
+- All ten voices are cast and saved. The three approved pilot voices are unchanged; the other seven were cast through the Voice Design API, saving candidate 1 of each returned batch without auditioning (`method: api-first-preview`). Every candidate is archived as `src/assets/sounds/<character>/source/design__<character>__candidate-<n>__2026-10-31.mp3`.
+- All **400** voice positions and all **nine** effects have a take-1 delivery file. `api-report.json` holds 382 voice takes and 7 effect takes; the other 18 voice takes came from the manual pilot tracks. The catalog `takes` arrays still contain only the pilot records, because none of the new material has been listened to.
+- 27 takes used the terminal-period nonverbal fallback: all three nonverbal positions for the seven new characters plus the two missing ones for Desk Hulk, Альтуха and Инженер. Four chuckles landed below the 0.2 s reaction minimum: `punk` 0.13 s, `zoomer` 0.13 s, `streetwear` 0.15 s, `hipster` 0.16 s.
+- 45 voice takes exceed their catalog budget and are recorded as `over-budget`: `skipped` 18, `ready` 10, `snoozed` 7, `welcome` 6, `done` 4. The 1-second skip/snooze window is the real gap — those roasts were written for a longer read, so the next pass shortens the lines under the same stable IDs and regenerates small batches instead of accelerating the delivery.
+- Effects were generated with `eleven_text_to_sound_v2`: `skip` 0.48 s, `snooze` 0.48 s, `stage-up` 1.00 s, `streak` 0.88 s, `alert` 0.46 s, `error` 0.48 s. `popup` and `done` keep their manual take 1; `start` take 2 replaces the rejected take 1 and measures 0.28 s. All nine are pending listening.
+- Roughly 6 400 credits were spent on this pass (account counter 52 732 → 59 134; the counter lags behind generation).
+- Nothing is wired into the renderer at that point: the player still plays only `default/*.mp3`. The opt-in voice layer landed later the same day — see [Runtime integration](#runtime-integration).
 
 ## Files, takes and acceptance
 
@@ -217,26 +261,31 @@ Append records to the owning character's `takes` or effect's `takes`. Character 
 
 Accept a take only after listening confirms the exact words or intended nonverbal reaction, natural Russian, correct emotion, stable voice identity, a clean beginning/end, no noise or overload, and compliance with the duration limits. Keep rejected takes and reasons in the archive/log so failed prompts are not retried blindly. Credits, subscriptions and subjective voice acceptance have not been verified by the repository checks.
 
-## Future integration contract — not implemented
+## Runtime integration
 
-- One principal voice clip per event: select a line **or** a vocal reaction; never stack multiple spoken replies. Stage/streak milestones replace the ordinary success reply. Define collision ordering in the later integration, rather than firing every available line.
-- Avoid immediate variant repeats. Retain semantic event identity; a new stage or body build must not select a different saved voice.
-- The native popup remains the sole owner of its result audio; dashboard mirrors and laboratory snapshots must not duplicate it. Playback after a result requires durable acknowledgment. `missed` remains silent. Local approved files must work offline.
-- A compatible effect may later be balanced separately against a voice, but layering and frequency controls are not implemented here. No new default speech setting is implied by adding the catalog.
-- The current player exposes only `enabled`, `volume` and `packId`, imports eight default cues, has no voice selector/manifest loading, and creates independent audio elements without voice interruption/queue coordination. Automatic greeting/start/streak narration, cross-window arbitration and pause acknowledgments need explicit later wiring.
-- The current playback gate checks mute, positive volume, pause and an optional quiet context. The standard player does **not** detect OS DND or active calls and does not currently pass an OS quiet detector. Paused speech is reserve material; the normal gate would suppress it while paused.
-- Existing feedback waits are 2.5 seconds for ordinary completion, 3.5 for milestones and 1.2 for skip/snooze, plus a 180 ms exit. Catalog budgets leave room for these windows but are not proof against truncation. The later integration must coordinate start latency, cancellation, window close and actual audio completion without delaying the durable core result.
+Wired on 2026-10-31; behaviour is documented in [Sounds](SOUNDS.md#character-voice-layer-opt-in).
+
+- **Implemented.** `sound.voiceEnabled` (default off) switches the voice layer on; the identity is `settings.characterPackId`. `VOICE_CUE_EVENTS` maps `popup → ready`, `done → done`, `skip → skipped`, `snooze → snoozed`, `stage-up → stage-up`; the popup speaks `error/01` only from its rejected-save path. One clip per event: lines and vocal reactions of that event rotate through `pickVoiceVariant`, which never repeats the previous take. The voice replaces the effect for the same event and falls back to it when the layer is off or the take is missing. The gate is unchanged (mute, volume, pause, quiet). The manifest is `src/voice-assets.ts`; the catalog itself is still not imported by the renderer.
+- **Listening tool.** Laboratory «Звуки» (`src/debug/SoundAuditionPanel.vue`) plays any variant, all variants of an event in order, and every effect take, ignoring the switch. It writes nothing.
+- **Not implemented.** Queueing or interrupting a previous line, `welcome`/`paused`/`streak`/`alert` narration, effect-plus-voice balancing, OS DND detection, cross-window arbitration and any automatic greeting. The popup remains the sole automatic owner of its result audio; `missed` stays silent.
+- **Mixed-take caveat.** The layer plays whatever take-1 file exists. 45 takes exceed their catalog budget and four chuckles are under 0.2 s, so an accepted take must be replaced by a retake under the same stable ID before the voice is enabled for a release.
+- **Feedback windows.** Existing waits are 2.5 seconds for ordinary completion, 3.5 for milestones and 1.2 for skip/snooze, plus a 180 ms exit. Over-budget takes simply do not finish inside the skip/snooze window; nothing currently cancels the audio when the window closes.
+- **Offline.** Clips are bundled with the renderer through `import.meta.glob` (418 mp3 assets, ~11 MB), so the voice works without network access.
 
 ## Repository verification
 
-Run the catalog acceptance tests with `npm test -- tests/unit/audio-production.test.ts`. They check cast coverage, event/reaction counts, IDs, filenames, duration budgets, context-sensitive messages, ready-to-copy inputs and profanity annotations. They do not synthesize or listen to audio. Typecheck and build must remain unaffected by the inert catalog.
+Run the catalog acceptance tests with `npm test -- tests/unit/audio-production.test.ts`. They check cast coverage, event/reaction counts, IDs, filenames, duration budgets, context-sensitive messages, ready-to-copy inputs and profanity annotations. They do not synthesize or listen to audio.
+
+The runtime layer has its own coverage: `tests/unit/voice-assets.test.ts` (manifest parsing and full package coverage), `tests/unit/sounds.test.ts` (cue → event map and rotation), `tests/unit/sound-player.test.ts` (gating, fallback, explicit variant), `tests/components/SoundAuditionPanel.test.ts` (sequential audition) and `tests/components/PopupView.test.ts` (voice replaces the effect, failed-save line only after a rejected save).
 
 Run cutter boundary, padding, count and path checks with `python -m unittest discover -s tests -p test_audio_batch_cutter.py`. Real generated sources also need the exact-count cutting check and listening review; silence detection does not establish transcript correctness.
 
-Run the API generator without spending credits:
+Run the API scripts without spending credits:
 
 ```powershell
+node scripts/cast-voices-api.mjs --missing --dry-run
 node scripts/generate-audio-api.mjs --character desk-hulk --dry-run
+node scripts/generate-effects-api.mjs --dry-run
 ```
 
 Repository tests cover the catalog and the cutter; they do not synthesize audio. For an API run, check the new files with `ffprobe`, compare `character_count` before and after, and listen before marking a take accepted.

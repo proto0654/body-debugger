@@ -13,7 +13,7 @@ import {
   characterBodyCandidates,
   characterFaceCandidates
 } from '@shared/domain/character-visual'
-import { resolveFrameUrl } from './frames'
+import { resolveFrameUrl, preloadFrameUrl } from './frames'
 import { DEFAULT_CHARACTER_PACK } from '@shared/constants/character'
 
 const props = withDefaults(
@@ -73,6 +73,24 @@ watch([frameUrl, frameFallback, () => failedUrls.value.length, () => props.packI
 function rejectImage(): void {
   if (frameUrl.value) failedUrls.value = [...failedUrls.value, frameUrl.value]
 }
+
+/**
+ * The result scene mounts a fresh face portrait, so the popup's header portrait
+ * warms every emotion up front; the swap then paints instantly instead of
+ * showing an empty frame.
+ */
+watch(
+  [() => props.variant, () => props.build, () => props.packId],
+  () => {
+    if (props.variant !== 'face') return
+    for (const emotion of Object.keys(CHARACTER_EMOTION_LABELS) as CharacterEmotion[]) {
+      for (const key of characterFaceCandidates(emotion, props.build)) {
+        preloadFrameUrl(resolveFrameUrl([key], props.packId))
+      }
+    }
+  },
+  { immediate: true }
+)
 
 /** Short bounce when the character reacts to a finished exercise (CONCEPT §13). */
 const bouncing = ref(false)

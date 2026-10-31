@@ -30,3 +30,22 @@ export function resolveFrameUrl(candidates: string[], packId = DEFAULT_CHARACTER
   }
   return undefined
 }
+
+const warmedFrames = new Set<string>()
+
+/**
+ * Decode a frame before it is swapped into a mounted portrait. Without this a
+ * freshly mounted `<img>` paints an empty box for the first frames, which was
+ * visible as a blank face right when the popup switches to its result scene.
+ */
+export function preloadFrameUrl(url: string | undefined): void {
+  if (!url || warmedFrames.has(url)) return
+  warmedFrames.add(url)
+  try {
+    const image = new Image()
+    image.src = url
+    void image.decode?.().catch(() => undefined)
+  } catch {
+    warmedFrames.delete(url)
+  }
+}

@@ -136,7 +136,7 @@ describe('laboratory controls', () => {
     expect(view.get('[data-testid="lab-console"] [data-testid="lab-play"]').text()).toContain('Проиграть сценарий')
     expect(view.findAll('[aria-label="Персонаж тестового профиля"] option')).toHaveLength(10)
     expect(view.findAll('[data-build]')).toHaveLength(3)
-    expect(view.find('[data-testid="lab-dynamics"]').exists()).toBe(true)
+    expect(view.find('[data-testid="progress-dynamics"]').exists()).toBe(true)
   })
   it('shows command errors and releases controls for retry', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined)

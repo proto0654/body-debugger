@@ -31,13 +31,14 @@ src/photos.ts               # photo:// URL helper
 src/styles/index.css        # Tailwind entry, keyframes, theme tokens, reduced-motion overrides
 src/stores/                 # sessions, progress, settings, character, reminder, weight, photos, AI
 src/components/             # UI (character, weight, stats, photos, AI)
-src/debug/                  # Dev-only panel + scenario builders
+src/debug/                  # Dev-only laboratory panel, previews and scenario builders
+src/components/character/   # Portraits, journey, chronicle and the shared progress charts
 src/assets/character/       # Manifest, ten selectable identities and cut frames
 src/assets/sounds/default/  # Default cue pack (mp3)
 src/assets/sounds/<character>/ # Generated voice takes + archived sources
 src/assets/sounds/system/   # Shared effect takes
 shared/types/               # Exercise, Session, Character, Progress, Settings, Photo, Events, Persistence
-shared/domain/              # Pure rules: picker, character, severity, extras, weight, sounds, photos, AI, streak, stats
+shared/domain/              # Pure rules: picker, character, severity, extras, weight, sounds, photos, AI, streak, stats, chronicle
 shared/validation/          # Exercise + Session payload guards
 shared/constants/           # stage keys, exercise/equipment catalogs, themes, popup geometry
 ```
@@ -131,9 +132,9 @@ Skipped / snoozed / missed sessions never count as training. Difficulty and
 | Character | `settings.characterPackId`; Desk Hulk plus the nine manifest identities, normalized to the default for unknown IDs |
 | Storage | Interval, mode, Focus and identity live in `settings.json`; build lives in `progress.json` |
 
-`#/dashboard?tab=settings` opens the tab directly. The tray «Настройки» item opens it in a new dashboard or sends `window:navigate-dashboard` to an existing window without reloading the renderer.
+`#/dashboard?tab=settings` opens the tab directly. The tray «Настройки» item opens it in a new dashboard or sends `window:navigate-dashboard` with `{ tab }` to an existing window without reloading the renderer. The laboratory process uses the same channel to bring its «Лаборатория» tab forward.
 
-The dashboard has four primary sections: «Сегодня», «Персонаж», «Прогресс» and «Настройки». Today contains the hero, day counts, streak, a compact journey and optional quick weight entry. `CharacterSettingsPanel.vue` groups identity/build with a preview; `CharacterJourney.vue` shows the full evolution. `ProgressPanel.vue` groups calendar, statistics, full weight history and photos using keyboard-accessible `SectionTabs.vue`. Legacy `tab=calendar` / `tab=stats` links select the matching progress subsection. The dev laboratory entry is a separate header action.
+The dashboard has four primary sections: «Сегодня», «Персонаж», «Прогресс» and «Настройки». Today contains the hero, day counts, streak, a compact journey and optional quick weight entry. «Персонаж» uses `SectionTabs.vue`: «Профиль» groups identity/build with a preview (`CharacterSettingsPanel.vue`) and the full evolution (`CharacterJourney.vue`); «Хроника» is the read-only real-history timeline. `ProgressPanel.vue` groups calendar, statistics, full weight history and photos using the same keyboard-accessible tabs. Legacy `tab=calendar` / `tab=stats` links select the matching progress subsection. In a dev build the header opens a separate isolated laboratory process; inside that process the primary navigation gains a fifth «Лаборатория» tab.
 
 `PreferencesPanel.vue` groups interval/strictness and picker/Focus. Its selection group reuses `ComfortSettingsPanel.vue` for inventory and AI approval. The presentation group owns sound with volume/previews, details, weight/photo switches, themes and reduced motion; each layer's controls stay beside its switch. Character identity/build remain on «Персонаж». Stage changes and completed breaks trigger a brief non-blocking banner. The Electron application menu is hidden by default. The dashboard height is capped at 900 px and the available work area minus 80 px; shorter screens keep normal scrolling.
 
@@ -257,24 +258,32 @@ The layer is off by default (`settings.photos.enabled`). `photoIds` are only car
 
 The dev dashboard entry launches a separate Electron process with `--body-debugger-lab` and a `.userdata/laboratory/` profile. Packaged builds register no laboratory IPC. Main rejects mutation commands in a normal profile even if the renderer exposes a debug entry.
 
+The isolated process opens one dashboard window (`electron/main/windows/dashboard.ts` with `laboratory: true`) instead of a second control window. «Сегодня», «Персонаж», «Прогресс», «Настройки» and «Лаборатория» are tabs of that same window. `launchLaboratory()` closes the real dashboard after a successful `spawn` and reopens it when the parent-owned laboratory process exits; `onClosed` pauses playback when the laboratory window closes. The real app keeps running in the tray.
+
 | Part | Owner |
 |------|-------|
 | Profile gate and path | `electron/main/lab-environment.ts`; checked before persistence loads |
 | Stories, deterministic generator, import boundary and checkpoint explanations | `shared/domain/laboratory.ts` |
 | Plans, rewind, saved runs, native popup controls and manual branching | `electron/main/laboratory.ts` |
 | Native phases, action acknowledgements and cancellation | `electron/main/laboratory-playback.ts`, `shared/domain/laboratory-playback.ts` |
-| Compact completion/condition charts and activity strip | `src/debug/ProgressDynamics.vue`; shared condition transitions and stage thresholds |
+| Compact completion/condition charts and activity strip | `src/components/character/ProgressDynamics.vue`; shared condition transitions and stage thresholds |
 | Runtime app clock | `shared/domain/clock.ts`; clock metadata travels with main snapshots |
 | Renderer runtime projection | `src/stores/runtime.ts`; applied before hydrating domain stores |
-| Separate controls and visual previews | `electron/main/windows/laboratory.ts`, `src/debug/LaboratoryPanel.vue`, `src/debug/AppearancePanel.vue` |
+| Dashboard window and laboratory tab | `electron/main/windows/dashboard.ts`, `electron/main/tray.ts`, `src/debug/LaboratoryPanel.vue`, `src/debug/AppearancePanel.vue` |
 
 Silent date viewing reconstructs only the selected prefix. Native replay moves through reminder readiness, visible start/choice, exercise, durable save, reaction and close/repeat phases. Reading time comes from `shared/domain/reaction-timing.ts`, never from replay speed. The active popup sends `feedback-complete` before closing; main also waits for its actual window to disappear and reports a retryable error if closing stalls, rather than forcing it closed. A paused/stepped run cannot bypass an open result scene. The semantic driver calls the same popup actions as real input, including the normal severity gate and real-time Hardcore hold. It cannot append a final history snapshot as a playback result. Main checks generation, command sequence and session identity; driver acknowledgements are accepted only from the active popup WebContents in an isolated unpackaged process. Late popup close/resize requests also require the currently active WebContents.
 
-Controller-owned popup openings do not interrupt replay. Actual user actions cancel automatic dispatch and form a manual branch; the original resolved future is retained separately. A durable outcome publishes its cursor and snapshot together to the laboratory. Normal dashboard hydration uses the same canonical result. Pause freezes application time and result deadlines, cancels a partial hold and rearms remaining work on resume. Closing the separate control window pauses the driver without losing the run. Seek/reset/mode changes invalidate the generation and cancel the discarded native session before closing its window.
+Controller-owned popup openings do not interrupt replay. Actual user actions cancel automatic dispatch and form a manual branch; the original resolved future is retained separately. A durable outcome publishes its cursor and snapshot together to the laboratory. Normal dashboard hydration uses the same canonical result. Pause freezes application time and result deadlines, cancels a partial hold and rearms remaining work on resume. Closing the laboratory window pauses the driver without losing the run; the process stays in its tray. Seeking/reset/mode changes invalidate the generation and cancel the discarded native session before closing its window.
 
-The laboratory uses a permanent scenario transport above a responsive workspace: sticky live/profile scene and dynamics beside six sections («Сценарии», «Попап и цикл», «Ручная проверка», «Звуки», «Данные», «Настройки»). Profile settings reuse production components and IPC. The manual section exposes six clickable stage cards, four temporary condition levels, branches, builds and emotions. Its cached local state drives the permanent scene while the manual tab is active; returning to scenarios restores history-derived visuals. A shared `PopupFeedback.vue` renders durable popup results and visual result previews. Inline popup buttons and `#/laboratory-preview` use runtime-only visual state (`shared/domain/laboratory-preview.ts`), never the session-result IPC. Main validates every override; `visual-preview` updates a separate native window and `close-preview` closes it without touching history, clock or playback. Native and inline previews can be clicked through ready/start/result/skip/snooze/error states, and manual selections are held by default. `popup.exerciseId` is optional and must exist in the merged approved catalog before any preset mutation. The normal preset preserves all preferences; named presets change only their advertised setting/history. `restore-preferences` restores the original plan's settings/build without changing the cursor or sessions. `reset-history` preserves preferences and auxiliary data; `reset` resets sessions/progress/settings and retains weights, photos, approved exercises and the saved run.
+The laboratory uses a permanent scenario transport above a responsive workspace inside the dashboard's fifth tab: sticky live/profile scene and dynamics beside six sections («Сценарии», «Попап и цикл», «Ручная проверка», «Звуки», «Данные», «Настройки»). Profile settings reuse production components and IPC. The manual section exposes six clickable stage cards, four temporary condition levels, branches, builds and emotions. Its cached local state drives the permanent scene while the manual tab is active; returning to scenarios restores history-derived visuals. A shared `PopupFeedback.vue` renders durable popup results and visual result previews. Inline popup buttons and `#/laboratory-preview` use runtime-only visual state (`shared/domain/laboratory-preview.ts`), never the session-result IPC. Main validates every override; `visual-preview` updates a separate native window and `close-preview` closes it without touching history, clock or playback. Native and inline previews can be clicked through ready/start/result/skip/snooze/error states, and manual selections are held by default. `popup.exerciseId` is optional and must exist in the merged approved catalog before any preset mutation. The normal preset preserves all preferences; named presets change only their advertised setting/history. `restore-preferences` restores the original plan's settings/build without changing the cursor or sessions. `reset-history` preserves preferences and auxiliary data; `reset` resets sessions/progress/settings and retains weights, photos, approved exercises and the saved run.
 
 Saved plans use laboratory format 2 with semantic actions, character/build, settings, generator parameters and resolved events; the save envelope also retains the original plan, branch flag, mode and cursor. Version-1 imports are explicitly converted to inferred actions, not presented as recorded input. Production history/envelope schemas are unchanged. The sound block is the exception inside a plan snapshot: applying a plan keeps the live `settings.sound`, so a mute saved in a scenario cannot silence replay, and a muted profile is called out in the transport with a one-click enable. Detailed migration, rollback and verification limits: [TESTING.md](TESTING.md).
+
+### Character chronicle
+
+`shared/domain/chronicle.ts` builds a read-only timeline over the real session history. It normalizes timestamps, sorts and de-duplicates identities, then precomputes an entry per session: `start`, each resolved session and a final `now` entry when it is later than the last result. Stage is computed incrementally from the done count, branch from the last 30 done sessions, condition from the shared transition rules; streak changes and gaps become milestone markers. `chronicleSummary` reuses `shared/domain/character-summary.ts`, the same helper behind `labSummary`; `describeSummaryChange` is shared by the laboratory explanation and the chronicle. `chronicleDateIndex` maps a local date to the last entry before its end.
+
+`CharacterChronicle.vue` (dashboard «Персонаж → Хроника») starts at «Сейчас» so the visible form matches «Сегодня». The range slider, play/pause with 0.5/1.5/3.5 s steps, event/day/milestone stepping and a date input move a local cursor only. The character portrait uses the cursor's stage/branch/condition with the current build and identity; `CalendarHeatmap`, `ProgressDynamics` and `StatsPanel` receive only the prefix up to the cursor. Playback stops on unmount, hidden window and the end of history. The component never calls persistence, session or popup IPC; no JSON schema changes are involved. `ProgressDynamics.vue` and `buildProgressDynamics` moved out of the debug folder so both the laboratory and the chronicle use them.
 
 ### Character progress
 
@@ -369,8 +378,10 @@ Tray frames are generated by `scripts/build-tray-icons.py` (a placeholder stretc
 | `photos:updated` | main → renderers | Photo metadata after add/remove |
 | `exercise:list-custom` / `exercise:add-custom` / `exercise:remove-custom` | invoke | Approved AI exercises |
 | `exercise:updated` | main → renderers | Approved list after add/remove |
-| `app:get-info` / `app:open-logs` | invoke | Build identity (version, commit, date, packaged, profile, log dir) and opening the log folder |
+| `app:get-info` / `app:open-logs` | invoke | Build identity (version, commit, date, packaged, channel, profile, log dir) and opening the log folder |
+| `app:get-launch-at-login` / `app:set-launch-at-login` | invoke | Read/write the OS login item; installed Windows builds only, always with `--hidden` |
 | `app:update-state` / `app:update-check` / `app:update-install` | invoke | Current update state, manual check, restart into a downloaded version; a refusal reports `popup-open` / `not-ready` |
+| `app:update-dismiss` | invoke | Hide the update prompt for the current version until the next run |
 | `app:update-changed` | main → renderers | Update state after every check, download progress, ready and error |
 | `debug:apply-scenario` | invoke | Compatibility replacement of validated sessions/settings/progress; isolated laboratory process only |
 | `lab:open` / `lab:get-state` | invoke | Unpackaged builds: launch/focus the separate native laboratory, read its state |
@@ -386,9 +397,16 @@ Tray frames are generated by `scripts/build-tray-icons.py` (a placeholder stretc
 | `window:open-popup` / `window:close-popup` | invoke | Open / close the popup window |
 | `window:resize-popup` | invoke | Grow / shrink the popup for the optional details block |
 
-Channels: `shared/types/events.ts` (`IpcChannels`).  
-Registration: `electron/main/ipc/session-cycle.ts`, `electron/main/ipc/persistence.ts`.  
+Channels: `shared/types/events.ts` (`IpcChannels`).
+Registration: `electron/main/ipc/session-cycle.ts`, `electron/main/ipc/persistence.ts`, `electron/main/ipc/updates.ts`, `electron/main/ipc/app.ts`.
 Preload: `electron/preload/index.ts`.
+
+### Delivery windows and identities
+
+- `electron/main/app-identity.ts` derives the channel from `app.getName()`/`app.isPackaged`: prod `Body Debugger`/`com.bodydebugger.app`, dev `Body Debugger Dev`/`com.bodydebugger.app.dev`. `index.ts` applies the AUMID, the dashboard window uses the title/icon, and the tray tooltip gets a `Dev · ` prefix.
+- `electron/main/windows/update-prompt.ts` owns a separate 420×232 always-on-top window at `#/update-prompt`. It is not a session popup: it has no session IPC, reads `app:update-state`/`app:update-changed`, and hides while the exercise popup is open.
+- `electron/main/launch-at-login.ts` reads/writes the Windows login item with `name = product title`, `path = process.execPath`, `args = ['--hidden']`. `index.ts` skips the dashboard when that argument is present, while a manual second launch still opens it. No profile field stores this state.
+- `electron/main/updater.ts` selects `dev` channel + prerelease for the dev build and stable `latest` for prod; the prompt gate and dismissal live in `shared/domain/update.ts`.
 
 ## Already in code
 

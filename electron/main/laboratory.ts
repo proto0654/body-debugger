@@ -1,7 +1,7 @@
 import { app, dialog } from 'electron'
 import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { LAB_MAX_IMPORT_BYTES, buildLabScenario, buildRandomCalendar, labMilestones, labSessionsAt, validateLabPlan, upgradeLabPlan,
   type LabCommand, type LabPlan, type LabState } from '../../shared/domain/laboratory'
 import { nowDate, nowMs, setLaboratoryClock } from '../../shared/domain/clock'
@@ -18,7 +18,7 @@ import { readJsonEnvelope, writeJsonEnvelope } from './persistence/json-file'
 import { getDataDir } from './persistence/paths'
 import { broadcastToWindows, notifyDataUpdated } from './broadcast'
 import { isLabProcess, LAB_ARGUMENT } from './lab-environment'
-import { openLaboratoryWindow } from './windows/laboratory'
+import { createDashboardWindow, getDashboardWindow } from './windows/dashboard'
 import { closeLabPreviewWindow, openLabPreviewWindow } from './windows/laboratory-preview'
 import { validateLabVisualPreview, type LabVisualPreview } from '../../shared/domain/laboratory-preview'
 import { cancelLoopForLaboratory, configureLoopSimulation, getActivePopup, syncLoopFromSettings,
@@ -34,6 +34,15 @@ let hasBranch = false
 let projectingResult = false
 let message = 'Выберите историю или создайте календарь'
 let visualPreview: LabVisualPreview | null = null
+let labChild: ChildProcess | null = null
+let quitting = false
+
+app.on('before-quit', () => { quitting = true })
+
+/** The laboratory has one window: the dashboard with all sections and a laboratory tab. */
+export function openLabDashboard(tab: 'debug' | 'today' | 'settings' = 'debug'): void {
+  createDashboardWindow({ tab, laboratory: true, onClosed: pauseLaboratory })
+}
 
 const playback = new NativePlayback({
   plan: () => plan, cursor: () => cursor, now: nowMs, severity: () => getSnapshot().settings.severity,
@@ -94,15 +103,40 @@ export function acknowledgeLabDriver(ack: LabDriverAck): void {
 
 export async function launchLaboratory(): Promise<void> {
   if (app.isPackaged) throw new Error('Laboratory is only available in development')
-  if (isLabProcess()) { openLaboratoryWindow(pauseLaboratory); return }
+  if (isLabProcess()) { openLabDashboard('debug'); return }
   const environment = { ...process.env }
   delete environment.ELECTRON_RUN_AS_NODE
+  const parentWindow = getDashboardWindow()
+  const duplicate = labChild !== null && !labChild.killed
+  let closedParent = false
+  const restoreParent = (): void => {
+    if (!closedParent || quitting) return
+    if (!getDashboardWindow()) createDashboardWindow()
+  }
   await new Promise<void>((resolve, reject) => {
     const child = spawn(process.execPath, [app.getAppPath(), LAB_ARGUMENT], {
       cwd: app.getAppPath(), env: environment, windowsHide: true, stdio: 'ignore'
     })
-    child.once('spawn', resolve)
-    child.once('error', reject)
+    child.once('spawn', () => {
+      if (!duplicate) {
+        labChild = child
+        // One visible screen: the real dashboard is closed until the laboratory exits.
+        if (parentWindow && !parentWindow.isDestroyed() && parentWindow.isVisible()) {
+          closedParent = true
+          parentWindow.close()
+        }
+      }
+      resolve()
+    })
+    child.once('error', (error) => {
+      restoreParent()
+      reject(error)
+    })
+    child.once('exit', () => {
+      if (labChild !== child) return
+      labChild = null
+      restoreParent()
+    })
   })
 }
 
@@ -414,7 +448,6 @@ export async function executeLabCommand(command: LabCommand): Promise<LabState> 
       }
       break
     }
-    case 'detach': openLaboratoryWindow(pauseLaboratory); break
     default: throw new Error('Unknown laboratory command')
   }
   return publish()

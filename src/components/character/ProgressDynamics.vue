@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { labDynamics } from '@shared/domain/laboratory-playback'
+import { buildProgressDynamics } from '@shared/domain/progress-dynamics'
 import { STAGE_THRESHOLDS } from '@shared/domain/character-progress'
 import { buildHeatmap } from '@shared/domain/stats'
 import type { Session } from '@shared/types/session'
 
 const props = defineProps<{ sessions: Session[]; now: Date; startAt?: string }>()
-const dynamics = computed(() => labDynamics(props.sessions, props.now))
+const dynamics = computed(() => buildProgressDynamics(props.sessions, props.now))
 const end = computed(() => props.now.getTime())
 const start = computed(() => Math.min(Date.parse(props.startAt ?? '') || end.value, dynamics.value.points[0]?.at ?? end.value))
 const nextThreshold = computed(() => STAGE_THRESHOLDS.find(value => value.done > dynamics.value.done)?.done ?? Math.max(80, dynamics.value.done))
@@ -22,7 +22,7 @@ function line(key: 'done' | 'condition', max: number): string {
 </script>
 
 <template>
-  <section class="space-y-2" aria-label="Динамика прогресса" data-testid="lab-dynamics">
+  <section class="space-y-2" aria-label="Динамика прогресса" data-testid="progress-dynamics">
     <div class="grid gap-2 sm:grid-cols-2">
       <figure class="rounded-xl bg-slate-950 p-2">
         <figcaption class="text-[11px] text-emerald-300">Выполнения · {{ dynamics.done }} · пороги форм</figcaption>

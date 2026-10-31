@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { LabCommand, LabState } from '../../shared/domain/laboratory'
 import type { LabDriverAck, LabDriverCommand } from '../../shared/domain/laboratory-playback'
+import type { LaunchAtLoginState } from '../../shared/domain/launch-at-login'
 import {
   IpcChannels,
   type AppInfoPayload,
@@ -25,7 +26,8 @@ import {
   type SessionPopupPayload,
   type SessionResultPayload,
   type SessionResultResponse,
-  type TraySetStatePayload
+  type TraySetStatePayload,
+  type WindowNavigateDashboardPayload
 } from '../../shared/types/events'
 
 const api = {
@@ -34,6 +36,10 @@ const api = {
   getUpdateState: (): Promise<UpdateStatePayload> => ipcRenderer.invoke(IpcChannels.AppUpdateState),
   checkForUpdates: (): Promise<UpdateStatePayload> => ipcRenderer.invoke(IpcChannels.AppUpdateCheck),
   installUpdate: (): Promise<UpdateInstallResult> => ipcRenderer.invoke(IpcChannels.AppUpdateInstall),
+  dismissUpdatePrompt: (): Promise<void> => ipcRenderer.invoke(IpcChannels.AppUpdateDismiss),
+  getLaunchAtLogin: (): Promise<LaunchAtLoginState> => ipcRenderer.invoke(IpcChannels.AppGetLaunchAtLogin),
+  setLaunchAtLogin: (enabled: boolean): Promise<LaunchAtLoginState> =>
+    ipcRenderer.invoke(IpcChannels.AppSetLaunchAtLogin, enabled),
   onUpdateState: (handler: (state: UpdateStatePayload) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, state: UpdateStatePayload): void => handler(state)
     ipcRenderer.on(IpcChannels.AppUpdateChanged, listener)
@@ -53,15 +59,14 @@ const api = {
     ipcRenderer.on(IpcChannels.LabChanged, listener)
     return () => ipcRenderer.removeListener(IpcChannels.LabChanged, listener)
   },
-  openDashboard: (): Promise<void> => ipcRenderer.invoke(IpcChannels.WindowOpenDashboard),
   openPopup: (): Promise<void> => ipcRenderer.invoke(IpcChannels.WindowOpenPopup),
   closePopup: (): Promise<void> => ipcRenderer.invoke(IpcChannels.WindowClosePopup),
   resizePopup: (height: number): Promise<void> =>
     ipcRenderer.invoke(IpcChannels.WindowResizePopup, height),
   sessionResult: (payload: SessionResultPayload): Promise<SessionResultResponse> =>
     ipcRenderer.invoke(IpcChannels.SessionResult, payload),
-  onNavigateDashboard: (handler: () => void): (() => void) => {
-    const listener = (): void => handler()
+  onNavigateDashboard: (handler: (payload: WindowNavigateDashboardPayload) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: WindowNavigateDashboardPayload): void => handler(payload)
     ipcRenderer.on(IpcChannels.WindowNavigateDashboard, listener)
     return () => ipcRenderer.removeListener(IpcChannels.WindowNavigateDashboard, listener)
   },

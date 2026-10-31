@@ -17,6 +17,11 @@ export function advanceCharacterCondition(points: number, status: SessionStatus)
   return points
 }
 
+/** Level thresholds for the temporary condition; shared with the chronicle. */
+export function characterConditionLevel(points: number): CharacterConditionLevel {
+  return points >= CHARACTER_CONDITION_MAX_POINTS ? 3 : points >= 6 ? 2 : points >= 3 ? 1 : 0
+}
+
 /** Temporary visual condition, derived from durable results; never lowers earned stages. */
 export function computeCharacterCondition(sessions: readonly Session[]): CharacterCondition {
   const ordered = sessions
@@ -31,7 +36,7 @@ export function computeCharacterCondition(sessions: readonly Session[]): Charact
     seen.add(session.id)
     points = advanceCharacterCondition(points, session.status)
   }
-  const level = points >= CHARACTER_CONDITION_MAX_POINTS ? 3 : points >= 6 ? 2 : points >= 3 ? 1 : 0
+  const level = characterConditionLevel(points)
   return { points, level, recoverySessions: Math.ceil(points / CHARACTER_CONDITION_RECOVERY_POINTS) }
 }
 

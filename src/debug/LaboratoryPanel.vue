@@ -15,7 +15,7 @@ import ComicBubble from '@/components/character/ComicBubble.vue'
 import CalendarHeatmap from '@/components/stats/CalendarHeatmap.vue'
 import StatsPanel from '@/components/stats/StatsPanel.vue'
 import AppearancePanel from './AppearancePanel.vue'
-import ProgressDynamics from './ProgressDynamics.vue'
+import ProgressDynamics from '@/components/character/ProgressDynamics.vue'
 import SoundAuditionPanel from './SoundAuditionPanel.vue'
 import { LAB_PHASE_LABELS } from '@shared/domain/laboratory-playback'
 import { resolveFrameUrl } from '@/components/character/frames'
@@ -130,7 +130,6 @@ function newCalendar(): void {
 }
 function seek(value: number): void { void command({ action: 'seek', cursor: value }) }
 function playCue(cue: SoundCue): void { preview.play(cue) }
-function openDashboard(): void { void changeSetting(() => window.api.openDashboard()) }
 function milestoneLabel(index: number): string {
   if (!plan.value) return ''
   const summary = labSummary(plan.value, index)
@@ -180,7 +179,6 @@ onBeforeUnmount(() => { unsubscribe?.(); clearInterval(clock); clearTimeout(reac
   <div class="laboratory space-y-5" data-testid="laboratory-panel">
     <header class="flex flex-wrap items-center justify-between gap-3">
       <div><p class="brand-label text-amber-300">BODY DEBUGGER / LAB</p><h1 class="mt-2 text-2xl font-semibold text-white">Лаборатория</h1></div>
-      <div class="flex gap-2"><button class="setting-chip" type="button" @click="openDashboard">Дашборд ↗</button><button class="setting-chip" type="button" :disabled="busy" @click="command({ action: 'detach' })">Отдельное окно ↗</button></div>
     </header>
     <div class="lab-status"><span class="lab-dot" />Тестовый профиль · {{ dateLabel }}<span class="ml-auto">{{ runtime.laboratory?.running ? 'Время идёт' : 'Время остановлено' }}</span></div>
       <section class="lab-transport settings-card" data-testid="lab-console">

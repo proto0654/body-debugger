@@ -11,6 +11,30 @@ import { getSettings } from '../persistence'
 
 let popupWindow: BrowserWindow | null = null
 
+type PopupVisibilityListener = (open: boolean) => void
+const visibilityListeners = new Set<PopupVisibilityListener>()
+
+/**
+ * The update prompt uses this to stay out of the way while an exercise owns the
+ * screen. It is a plain observer; the popup module stays independent of updates.
+ */
+export function onPopupVisibilityChange(listener: PopupVisibilityListener): () => void {
+  visibilityListeners.add(listener)
+  return () => {
+    visibilityListeners.delete(listener)
+  }
+}
+
+function notifyPopupVisibility(open: boolean): void {
+  visibilityListeners.forEach(listener => {
+    try {
+      listener(open)
+    } catch (cause) {
+      console.error('[popup] visibility listener failed', cause)
+    }
+  })
+}
+
 function preloadPath(): string {
   return join(__dirname, '../preload/index.js')
 }
@@ -58,12 +82,15 @@ export function createPopupWindow(): BrowserWindow {
     }
   })
 
+  notifyPopupVisibility(true)
+
   popupWindow.on('ready-to-show', () => {
     popupWindow?.showInactive()
   })
 
   popupWindow.on('closed', () => {
     popupWindow = null
+    notifyPopupVisibility(false)
   })
 
   if (process.env.ELECTRON_RENDERER_URL) {

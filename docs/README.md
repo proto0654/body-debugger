@@ -8,7 +8,7 @@ Slim TOC. Agents start from [CONTEXT.md](CONTEXT.md).
 | Code layout, IPC cycle, skeleton status | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Explorable architecture snapshot (2026-10-30) | [Diagram](../.archify/architecture-app-20261030-020407/body-debugger-architecture.html) |
 | Run / cache / Electron on E: | [DEVELOPMENT.md](DEVELOPMENT.md) |
-| Installer, updates, build stamp, release flow | [DELIVERY.md](DELIVERY.md) |
+| Installer, prod/dev channels, updates, autostart, release flow | [DELIVERY.md](DELIVERY.md) |
 | Optional sounds (packs, cues, mute rules) | [SOUNDS.md](SOUNDS.md) |
 | Character voice and effect production, default-on popup voice | [AUDIO-PRODUCTION.md](AUDIO-PRODUCTION.md) |
 | Unit tests + debug / scenario panel | [TESTING.md](TESTING.md) |

@@ -41,10 +41,19 @@ export interface CharacterProgress {
   branch: CharacterBranch
 }
 
+/** Stage from the cumulative count of done sessions; shared by stores and the chronicle. */
+export function characterStageFor(doneCount: number): CharacterStage {
+  let stage: CharacterStage = 0
+  for (const step of STAGE_THRESHOLDS) {
+    if (doneCount >= step.done) stage = step.stage
+  }
+  return stage
+}
+
 /** UI progress uses the same thresholds as the stored character stage. */
 export function characterJourney(sessions: readonly Session[]) {
   const done = sessions.filter((session) => session.status === 'done').length
-  const stage = stageFor(done)
+  const stage = characterStageFor(done)
   const start = STAGE_THRESHOLDS.find((step) => step.stage === stage)?.done ?? 0
   const next = STAGE_THRESHOLDS.find((step) => step.stage > stage)
   return {
@@ -58,7 +67,7 @@ export function characterJourney(sessions: readonly Session[]) {
 
 type BranchTotals = Record<Exclude<CharacterBranch, 'neutral'>, number>
 
-function doneSessions(sessions: Session[]): Session[] {
+function doneSessions(sessions: readonly Session[]): Session[] {
   return sessions
     .filter((session) => session.status === 'done')
     .sort((a, b) => {
@@ -66,14 +75,6 @@ function doneSessions(sessions: Session[]): Session[] {
       const bAt = Date.parse(b.completedAt ?? b.triggeredAt)
       return (Number.isNaN(aAt) ? 0 : aAt) - (Number.isNaN(bAt) ? 0 : bAt)
     })
-}
-
-function stageFor(doneCount: number): CharacterStage {
-  let stage: CharacterStage = 0
-  for (const step of STAGE_THRESHOLDS) {
-    if (doneCount >= step.done) stage = step.stage
-  }
-  return stage
 }
 
 /** Primary training direction of one exercise; `null` means it does not move the branch. */
@@ -109,14 +110,14 @@ function branchFor(done: Session[], catalogById: Map<string, Exercise>): Charact
 }
 
 export function computeCharacterProgress(
-  sessions: Session[],
+  sessions: readonly Session[],
   catalog: Exercise[] = EXERCISE_CATALOG
 ): CharacterProgress {
   const done = doneSessions(sessions)
   const catalogById = new Map(catalog.map((exercise) => [exercise.id, exercise]))
 
   return {
-    stage: stageFor(done.length),
+    stage: characterStageFor(done.length),
     branch: branchFor(done, catalogById)
   }
 }

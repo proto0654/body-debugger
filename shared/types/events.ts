@@ -4,6 +4,7 @@ import type { AppSettings } from './settings'
 import type { UserProgress } from './progress'
 import type { DataSnapshot } from './persistence'
 import type { PhotoEntry } from './photo'
+import type { AppChannel } from '../domain/app-identity'
 import type { UpdateState } from '../domain/update'
 
 /** Tray visual states from CONCEPT.md §4 / §13 */
@@ -22,7 +23,6 @@ export const IpcChannels = {
   SessionResult: 'session:result',
   SessionUpdated: 'session:updated',
   TraySetState: 'tray:set-state',
-  WindowOpenDashboard: 'window:open-dashboard',
   WindowNavigateDashboard: 'window:navigate-dashboard',
   WindowClosePopup: 'window:close-popup',
   WindowOpenPopup: 'window:open-popup',
@@ -50,9 +50,12 @@ export const IpcChannels = {
   ExercisesUpdated: 'exercise:updated',
   AppGetInfo: 'app:get-info',
   AppOpenLogs: 'app:open-logs',
+  AppGetLaunchAtLogin: 'app:get-launch-at-login',
+  AppSetLaunchAtLogin: 'app:set-launch-at-login',
   AppUpdateState: 'app:update-state',
   AppUpdateCheck: 'app:update-check',
   AppUpdateInstall: 'app:update-install',
+  AppUpdateDismiss: 'app:update-dismiss',
   AppUpdateChanged: 'app:update-changed'
 } as const
 
@@ -100,6 +103,11 @@ export interface SessionUpdatedPayload {
 
 export interface TraySetStatePayload {
   state: TrayState
+}
+
+/** The tray and the laboratory open or focus the dashboard at a concrete tab. */
+export interface WindowNavigateDashboardPayload {
+  tab: 'today' | 'settings' | 'debug'
 }
 
 export type DataSnapshotPayload = DataSnapshot
@@ -172,6 +180,8 @@ export interface AppInfoPayload {
   buildCommit: string
   buildDate: string
   packaged: boolean
+  /** Stable prod or the separate dev build; also shown in «О программе». */
+  channel: AppChannel
   platform: string
   dataPath: string
   logDir: string

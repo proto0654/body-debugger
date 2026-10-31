@@ -26,9 +26,13 @@ nsis:
   allowElevation: false
   deleteAppDataOnUninstall: false
   runAfterFinish: true
+  include: installer.nsh
   artifactName: Body-Debugger-Setup-${version}.${ext}
 
 publish:
   provider: github
   owner: proto0654
   repo: body-debugger-releases
+  # A stable tag publishes a normal release; the dev publish script overrides
+  # this with EP_PRE_RELEASE=true.
+  releaseType: release

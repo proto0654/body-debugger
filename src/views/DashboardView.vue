@@ -4,15 +4,19 @@ import { useRuntimeStore } from '@/stores/runtime'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import CharacterSettingsPanel from '@/components/character/CharacterSettingsPanel.vue'
 import CharacterJourney from '@/components/character/CharacterJourney.vue'
+import CharacterChronicle from '@/components/character/CharacterChronicle.vue'
+import SectionTabs from '@/components/SectionTabs.vue'
 import ProgressPanel from '@/components/stats/ProgressPanel.vue'
 import { reactionDuration } from '@shared/domain/reaction-timing'
 import DebugPanel from '@/debug/DebugPanel.vue'
+import LaboratoryPanel from '@/debug/LaboratoryPanel.vue'
 import { isDebugEnabled } from '@/debug/is-debug-enabled'
 import CharacterPortrait from '@/components/character/CharacterPortrait.vue'
 import ComicBubble from '@/components/character/ComicBubble.vue'
 import WeightCard from '@/components/weight/WeightCard.vue'
 import PreferencesPanel from '@/components/settings/PreferencesPanel.vue'
 import ComfortSettingsPanel from '@/components/settings/ComfortSettingsPanel.vue'
+import SystemPanel from '@/components/settings/SystemPanel.vue'
 import AboutPanel from '@/components/settings/AboutPanel.vue'
 import { useProgressStore } from '@/stores/progress'
 import { useCharacterStore } from '@/stores/character'
@@ -28,8 +32,10 @@ import { localDateKey } from '@shared/domain/stats'
 
 type TabId = 'today' | 'character' | 'progress' | 'settings' | 'debug'
 type ProgressSection = 'calendar' | 'stats' | 'weight' | 'photos'
+type CharacterSection = 'profile' | 'chronicle'
 const requestedTab = () => /[?&]tab=([a-z]+)/.exec(window.location.hash)?.[1]
 const progressSection = ref<ProgressSection>(requestedTab() === 'stats' ? 'stats' : 'calendar')
+const characterSection = ref<CharacterSection>('profile')
 const debugEnabled = isDebugEnabled() || !!useRuntimeStore().laboratory
 function initialTab(): TabId {
   const requested = requestedTab()
@@ -65,7 +71,8 @@ const todayDone = computed(() => sessions.history.filter(session =>
 ).length)
 const tabs = computed<{ id: TabId; label: string }[]>(() => [
   { id: 'today', label: 'Сегодня' }, { id: 'character', label: 'Персонаж' },
-  { id: 'progress', label: 'Прогресс' }, { id: 'settings', label: 'Настройки' }
+  { id: 'progress', label: 'Прогресс' }, { id: 'settings', label: 'Настройки' },
+  ...(runtime.laboratory ? [{ id: 'debug' as const, label: 'Лаборатория' }] : [])
 ])
 const dateLabel = computed(() => now.value.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'long' }))
 
@@ -80,7 +87,10 @@ onMounted(() => {
   clock = setInterval(refreshClock, 30_000)
   document.addEventListener('visibilitychange', refreshClock)
   window.addEventListener('hashchange', navigateFromHash)
-  unsubscribeNavigation = window.api?.onNavigateDashboard?.(() => { tab.value = 'settings' })
+  unsubscribeNavigation = window.api?.onNavigateDashboard?.((payload) => {
+    if (payload.tab === 'debug' && !debugEnabled) return
+    tab.value = payload.tab
+  })
 })
 onBeforeUnmount(() => {
   clearInterval(clock)
@@ -137,13 +147,13 @@ async function triggerReminder(): Promise<void> {
 </script>
 
 <template>
-  <div class="dashboard-shell mx-auto flex min-h-full max-w-4xl flex-col gap-5 p-6">
+  <div class="dashboard-shell mx-auto flex min-h-full flex-col gap-5 p-6" :class="runtime.laboratory ? 'max-w-6xl' : 'max-w-4xl'">
     <header class="flex items-center justify-between gap-4">
       <div>
         <p class="brand-label">BODY DEBUGGER <span class="ml-2 text-slate-500">/ ПЕРЕРЫВ В ПОЛЬЗУ СЕБЯ</span></p>
         <h1 class="mt-2 text-2xl font-semibold tracking-tight text-white">Твой рабочий ритм</h1>
       </div>
-      <div class="flex flex-wrap justify-end gap-2"><button v-if="debugEnabled" type="button" class="setting-chip lab-entry" @click="tab = 'debug'">Лаборатория ↗</button>
+      <div class="flex flex-wrap justify-end gap-2"><button v-if="debugEnabled && !runtime.laboratory" type="button" class="setting-chip lab-entry" @click="tab = 'debug'">Лаборатория ↗</button>
       <button type="button" class="setting-chip" :aria-pressed="settings.paused" @click="settings.togglePause()">
         {{ settings.paused ? 'Продолжить' : 'Пауза' }}
       </button>
@@ -195,9 +205,17 @@ async function triggerReminder(): Promise<void> {
       <WeightCard v-if="settings.weight.enabled" compact />
       <p class="text-center text-xs text-slate-500">Всё хранится на твоём компьютере. <button class="text-slate-400 hover:text-white" type="button" @click="tab = 'settings'">Настроить под себя →</button></p>
     </template>
-    <div v-else-if="tab === 'character'" class="space-y-4"><CharacterSettingsPanel /><CharacterJourney /></div>
+    <div v-else-if="tab === 'character'" class="space-y-4">
+      <SectionTabs v-model="characterSection" :items="[{ id: 'profile', label: 'Профиль' }, { id: 'chronicle', label: 'Хроника' }]" label="Персонаж и его история">
+        <template v-if="characterSection === 'profile'"><CharacterSettingsPanel /><CharacterJourney /></template>
+        <CharacterChronicle v-else :now="now" @start="triggerReminder" />
+      </SectionTabs>
+    </div>
     <ProgressPanel v-else-if="tab === 'progress'" :now="now" :initial-section="progressSection" @settings="tab = 'settings'" />
-    <template v-else-if="tab === 'settings'"><PreferencesPanel /><ComfortSettingsPanel group="presentation" /><AboutPanel /></template>
-    <DebugPanel v-else />
+    <template v-else-if="tab === 'settings'"><PreferencesPanel /><ComfortSettingsPanel group="presentation" /><SystemPanel /><AboutPanel /></template>
+    <template v-else>
+      <LaboratoryPanel v-if="runtime.laboratory" />
+      <DebugPanel v-else />
+    </template>
   </div>
 </template>

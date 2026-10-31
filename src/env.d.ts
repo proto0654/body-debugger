@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import type { LabCommand, LabState } from '@shared/domain/laboratory'
 import type { LabDriverAck, LabDriverCommand } from '@shared/domain/laboratory-playback'
+import type { LaunchAtLoginState } from '@shared/domain/launch-at-login'
 
 import type {
   AppInfoPayload,
@@ -25,7 +26,8 @@ import type {
   SessionPopupPayload,
   SessionResultPayload,
   SessionResultResponse,
-  TraySetStatePayload
+  TraySetStatePayload,
+  WindowNavigateDashboardPayload
 } from '@shared/types/events'
 
 declare module '*.vue' {
@@ -40,6 +42,9 @@ export interface BodyDebuggerApi {
   getUpdateState: () => Promise<UpdateStatePayload>
   checkForUpdates: () => Promise<UpdateStatePayload>
   installUpdate: () => Promise<UpdateInstallResult>
+  dismissUpdatePrompt: () => Promise<void>
+  getLaunchAtLogin: () => Promise<LaunchAtLoginState>
+  setLaunchAtLogin: (enabled: boolean) => Promise<LaunchAtLoginState>
   onUpdateState: (handler: (state: UpdateStatePayload) => void) => () => void
   labDriverAck: (ack: LabDriverAck) => Promise<void>
   onLabDriver: (handler: (command: LabDriverCommand) => void) => () => void
@@ -47,12 +52,11 @@ export interface BodyDebuggerApi {
   getLabState: () => Promise<LabState>
   labCommand: (command: LabCommand) => Promise<LabState>
   onLabChanged: (handler: (state: LabState) => void) => () => void
-  openDashboard: () => Promise<void>
   openPopup: () => Promise<void>
   closePopup: () => Promise<void>
   resizePopup: (height: number) => Promise<void>
   sessionResult: (payload: SessionResultPayload) => Promise<SessionResultResponse>
-  onNavigateDashboard: (handler: () => void) => () => void
+  onNavigateDashboard: (handler: (payload: WindowNavigateDashboardPayload) => void) => () => void
   getCurrentPopup: () => Promise<SessionPopupPayload | null>
   getLoopState: () => Promise<SessionLoopStatePayload>
   getSnapshot: () => Promise<DataSnapshotPayload>

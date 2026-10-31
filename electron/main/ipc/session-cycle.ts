@@ -4,7 +4,6 @@ import {
   type SessionResultPayload,
   type TraySetStatePayload
 } from '../../../shared/types/events'
-import { createDashboardWindow } from '../windows/dashboard'
 import { closePopupWindow, getPopupWindow, resizePopupWindow } from '../windows/popup'
 import { setTrayState } from '../tray'
 import {
@@ -22,10 +21,6 @@ import {
  * exposes it to renderers over IPC.
  */
 export function registerSessionCycleIpc(): void {
-  ipcMain.handle(IpcChannels.WindowOpenDashboard, async () => {
-    createDashboardWindow()
-  })
-
   ipcMain.handle(IpcChannels.WindowOpenPopup, async () => {
     triggerNow('manual')
   })

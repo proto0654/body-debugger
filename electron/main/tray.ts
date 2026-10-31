@@ -1,7 +1,7 @@
 import { app, Menu, Tray } from 'electron'
 import type { TrayState } from '../../shared/types/events'
+import { APP_CHANNEL } from './app-identity'
 import { trayFrameSpec, trayFrames } from './tray-icons'
-import { createDashboardWindow } from './windows/dashboard'
 import { isLabProcess } from './lab-environment'
 
 /** Main-process actions the tray menu can invoke; wired in `electron/main/index.ts`. */
@@ -10,6 +10,8 @@ export interface TrayHandlers {
   isReducedMotion: () => boolean
   onTogglePause: () => void
   onTriggerNow: () => void
+  /** Open or focus the dashboard; the laboratory process supplies its own shell. */
+  openDashboard: (tab?: 'settings') => void
   /** Version of a downloaded update that installs on quit; null when there is none. */
   getUpdateReadyVersion: () => string | null
   onInstallUpdate: () => void
@@ -35,7 +37,7 @@ function buildContextMenu(): Menu {
     {
       label: 'Дашборд',
       click: () => {
-        createDashboardWindow()
+        handlers?.openDashboard()
       }
     },
     {
@@ -65,7 +67,7 @@ function buildContextMenu(): Menu {
     },
     {
       label: 'Настройки',
-      click: () => { createDashboardWindow('settings') }
+      click: () => { handlers?.openDashboard('settings') }
     },
     { type: 'separator' },
     {
@@ -82,7 +84,9 @@ function buildContextMenu(): Menu {
 function updateTooltip(): void {
   if (!tray) return
   const ready = handlers?.getUpdateReadyVersion() ?? null
-  const base = `${isLabProcess() ? 'Лаборатория · ' : ''}${paused ? 'Body Debugger — пауза' : TRAY_LABELS[trayState]}`
+  const channel = APP_CHANNEL === 'dev' ? 'Dev · ' : ''
+  const laboratory = isLabProcess() ? 'Лаборатория · ' : ''
+  const base = `${channel}${laboratory}${paused ? 'Body Debugger — пауза' : TRAY_LABELS[trayState]}`
   tray.setToolTip(ready ? `${base} · обновление готово` : base)
 }
 
@@ -137,7 +141,7 @@ export function createAppTray(nextHandlers: TrayHandlers): Tray {
   tray = new Tray(idle[0])
   refreshTrayMenu()
   tray.on('double-click', () => {
-    createDashboardWindow()
+    handlers?.openDashboard()
   })
   updateTooltip()
   playTrayState()

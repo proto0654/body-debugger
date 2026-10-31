@@ -13,10 +13,12 @@ import type { LabVisualPreview } from '@shared/domain/laboratory-preview'
 const mocks = vi.hoisted(() => ({
   dir: '', enabled: true, packaged: false, popup: false, closed: null as (() => void) | null,
   broadcast: vi.fn(), trayState: 'idle',
-  dialogOpen: vi.fn(), dialogSave: vi.fn(), spawn: vi.fn(), driver: vi.fn(), previewOpen: vi.fn(), previewClose: vi.fn()
+  dialogOpen: vi.fn(), dialogSave: vi.fn(), spawn: vi.fn(), driver: vi.fn(), previewOpen: vi.fn(), previewClose: vi.fn(),
+  dashboard: null as null | { close: () => void; isDestroyed: () => boolean; isVisible: () => boolean },
+  createDashboard: vi.fn(), getDashboard: vi.fn(), spawnChild: null as EventEmitter | null
 }))
 vi.mock('electron', () => ({
-  app: { get isPackaged() { return mocks.packaged }, getPath: () => mocks.dir, getAppPath: () => mocks.dir },
+  app: { get isPackaged() { return mocks.packaged }, getPath: () => mocks.dir, getAppPath: () => mocks.dir, on: vi.fn() },
   powerMonitor: { getSystemIdleTime: () => 0 },
   dialog: { showOpenDialog: mocks.dialogOpen, showSaveDialog: mocks.dialogSave }
 }))
@@ -25,7 +27,9 @@ vi.mock('../../electron/main/lab-environment', () => ({ isLabProcess: () => mock
 vi.mock('../../electron/main/broadcast', () => ({
   broadcastToWindows: mocks.broadcast, notifyDataUpdated: mocks.broadcast
 }))
-vi.mock('../../electron/main/windows/laboratory', () => ({ openLaboratoryWindow: vi.fn() }))
+vi.mock('../../electron/main/windows/dashboard', () => ({
+  createDashboardWindow: mocks.createDashboard, getDashboardWindow: mocks.getDashboard
+}))
 vi.mock('../../electron/main/windows/laboratory-preview', () => ({ openLabPreviewWindow: mocks.previewOpen, closeLabPreviewWindow: mocks.previewClose }))
 vi.mock('../../electron/main/windows/popup', () => ({
   getPopupWindow: () => mocks.popup ? { focus: vi.fn(), webContents: { send: mocks.driver } } : null,
@@ -50,6 +54,9 @@ beforeEach(async () => {
   vi.useFakeTimers(); vi.setSystemTime(new Date(2026, 9, 30, 12))
   mocks.dir = mkdtempSync(join(tmpdir(), 'body-debugger-lab-'))
   mocks.enabled = true; mocks.packaged = false; mocks.popup = false; mocks.closed = null; mocks.trayState = 'idle'
+  mocks.dashboard = null; mocks.spawnChild = null
+  mocks.createDashboard.mockReset()
+  mocks.getDashboard.mockReset(); mocks.getDashboard.mockImplementation(() => mocks.dashboard)
   mocks.spawn.mockReset()
   mocks.previewOpen.mockReset(); mocks.previewClose.mockReset()
   mocks.driver.mockReset()
@@ -199,6 +206,42 @@ describe('main-owned laboratory', () => {
     await expect(controller.launchLaboratory()).rejects.toThrow('spawn failed')
     mocks.packaged = true
     await expect(controller.launchLaboratory()).rejects.toThrow('development')
+  })
+  it('opens the single laboratory dashboard instead of spawning another process', async () => {
+    mocks.enabled = true
+    await controller.launchLaboratory()
+    expect(mocks.spawn).not.toHaveBeenCalled()
+    expect(mocks.createDashboard).toHaveBeenCalledWith(expect.objectContaining({
+      tab: 'debug', laboratory: true, onClosed: expect.any(Function)
+    }))
+  })
+  it('closes the real dashboard while the spawned laboratory runs and restores it on exit', async () => {
+    mocks.enabled = false
+    const parent = { close: vi.fn(() => { mocks.dashboard = null }), isDestroyed: () => false, isVisible: () => true }
+    mocks.dashboard = parent
+    mocks.spawn.mockImplementation(() => {
+      const child = new EventEmitter()
+      mocks.spawnChild = child
+      queueMicrotask(() => child.emit('spawn'))
+      return child
+    })
+    await controller.launchLaboratory()
+    expect(parent.close).toHaveBeenCalledOnce()
+    expect(mocks.createDashboard).not.toHaveBeenCalled()
+    mocks.spawnChild!.emit('exit')
+    expect(mocks.createDashboard).toHaveBeenCalledOnce()
+  })
+  it('keeps the real dashboard when the laboratory cannot start', async () => {
+    mocks.enabled = false
+    const parent = { close: vi.fn(), isDestroyed: () => false, isVisible: () => true }
+    mocks.dashboard = parent
+    mocks.spawn.mockImplementation(() => {
+      const child = new EventEmitter()
+      queueMicrotask(() => child.emit('error', new Error('spawn failed')))
+      return child
+    })
+    await expect(controller.launchLaboratory()).rejects.toThrow('spawn failed')
+    expect(parent.close).not.toHaveBeenCalled()
   })
   it('rejects destructive commands outside the isolated profile', async () => {
     mocks.enabled = false

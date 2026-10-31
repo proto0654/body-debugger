@@ -41,7 +41,9 @@ Project docs and this file override global agent rules when they conflict.
 | Themes / equipment | `shared/constants/themes.ts`, `shared/constants/equipment.ts`, `src/styles/index.css` |
 | Core preferences (interval, picker mode, Focus, identity/build) | `shared/domain/preferences.ts`, `shared/constants/focus.ts`, `src/components/settings/` |
 | Dashboard calendar + stats | `shared/domain/stats.ts`, `src/components/stats/` |
-| Native laboratory (dev-only, isolated profile) | `src/debug/`, `shared/domain/laboratory.ts`, `electron/main/laboratory.ts` |
+| Real-history chronicle (read-only timeline, no writes) | `shared/domain/chronicle.ts`, `src/components/character/CharacterChronicle.vue` |
+| Shared session summary / transition text | `shared/domain/character-summary.ts` |
+| Native laboratory (dev-only, isolated profile, one window) | `src/debug/`, `shared/domain/laboratory.ts`, `electron/main/laboratory.ts`, `electron/main/windows/dashboard.ts` |
 | Manual visual preview | `src/debug/AppearancePanel.vue`, `src/views/LaboratoryPreviewView.vue`, `shared/domain/laboratory-preview.ts` |
 | Native replay phases / semantic driver | `electron/main/laboratory-playback.ts`, `shared/domain/laboratory-playback.ts` |
 | Application clock / laboratory time | `shared/domain/clock.ts`, `src/stores/runtime.ts` |
@@ -61,8 +63,12 @@ Project docs and this file override global agent rules when they conflict.
 | Keyframes + reduced-motion CSS | `src/styles/index.css` |
 | Tray frames + animation specs | `electron/resources/tray/`, `electron/main/tray-icons.ts` |
 | Tray icon script | `scripts/build-tray-icons.py` |
-| Installer config + app icon | `electron-builder.yml`, `electron/resources/icon.ico`, `scripts/build-app-icon.py` |
+| Installer config + icons | `electron-builder.yml`, `electron-builder.dev.yml`, `electron/resources/icon.ico`, `electron/resources/icon-dev.ico`, `scripts/build-app-icon.py` |
+| Release script + CI | `scripts/publish-build.mjs`, `.github/workflows/release.yml` |
+| Build identity / profiles | `shared/domain/app-identity.ts`, `electron/main/app-identity.ts`, `electron/main/lab-environment.ts` |
 | Update feed, install gating, update UI | `electron/main/updater.ts`, `electron/main/ipc/updates.ts`, `shared/domain/update.ts`, `src/components/settings/AboutPanel.vue` |
+| Update prompt window | `electron/main/windows/update-prompt.ts`, `src/views/UpdatePromptView.vue` |
+| Launch at login / system settings | `shared/domain/launch-at-login.ts`, `electron/main/launch-at-login.ts`, `src/components/settings/SystemPanel.vue` |
 | Main-process log, build stamp, app info IPC | `electron/main/logger.ts`, `electron/main/build-info.ts`, `electron/main/ipc/app.ts`, `src/components/settings/AboutPanel.vue` |
 | Tests (Vitest) | `tests/`, `vitest.config.ts` |
 | Docs | `docs/` |
@@ -72,10 +78,14 @@ Project docs and this file override global agent rules when they conflict.
 
 ```bash
 npm run dev          # electron-vite: tray + dashboard
-npm run dev:lab      # isolated native visual laboratory + tray + dashboard
+npm run dev:lab      # isolated native visual laboratory (one dashboard window with a lab tab)
 npm run build
-npm run build:win    # NSIS installer + latest.yml in dist/ (see docs/DELIVERY.md)
-npm run build:dir    # unpacked Windows package for a quick packaged run
+npm run build:win    # prod NSIS installer + latest.yml in dist/ (see docs/DELIVERY.md)
+npm run build:dir    # unpacked prod package for a quick packaged run
+npm run build:dev    # dev NSIS installer in dist-dev/; dev.yml for a -dev.N version
+npm run build:dev:dir # unpacked dev app in dist-dev/win-unpacked
+npm run publish:prod # build + publish stable (requires GH_TOKEN)
+npm run publish:dev  # build + publish dev prerelease (requires GH_TOKEN)
 npm run typecheck    # main + renderer + tests
 npm test             # Vitest suite
 ```

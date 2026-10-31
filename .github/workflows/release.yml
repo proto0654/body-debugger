@@ -1,0 +1,72 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      # The repo-local .npmrc keeps npm on E: for development; CI has no E:.
+      NPM_CONFIG_CACHE: ${{ runner.temp }}\npm-cache
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify tag matches package.json
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          $tag = "${{ github.ref_name }}"
+          if ("v$version" -ne $tag) {
+            throw "Tag $tag does not match package version v$version"
+          }
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          $channel = if ("${{ github.ref_name }}" -match '-') { 'dev' } else { 'prod' }
+          node scripts/publish-build.mjs $channel
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ github.ref_name }}
+          if-no-files-found: ignore
+          path: |
+            dist/*.exe
+            dist/*.yml
+            dist/*.blockmap
+            dist-dev/*.exe
+            dist-dev/*.yml
+            dist-dev/*.blockmap

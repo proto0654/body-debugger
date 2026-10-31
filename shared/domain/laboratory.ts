@@ -1,7 +1,7 @@
 import { EXERCISE_CATALOG } from '../constants/exercises'
-import { computeCharacterProgress, characterJourney } from './character-progress'
-import { computeCharacterCondition } from './character-condition'
-import { computeStreak } from './streak'
+import { SESSION_STATUS_LABELS } from '../constants/session'
+import { computeCharacterProgress } from './character-progress'
+import { describeSummaryChange, summarizeSessions } from './character-summary'
 import { pickNextExercise } from './exercise-picker'
 import { cloneSettings } from './settings'
 import { localDateKey } from './stats'
@@ -10,7 +10,6 @@ import type { AppSettings } from '../types/settings'
 import type { UserProgress } from '../types/progress'
 import type { Session, SessionStatus } from '../types/session'
 import type { CharacterBranch } from '../types/character'
-import { CHARACTER_BRANCH_LABELS, CHARACTER_STAGE_LABELS } from '../constants/character'
 import { labActions, type LabAction, type LabPlaybackMode, type LabPlaybackState } from './laboratory-playback'
 import { normalizeCharacterPackId } from '../constants/character-packs'
 import type { DataSnapshot } from '../types/persistence'
@@ -91,7 +90,7 @@ export type LabCommand =
   | { action: 'popup'; preset: 'normal' | 'stage-up' | 'soft' | 'medium' | 'hardcore' | 'details'; exerciseId?: string }
   | { action: 'advance'; seconds: number }
   | { action: 'idle'; seconds: number }
-  | { action: 'pause' | 'reset' | 'save' | 'restore' | 'export' | 'import' | 'detach' | 'fail-save' }
+  | { action: 'pause' | 'reset' | 'save' | 'restore' | 'export' | 'import' | 'fail-save' }
 
 export function seededRandom(seed: number): () => number {
   let state = seed >>> 0
@@ -137,10 +136,6 @@ const DIRECTION_CATALOGS = {
   power: buildDirectionCatalog('power'), mobility: buildDirectionCatalog('mobility')
 }
 
-const STATUS_LABELS: Record<SessionStatus, string> = {
-  done: 'Выполнено', skipped: 'Пропуск', snoozed: 'Отложено', missed: 'Таймаут'
-}
-
 function createPlan(id: string, title: string, settings: AppSettings, progress: UserProgress): LabPlan {
   return {
     version: 2, id, title, settings: cloneSettings(settings),
@@ -161,7 +156,7 @@ function addSession(plan: LabPlan, at: Date, status: SessionStatus, direction: C
     id: `lab-${plan.id}-${plan.events.length}`, exerciseId: exercise.id, status,
     durationSec: exercise.durationSec, triggeredAt: at.toISOString(), completedAt
   }
-  plan.events.push({ at: completedAt, label: `${STATUS_LABELS[status]} · ${exercise.title}`, session, actions: labActions(session) })
+  plan.events.push({ at: completedAt, label: `${SESSION_STATUS_LABELS[status]} · ${exercise.title}`, session, actions: labActions(session) })
 }
 
 export function buildRandomCalendar(raw: LabGeneratorOptions, settings: AppSettings, progress: UserProgress): LabPlan {
@@ -231,10 +226,7 @@ export function labSessionsAt(plan: LabPlan, cursor: number): Session[] {
 }
 
 export function labSummary(plan: LabPlan, cursor: number) {
-  const sessions = labSessionsAt(plan, cursor)
-  const at = new Date(plan.events[cursor]!.at)
-  return { journey: characterJourney(sessions), character: computeCharacterProgress(sessions),
-    condition: computeCharacterCondition(sessions), streak: computeStreak(sessions, at) }
+  return summarizeSessions(labSessionsAt(plan, cursor), new Date(plan.events[cursor]!.at))
 }
 
 export function labMilestones(plan: LabPlan): number[] {
@@ -253,16 +245,7 @@ export function labMilestones(plan: LabPlan): number[] {
 
 export function labEventExplanation(plan: LabPlan, cursor: number): string {
   if (cursor === 0) return 'Начальное состояние. Будущие события не участвуют в расчётах.'
-  const before = labSummary(plan, cursor - 1)
-  const after = labSummary(plan, cursor)
-  const changes: string[] = []
-  if (before.character.stage !== after.character.stage) changes.push(`Новая форма: ${CHARACTER_STAGE_LABELS[after.character.stage]}`)
-  if (before.character.branch !== after.character.branch) changes.push(`Направление: ${CHARACTER_BRANCH_LABELS[after.character.branch]}`)
-  if (before.condition.points !== after.condition.points) changes.push(`Ухудшение: ${before.condition.points} → ${after.condition.points} / 10; достигнутая форма сохранена`)
-  if (before.streak.current > 0 && after.streak.current === 0) changes.push('Серия дней прервана; пустые дни не ухудшают тело')
-  else if (after.streak.current > before.streak.current) changes.push(`Серия: ${after.streak.current} дней`)
-  if (plan.events[cursor]?.session?.status === 'snoozed') changes.push('Откладывание не добавляет ухудшения и не продвигает форму')
-  return changes.join(' · ') || 'Форма и состояние без изменений'
+  return describeSummaryChange(labSummary(plan, cursor - 1), labSummary(plan, cursor), plan.events[cursor]?.session)
 }
 
 /** Strict import boundary: bounded size, known exercises, chronology and unique identities. */

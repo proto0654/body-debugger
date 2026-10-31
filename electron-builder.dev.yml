@@ -1,0 +1,33 @@
+# Side-by-side development build. It shares the renderer/main bundle with the
+# production app but gets its own identity, profile, updater cache and feed.
+extends: ./electron-builder.yml
+
+appId: com.bodydebugger.app.dev
+productName: Body Debugger Dev
+
+directories:
+  output: dist-dev
+
+# `name` controls updaterCacheDirName; without it prod and dev would overwrite
+# each other's downloaded installer. `productName` controls app.getName(),
+# userData and the window title.
+extraMetadata:
+  name: body-debugger-dev
+  productName: Body Debugger Dev
+
+win:
+  icon: electron/resources/icon-dev.ico
+
+nsis:
+  artifactName: Body-Debugger-Dev-Setup-${version}.${ext}
+  shortcutName: Body Debugger Dev
+  uninstallDisplayName: Body Debugger Dev
+
+# Never let a manual dev publish look like a stable release. The release repo is
+# shared with prod; prod ignores prereleases and the dev updater reads dev.yml.
+publish:
+  provider: github
+  owner: proto0654
+  repo: body-debugger-releases
+  releaseType: prerelease
+  channel: dev

@@ -1,7 +1,8 @@
 import { app, BrowserWindow } from 'electron'
+import { shouldStartHidden } from '../../shared/domain/launch-at-login'
+import { APP_IDENTITY } from './app-identity'
 import { getUserDataPath, isLabProcess } from './lab-environment'
-import { initializeLaboratory, stopLaboratory, pauseLaboratory } from './laboratory'
-import { openLaboratoryWindow } from './windows/laboratory'
+import { initializeLaboratory, openLabDashboard, stopLaboratory, pauseLaboratory } from './laboratory'
 import { createAppTray } from './tray'
 import { createDashboardWindow } from './windows/dashboard'
 import { registerSessionCycleIpc } from './ipc/session-cycle'
@@ -34,22 +35,24 @@ initLogging(userDataPath)
 
 // A second copy would race the reminder loop and the updater; the laboratory keeps its own lock.
 const requiresLock = isLabProcess() || app.isPackaged
+// A login-item launch stays in the tray; a manual launch opens the dashboard.
+const startHidden = !isLabProcess() && shouldStartHidden(process.argv)
 if (requiresLock && !app.requestSingleInstanceLock()) {
   logInfo('app', 'start blocked: another instance owns the lock')
   app.quit()
 } else {
   logInfo(
     'app',
-    `start version=${app.getVersion()} build=${BUILD_COMMIT} (${BUILD_DATE}) packaged=${app.isPackaged} data=${userDataPath}`
+    `start version=${app.getVersion()} build=${BUILD_COMMIT} (${BUILD_DATE}) packaged=${app.isPackaged} channel=${APP_IDENTITY.channel} hidden=${startHidden} data=${userDataPath}`
   )
 }
-app.on('second-instance', () => {
-  if (isLabProcess()) openLaboratoryWindow(pauseLaboratory)
-  else createDashboardWindow()
+app.on('second-instance', (_event, argv) => {
+  if (isLabProcess()) openLabDashboard('debug')
+  else if (!shouldStartHidden(argv)) createDashboardWindow()
 })
 
 // Windows: keep app alive in tray when all windows closed
-app.setAppUserModelId('com.bodydebugger.app')
+app.setAppUserModelId(APP_IDENTITY.appId)
 
 if (process.platform === 'win32') {
   app.commandLine.appendSwitch('wm-window-animations-disabled')
@@ -76,6 +79,11 @@ app.whenReady().then(() => {
     isReducedMotion: () => getSettings().reduceMotion,
     onTogglePause: () => setPaused(!getSettings().paused),
     onTriggerNow: () => triggerNow('manual'),
+    openDashboard: tab => {
+      if (isLabProcess()) openLabDashboard(tab === 'settings' ? 'settings' : 'today')
+      else if (tab) createDashboardWindow({ tab })
+      else createDashboardWindow()
+    },
     getUpdateReadyVersion: () => {
       const state = getUpdateState()
       return state.status === 'ready' ? state.availableVersion : null
@@ -86,13 +94,15 @@ app.whenReady().then(() => {
   startTriggerLoop()
   initUpdater()
 
-  // Open dashboard on first launch so Tailwind styles are visible immediately
-  createDashboardWindow()
-  if (isLabProcess()) openLaboratoryWindow(pauseLaboratory)
+  // Open the dashboard on first launch so Tailwind styles are visible immediately.
+  // A login-item launch skips it and starts in the tray.
+  if (isLabProcess()) openLabDashboard('debug')
+  else if (!startHidden) createDashboardWindow()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createDashboardWindow()
+      if (isLabProcess()) openLabDashboard('debug')
+      else createDashboardWindow()
     }
   })
 })

@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { IpcChannels, type UpdateInstallResult, type UpdateStatePayload } from '../../../shared/types/events'
-import { checkForUpdates, getUpdateState, installUpdate } from '../updater'
+import { checkForUpdates, dismissUpdatePrompt, getUpdateState, installUpdate } from '../updater'
 
 export function registerUpdateIpc(): void {
   ipcMain.handle(IpcChannels.AppUpdateState, async (): Promise<UpdateStatePayload> => getUpdateState())
@@ -10,4 +10,8 @@ export function registerUpdateIpc(): void {
   })
 
   ipcMain.handle(IpcChannels.AppUpdateInstall, async (): Promise<UpdateInstallResult> => installUpdate())
+
+  ipcMain.handle(IpcChannels.AppUpdateDismiss, async (): Promise<void> => {
+    dismissUpdatePrompt()
+  })
 }

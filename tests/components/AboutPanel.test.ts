@@ -9,6 +9,7 @@ const info: AppInfoPayload = {
   buildCommit: 'a1b2c3d',
   buildDate: '2026-11-02',
   packaged: true,
+  channel: 'prod',
   platform: 'win32',
   dataPath: 'C:\\Users\\tester\\AppData\\Roaming\\Body Debugger',
   logDir: 'C:\\Users\\tester\\AppData\\Roaming\\Body Debugger\\logs'
@@ -75,14 +76,16 @@ describe('AboutPanel', () => {
     expect(wrapper.get('[data-testid="about-version"]').text()).toBe('0.2.0')
     expect(wrapper.get('[data-testid="about-build"]').text()).toBe('a1b2c3d · 2026-11-02')
     expect(wrapper.get('[data-testid="about-mode"]').text()).toBe('установленная')
+    expect(wrapper.get('[data-testid="about-channel"]').text()).toBe('стабильный')
     expect(wrapper.get('[data-testid="about-data-path"]').text()).toBe(info.dataPath)
   })
 
   it('marks a development run so a dev build is never mistaken for a release', async () => {
-    getAppInfo.mockResolvedValueOnce({ ...info, packaged: false, buildCommit: 'nogit' })
+    getAppInfo.mockResolvedValueOnce({ ...info, packaged: false, buildCommit: 'nogit', channel: 'dev' })
     wrapper = mount(AboutPanel)
     await settle()
     expect(wrapper.get('[data-testid="about-mode"]').text()).toBe('разработка')
+    expect(wrapper.get('[data-testid="about-channel"]').text()).toBe('тестовый (dev)')
   })
 
   it('opens the log directory and reports a failed attempt', async () => {
@@ -136,7 +139,7 @@ describe('AboutPanel', () => {
     expect(wrapper.get('[data-testid="update-status"]').text()).toContain('последняя версия')
   })
 
-  it('disables the check button when updates are off and while a check runs', async () => {
+  it('disables the check button when updates are off, while a check runs, or when a restart is ready', async () => {
     updateState = { ...idleUpdate, status: 'disabled' }
     wrapper = mount(AboutPanel)
     await settle()
@@ -144,6 +147,12 @@ describe('AboutPanel', () => {
 
     wrapper.unmount()
     updateState = { ...idleUpdate, status: 'checking' }
+    wrapper = mount(AboutPanel)
+    await settle()
+    expect(findButton('Проверить обновления').attributes('disabled')).toBeDefined()
+
+    wrapper.unmount()
+    updateState = { ...idleUpdate, status: 'ready', availableVersion: '0.2.1', progressPercent: 100 }
     wrapper = mount(AboutPanel)
     await settle()
     expect(findButton('Проверить обновления').attributes('disabled')).toBeDefined()

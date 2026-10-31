@@ -10,6 +10,7 @@ const checking = ref(false)
 let unsubscribeUpdate: (() => void) | null = null
 
 const buildLabel = computed(() => info.value ? `${info.value.buildCommit} · ${info.value.buildDate}` : '—')
+const channelLabel = computed(() => info.value?.channel === 'dev' ? 'тестовый (dev)' : 'стабильный')
 
 const updateStatusLabel = computed(() => {
   const state = update.value
@@ -36,7 +37,7 @@ const updateStatusLabel = computed(() => {
 
 const canCheck = computed(() => {
   const status = update.value?.status
-  return !checking.value && status !== 'disabled' && status !== 'checking' && status !== 'downloading'
+  return !checking.value && status !== 'disabled' && status !== 'checking' && status !== 'downloading' && status !== 'ready'
 })
 
 onMounted(async () => {
@@ -123,6 +124,10 @@ async function installUpdate(): Promise<void> {
           <dt class="text-slate-500">Режим</dt>
           <dd class="text-slate-200" data-testid="about-mode">{{ info ? (info.packaged ? 'установленная' : 'разработка') : '—' }}</dd>
         </div>
+        <div class="flex justify-between gap-3">
+          <dt class="text-slate-500">Канал</dt>
+          <dd class="text-slate-200" data-testid="about-channel">{{ info ? channelLabel : '—' }}</dd>
+        </div>
       </dl>
       <p v-if="info" class="break-all text-[11px] leading-relaxed text-slate-500">
         Данные: <span data-testid="about-data-path">{{ info.dataPath }}</span>
@@ -137,7 +142,10 @@ async function installUpdate(): Promise<void> {
       <div>
         <h2 class="text-sm font-semibold text-white">Обновления</h2>
         <p class="mt-1 text-xs leading-relaxed text-slate-400">
-          Новая версия скачивается в фоне и устанавливается после перезапуска. Попап с упражнением не прерывается.
+          Новая версия скачивается в фоне, показывает прогресс в отдельном окне и устанавливается после перезапуска. Попап с упражнением не прерывается.
+        </p>
+        <p v-if="info?.channel === 'dev'" class="mt-1 text-xs leading-relaxed text-amber-300">
+          Тестовый канал: сюда приходят только dev-релизы.
         </p>
       </div>
       <p class="text-xs text-slate-300" data-testid="update-status">{{ updateStatusLabel }}</p>

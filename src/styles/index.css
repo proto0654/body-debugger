@@ -232,6 +232,25 @@ html.window-popup #app {
   border-radius: 18px;
   background: color-mix(in srgb, var(--color-slate-900) 45%, transparent);
 }
+/* The update prompt is a transparent window; its card must be opaque. */
+.update-prompt-card {
+  padding: 16px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--color-slate-950) 96%, transparent);
+}
+.update-prompt-close {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--color-slate-400);
+  background: var(--color-slate-900);
+  font-size: 16px;
+  line-height: 1;
+}
+.update-prompt-close:hover {
+  color: var(--color-white);
+}
 .setting-chip {
   padding: 7px 11px;
   border: 1px solid var(--color-slate-800);

@@ -7,6 +7,8 @@ import { useSettingsStore } from '@/stores/settings'
 import { useSessionsStore } from '@/stores/sessions'
 import { useCharacterStore } from '@/stores/character'
 import { useProgressStore } from '@/stores/progress'
+import { useRuntimeStore } from '@/stores/runtime'
+import { setLaboratoryClock } from '@shared/domain/clock'
 import { makeSession, makeSettings } from '../fixtures'
 import { REACTION_TIMING_MS } from '@shared/domain/reaction-timing'
 import type { DataSnapshot } from '@shared/types/persistence'
@@ -62,7 +64,14 @@ beforeEach(() => {
   listCustomExercises.mockClear()
   Object.defineProperty(window, 'api', {
     configurable: true,
-    value: { saveSettings, openPopup, listPhotos, listCustomExercises }
+    value: {
+      saveSettings,
+      openPopup,
+      listPhotos,
+      listCustomExercises,
+      getLaunchAtLogin: async () => ({ supported: true, enabled: false, willLaunch: false }),
+      setLaunchAtLogin: async (enabled: boolean) => ({ supported: true, enabled, willLaunch: enabled })
+    }
   })
 })
 
@@ -70,6 +79,7 @@ afterEach(() => {
   wrapper?.unmount()
   wrapper = null
   vi.useRealTimers()
+  setLaboratoryClock()
   window.location.hash = ''
 })
 
@@ -82,6 +92,28 @@ describe('DashboardView — optional layers', () => {
     expect(wrapper.findAll('[data-character-pack]')).toHaveLength(10)
     expect(wrapper.findAll('[data-build]')).toHaveLength(3)
     expect(wrapper.find('[data-testid="character-journey"] .journey-stages').exists()).toBe(true)
+  })
+
+  it('shows the laboratory tab in the isolated laboratory profile', async () => {
+    window.location.hash = '#/dashboard?tab=debug'
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    useRuntimeStore().apply({ at: new Date().toISOString(), running: false, silent: true })
+    useSettingsStore().hydrate(makeSettings())
+    useSessionsStore().hydrate([])
+    wrapper = mount(DashboardView, { global: { plugins: [pinia], stubs: { LaboratoryPanel: true } } })
+    expect(wrapper.get('nav[aria-label="Разделы приложения"]').findAll('button').map(button => button.text()))
+      .toEqual(['Сегодня', 'Персонаж', 'Прогресс', 'Настройки', 'Лаборатория'])
+    expect(wrapper.find('laboratory-panel-stub').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="lab-launch"]').exists()).toBe(false)
+  })
+
+  it('shows the real-history chronicle inside the character section', async () => {
+    wrapper = mountDashboard([makeSession({ exerciseId: 'neck-tilts' })])
+    await wrapper.findAll('nav button').find(button => button.text() === 'Персонаж')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Хроника')!.trigger('click')
+    expect(wrapper.find('[data-testid="chronicle"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="chronicle-transport"]').exists()).toBe(true)
   })
 
   it.each(['calendar', 'stats'])('maps the old %s deep link into progress', tab => {

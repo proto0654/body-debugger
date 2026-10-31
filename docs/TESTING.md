@@ -9,6 +9,8 @@ npm run dev:lab      # isolated native laboratory
 npm test             # vitest run — CI-style single pass
 npm run test:watch   # watch mode
 npm run typecheck    # node + renderer + tests (tsconfig.test.json)
+npm run build:dev    # dev NSIS installer for native update/autostart checks
+npm run build:dev:dir # unpacked dev app for a quick packaged run
 ```
 
 Stack: **Vitest** + **happy-dom** + **@vue/test-utils**. Config: [vitest.config.ts](../vitest.config.ts) (aliases `@` / `@shared` mirror the renderer). Pure domain and persistence tests run with `// @vitest-environment node` and skip the DOM setup.
@@ -43,9 +45,12 @@ tests/
 | Themes | ids unique, unknown → default, App mirrors `data-theme` | `tests/unit/themes.test.ts`, `tests/components/App.test.ts` |
 | Inventory UI | equipment catalog covers the exercise catalog, store toggle guards, dashboard chips | `tests/unit/equipment.test.ts`, `tests/stores/settings.test.ts`, `tests/components/DashboardView.test.ts` |
 | Calendar / stats | local-day buckets, Monday-first weeks, intensity cap, window size, status counts, seven-day bars, zone shares, top exercises | `tests/unit/stats.test.ts`, `tests/components/CalendarHeatmap.test.ts`, `tests/components/StatsPanel.test.ts` |
-| Laboratory | isolated profile gate, six chronological stories, seeded calendars, import validation, virtual clock, rewind without future data, popup cancellation, main-owned playback, manual interruption, timeout, one-shot write failure and idempotent retry, saved runs, UI entry and commands | `tests/unit/lab-environment.test.ts`, `tests/unit/laboratory-scenarios.test.ts`, `tests/unit/laboratory-controller.test.ts`, `tests/unit/native-playback.test.ts`, `tests/unit/laboratory-ipc.test.ts`, `tests/unit/clock.test.ts`, `tests/components/LaboratoryPanel.test.ts`, `tests/components/DebugPanel.test.ts` |
+| Laboratory | isolated profile gate, six chronological stories, seeded calendars, import validation, virtual clock, rewind without future data, popup cancellation, main-owned playback, manual interruption, timeout, one-shot write failure and idempotent retry, saved runs, one dashboard window, UI entry and commands | `tests/unit/lab-environment.test.ts`, `tests/unit/laboratory-scenarios.test.ts`, `tests/unit/laboratory-controller.test.ts`, `tests/unit/native-playback.test.ts`, `tests/unit/laboratory-ipc.test.ts`, `tests/unit/clock.test.ts`, `tests/unit/dashboard-window.test.ts`, `tests/components/LaboratoryPanel.test.ts`, `tests/components/DebugPanel.test.ts` |
+| Dashboard chronicle | normalization/de-duplication, start/session/now entries, incremental stage/branch/condition, streak breaks, milestone indexes, end summary equals the shared domain rules, date seek, empty history; component scrub/play/date/calendar prefix and read-only behaviour | `tests/unit/chronicle.test.ts`, `tests/components/CharacterChronicle.test.ts`, `tests/components/DashboardView.test.ts` |
 | Settings defaults | merge of an older settings file, nested arrays, sound/theme/AI/photo blocks | `tests/unit/persistence-defaults.test.ts` |
-| Updates | check schedule and interval gate, progress clamping, install gating (not ready, open popup), «О программе» statuses, install action and pushed state | `tests/unit/update.test.ts`, `tests/components/AboutPanel.test.ts` |
+| Updates | check schedule and interval gate, progress clamping, install gating (not ready, open popup), «О программе» statuses, install action and pushed state, prompt show/close/dismiss rules, progress → ready transition, refused restart, missing bridge | `tests/unit/update.test.ts`, `tests/components/AboutPanel.test.ts`, `tests/components/UpdatePrompt.test.ts` |
+| Build identity | prod/dev productName, appId, title, unpackaged runs treated as dev, «О программе» channel row | `tests/unit/app-identity.test.ts`, `tests/components/AboutPanel.test.ts`, `tests/unit/dashboard-window.test.ts` |
+| Autostart | Windows-only gate, `--hidden` parsing, get/set executable + hidden arg + product name, unsupported dev run, Task Manager warning, save failure, missing bridge | `tests/unit/launch-at-login.test.ts`, `tests/unit/launch-at-login-main.test.ts`, `tests/components/SystemPanel.test.ts` |
 | Version backup | first-run marker, no-op on the same version, copy before the new version reads, existing backup preserved, rotation to two, unusable data directory | `tests/unit/persistence-backup.test.ts` |
 | Core preferences | interval bounds / presets / rejection, picker mode guard, Focus normalization (dedupe, primary exclusion), store setters, «Настройки» tab + hash deep link, `photo:` CSP guard | `tests/unit/preferences.test.ts`, `tests/stores/settings.test.ts`, `tests/components/PreferencesPanel.test.ts`, `tests/components/DashboardView.test.ts`, `tests/unit/csp.test.ts` |
 | Exercise payloads | required/optional fields, bad numbers, group/focus tags, `assertExercise` | `tests/unit/exercise-validation.test.ts` |
@@ -70,7 +75,8 @@ Source mapping and regeneration: [character art library](../src/assets/character
 ## Not covered yet
 
 - **Main-process windows, tray and IPC wiring** — needs a real Electron session; keep the manual smoke run (`npm run dev`).
-- **Update download and install against a real feed** — the schedule, gating and panel are unit-tested, but a real download, `quitAndInstall` and relaunch were verified by hand once; repeat the recipe in [DELIVERY.md](DELIVERY.md#verifying-an-update-without-a-public-release) before a release.
+- **Update download and install against a real feed** — the schedule, prompt gating and panel are unit-tested, but a real download, `quitAndInstall` and relaunch were verified by hand once (before the prompt). Repeat the recipe in [DELIVERY.md](DELIVERY.md#verifying-an-update-without-a-public-release) and the native dev-channel check before a release.
+- **Update prompt and autostart as native windows/registry entries** — the prompt window, login item, hidden launch and uninstall cleanup need an installed Windows build; component tests mock them.
 - **`photo://` protocol and native file handling** — main store logic is unit-tested with real temp files; the protocol needs a running Electron app.
 - **E2E (Playwright)** — future work; the tray flow still needs the manual checklist.
 - **Visual regression** — frame/gallery/heatmap appearance is checked by hand.
@@ -92,11 +98,15 @@ Source mapping and regeneration: [character art library](../src/assets/character
 - Weight: add/remove a measurement, set a goal, relaunch and confirm `weights.json`.
 - Calendar / stats: check today's cell details, a gap day, zone bars and top exercises.
 - Laboratory: launch from «Лаборатория» or `npm run dev:lab`; use the timeline, native popup presets and the checks below. Keep normal-profile files unchanged.
+- Chronicle: open «Персонаж → Хроника»; the initial position is «Сейчас» and matches «Сегодня»; scrub back to a form/condition change, play through the history, step by day/milestone, jump to a date and check the calendar ends at the cursor. No session result is written and the profile stays unchanged.
+- Updates: install a packaged dev build, publish a newer `-dev.N` prerelease and wait 25 s. The prompt appears with progress, hides while an exercise popup is open and returns after it closes; «Позже» stops the prompt for that version; «Перезапустить и обновить» relaunches into the new version. A stable build must not see the dev prerelease.
+- Autostart: in an installed build open «Настройки → Система», enable autostart, verify `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` contains the product title with `--hidden`, and launch with `--hidden` (tray only, no dashboard). A second normal launch opens the dashboard. Disable it and confirm the entry disappears; uninstall also removes it while keeping the profile.
+- Dev/prod identity: install/run prod and dev together and confirm the emerald/amber icons, different window titles, separate tray tooltips, separate `%APPDATA%` profiles and locks. Confirm `win-unpacked/resources/app-update.yml` shows `body-debugger-dev-updater` for dev.
 - Persistence: streak, stage and sessions survive a relaunch (`.userdata/data/`).
 
 ## Native visual laboratory
 
-Start with `npm run dev:lab`, or open **«Лаборатория» → «Открыть лабораторию»** in the dev dashboard. The launcher starts a separate Electron process with `--body-debugger-lab`; a per-profile instance lock brings an existing laboratory forward. A separate control window leaves the real dashboard and popup available for inspection.
+Start with `npm run dev:lab`, or open **«Лаборатория» → «Открыть лабораторию»** in the dev dashboard. The launcher starts a separate Electron process with `--body-debugger-lab`; a per-profile instance lock brings an existing laboratory forward. The isolated process opens **one** dashboard window with the normal dashboard tabs plus a «Лаборатория» tab; there is no second control window. Launching it from the real app closes the real dashboard after a successful spawn and reopens it when the laboratory process exits; the real app stays in its tray and can reopen its dashboard manually.
 
 All laboratory stores and Chromium state live under `.userdata/laboratory/` on the project drive. Normal data stays under `.userdata/`. Main registers laboratory IPC only in an unpackaged app; mutation commands and the compatibility `debug:apply-scenario` channel also require the laboratory process. Setting a renderer debug flag cannot authorize normal-profile replacement.
 
@@ -117,7 +127,7 @@ The permanent transport above the workspace contains scenario, «Автомат�
 
 «Просмотр даты» is silent prefix reconstruction: scrub, date, beginning/end and event/day/milestone navigation never replay old interactions. «Проиграть сценарий» opens a real popup for each exercise. Main waits for renderer readiness, highlights/starts through normal popup actions, scales exercise time, highlights the planned choice, waits for the durable acknowledgement, then waits for real-time reaction reading, the popup’s `feedback-complete` and actual window closure. Pace, pause/resume and phase stepping cannot force-close a saved result. A snooze has an explicit five-minute repeat phase; an unanswered reminder follows the actual loop timeout. Close actions are inferred from saved `popup-closed` outcomes. Useful presentation paces are 0.5/1.5/3.5 seconds per phase; exercise/readability minima and the real-time hold still apply.
 
-Interactive playback stops at the choice point and accepts actual popup input. Any user intervention during automatic replay cancels automatic dispatch and labels a manual branch. Only the real save path records that branch; its original future remains available through «Вернуться к исходному». «Продолжить вручную» opens another ordinary popup against the branch. Closing the separate controls pauses automatic work; reopening reads the retained main-owned run.
+Interactive playback stops at the choice point and accepts actual popup input. Any user intervention during automatic replay cancels automatic dispatch and labels a manual branch. Only the real save path records that branch; its original future remains available through «Вернуться к исходному». «Продолжить вручную» opens another ordinary popup against the branch. Closing the laboratory window pauses automatic work; reopening the tab or the window reads the retained main-owned run.
 
 Seeking reconstructs only the event prefix up to the cursor, normalizes settings and progress, and recomputes earned stage/branch and streak. Future events do not enter the live calendar or statistics. The character, current metrics, explanation, frame candidates and calendar appear together. Checkpoint agreement verifies that the native persistence/projection path matches the domain calculation; it is not an independent oracle for the domain rules.
 
@@ -154,6 +164,12 @@ Before a seek/reset/preset, main cancels the outstanding result timeout and succ
 ### Native checks still required
 
 Unit/controller/component tests mock Electron surfaces. Verify visually on target Windows configurations: tray animation/menu, real popup completion and retry, Soft/Medium/Hardcore, keyboard hold, details/errors fitting the window, reduced motion, audio, focus, Windows scaling and multiple monitors/taskbar positions. A Windows smoke run inspected the responsive laboratory layout, visible scenario transport, character grouping, local appearance controls and held comic feedback. The native popup exposed its ready text, timer and controls through accessibility, but the Windows helper rejected clicks as being over `ChatGPT.exe` even after activation and retry. Pointer/keyboard completion, exact popup visuals, scaling, multiple monitors and the full tray/audio matrix remain unverified. These observations do not establish full visual regression coverage.
+
+## Dashboard chronicle
+
+The normal profile owns a read-only timeline: «Персонаж → Хроника». It starts at «Сейчас» and scrubs the real `sessions.json` history — no laboratory process and no session writes. Entries are reconstructed by `shared/domain/chronicle.ts` from the normalized history; form, direction, temporary condition and streak use the same `summarizeSessions` helper as the laboratory. `CharacterChronicle.vue` renders the cursor's portrait with the current build/identity, the calendar/progress charts over the selected prefix and the short transition explanation. Play/pause (0.5/1.5/3.5 s), event/day/milestone steps, the date input and milestone chips all move a renderer-local cursor only.
+
+Coverage: `tests/unit/chronicle.test.ts` pins normalization, entries, milestones, date seeking and agreement with `computeCharacterProgress`/`computeCharacterCondition`/`computeStreak`; `tests/components/CharacterChronicle.test.ts` pins the end position, scrubbing, date seek, autoplay stop, calendar prefix and absence of writes. Manual checks: the end position matches «Сегодня»; a gap shows the streak break; the calendar ends at the cursor; empty history shows the start prompt.
 
 ## Principles
 

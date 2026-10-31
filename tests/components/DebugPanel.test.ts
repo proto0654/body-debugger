@@ -2,8 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import DebugPanel from '@/debug/DebugPanel.vue'
-import { useRuntimeStore } from '@/stores/runtime'
-import { setLaboratoryClock } from '@shared/domain/clock'
 
 const openLaboratory = vi.fn(async () => undefined)
 let wrapper: VueWrapper | undefined
@@ -12,7 +10,7 @@ beforeEach(() => {
   openLaboratory.mockReset()
   Object.defineProperty(window, 'api', { configurable: true, value: { openLaboratory } })
 })
-afterEach(() => { wrapper?.unmount(); setLaboratoryClock() })
+afterEach(() => { wrapper?.unmount() })
 
 describe('DebugPanel laboratory entry', () => {
   it('uses the build default when the dashboard omits the optional visibility prop', () => {
@@ -39,11 +37,5 @@ describe('DebugPanel laboratory entry', () => {
     await flushPromises()
     expect(wrapper.get('[role="alert"]').text()).toContain('Не удалось')
     expect(wrapper.get('[data-testid="lab-launch"]').attributes('disabled')).toBeUndefined()
-  })
-  it('renders the controls only after main identifies the isolated profile', () => {
-    useRuntimeStore().apply({ at: '2026-10-30T09:00:00Z', running: false, silent: true })
-    wrapper = mount(DebugPanel, { props: { enabled: true }, global: { stubs: { LaboratoryPanel: true } } })
-    expect(wrapper.find('laboratory-panel-stub').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="lab-launch"]').exists()).toBe(false)
   })
 })

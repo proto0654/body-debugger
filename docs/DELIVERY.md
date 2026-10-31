@@ -126,7 +126,7 @@ The dev build is not a second production app: it uses a dev icon, a dev profile 
 ### Versioning
 
 - **Dev prerelease**: `npm version prerelease --preid dev` from the current version. If the current is `0.2.1`, this yields `0.2.2-dev.0`; repeating yields `0.2.2-dev.1`.
-- **Stable**: `npm version minor` (or `patch`) from the current line. The first release carrying this delivery work is intended as `0.3.0`.
+- **Stable**: `npm version minor` (or `patch`) from the current line. The first stable release carrying this delivery work is `0.3.0` (published).
 - `npm version` creates a commit and a `v*` tag. Keep the working tree clean; the publish script refuses a dirty tree.
 
 ### Local publish
@@ -169,7 +169,7 @@ Build an older version with a local feed, install it, then serve a newer build f
 4. Start the installed app; after 25 s it downloads the new version (full download — the Python server has no `Range` support, so differential download falls back) and shows the update prompt with progress.
 5. Restart from the prompt or quit the app; the installer runs silently and the app relaunches into the new version. Both feed switches and user data remain in the same profile.
 
-Verified this way before the prompt existed on `0.2.0 → 0.2.1`: detection, download, `quitAndInstall(true, true)`, relaunch and the `app-update.yml` switch from a local feed to GitHub. Repeat the test for the prompt and the dev channel after a release.
+Verified this way before the prompt existed on `0.2.0 → 0.2.1`: detection, download, `quitAndInstall(true, true)`, relaunch and the `app-update.yml` switch from a local feed to GitHub. The native dev-channel check below then verified the prompt end to end on `0.2.2-dev.0 → 0.2.2-dev.3`: progress, ready state, `quitAndInstall`, silent install and relaunch into the new version.
 
 ### Native dev-channel check
 
@@ -194,5 +194,5 @@ Verified this way before the prompt existed on `0.2.0 → 0.2.1`: detection, dow
 | 1 | `electron-builder` config, NSIS installer, icon, installed-build smoke test | Done |
 | 2 | `electron-updater` + IPC + tray/dashboard update UI + install gating | Done |
 | 3 | Release workflow, release checklist, tester instructions | Done — local scripts, CI workflow, personal/parallel/test flows documented; CI activates when the source repo is on GitHub with `RELEASE_TOKEN` |
-| 4 | Dev prerelease channel, update prompt with progress, autostart | Implemented — packaged prod/dev identity, dev installer/uninstall, `dev.yml`, `channel: dev` and `body-debugger-dev-updater` verified locally; native update prompt and autostart toggle remain in the manual checklist |
+| 4 | Dev prerelease channel, update prompt with progress, autostart | Implemented and partly verified — packaged prod/dev identity, dev installer/uninstall, `dev.yml`, `channel: dev`, `body-debugger-dev-updater`, prompt download/restart and stable `0.3.0` install were verified locally; the autostart toggle remains in the manual checklist |
 | 5 | Heartbeat, `beta`/`stable` split, code signing | Later |

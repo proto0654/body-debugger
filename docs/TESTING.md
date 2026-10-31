@@ -76,7 +76,7 @@ Source mapping and regeneration: [character art library](../src/assets/character
 
 - **Main-process windows, tray and IPC wiring** — needs a real Electron session; keep the manual smoke run (`npm run dev`).
 - **Update download and install against a real feed** — the schedule, prompt gating and panel are unit-tested, but a real download, `quitAndInstall` and relaunch were verified by hand once (before the prompt). Repeat the recipe in [DELIVERY.md](DELIVERY.md#verifying-an-update-without-a-public-release) and the native dev-channel check before a release.
-- **Update prompt and autostart as native windows/registry entries** — the prompt window, login item, hidden launch and uninstall cleanup need an installed Windows build; component tests mock them.
+- **Autostart as a native toggle** — the login item, hidden launch and uninstall cleanup are covered by unit tests and an installed-build uninstall check; clicking the settings toggle still needs a manual pass.
 - **`photo://` protocol and native file handling** — main store logic is unit-tested with real temp files; the protocol needs a running Electron app.
 - **E2E (Playwright)** — future work; the tray flow still needs the manual checklist.
 - **Visual regression** — frame/gallery/heatmap appearance is checked by hand.

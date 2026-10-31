@@ -1,12 +1,21 @@
 # Side-by-side development build. It shares the renderer/main bundle with the
 # production app but gets its own identity, profile, updater cache and feed.
-extends: ./electron-builder.yml
-
+#
+# This is intentionally standalone rather than `extends: electron-builder.yml`:
+# electron-builder concatenates `publish` arrays on extend, which would publish
+# the same release twice. Keep the shared fields in sync with the prod config.
 appId: com.bodydebugger.app.dev
 productName: Body Debugger Dev
 
 directories:
   output: dist-dev
+  buildResources: electron/resources
+
+files:
+  - out/**
+  - package.json
+
+asar: true
 
 # `name` controls updaterCacheDirName; without it prod and dev would overwrite
 # each other's downloaded installer. `productName` controls app.getName(),
@@ -17,8 +26,18 @@ extraMetadata:
 
 win:
   icon: electron/resources/icon-dev.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
 
 nsis:
+  oneClick: true
+  perMachine: false
+  allowElevation: false
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true
+  include: installer.nsh
   artifactName: Body-Debugger-Dev-Setup-${version}.${ext}
   shortcutName: Body Debugger Dev
   uninstallDisplayName: Body Debugger Dev

@@ -14,6 +14,7 @@ import {
 
 const settings = useSettingsStore()
 const weight = useWeightStore()
+withDefaults(defineProps<{ compact?: boolean }>(), { compact: false })
 
 /** Refresh with main snapshots, including laboratory timeline changes. */
 const runtime = useRuntimeStore()
@@ -108,9 +109,9 @@ async function commitTarget(): Promise<void> {
     <header class="flex flex-wrap items-baseline justify-between gap-2">
       <div>
         <h2 class="text-sm font-semibold text-slate-100">Вес</h2>
-        <p class="text-xs text-slate-500">История за {{ WEIGHT_HISTORY_DAYS }} дней</p>
+        <p class="text-xs text-slate-500">{{ compact ? 'Быстрая запись · история в «Прогрессе»' : `История за ${WEIGHT_HISTORY_DAYS} дней` }}</p>
       </div>
-      <label class="flex items-center gap-2 text-xs text-slate-500">
+      <label v-if="!compact" class="flex items-center gap-2 text-xs text-slate-500">
         Цель, кг
         <input
           v-model="targetInput"
@@ -128,7 +129,7 @@ async function commitTarget(): Promise<void> {
       </label>
     </header>
 
-    <div v-if="latest" class="mt-3 grid gap-4 sm:grid-cols-[auto_1fr] sm:items-center">
+    <div v-if="latest && !compact" class="mt-3 grid gap-4 sm:grid-cols-[auto_1fr] sm:items-center">
       <div class="space-y-1">
         <p class="text-3xl font-semibold tabular-nums text-white" data-testid="weight-latest">
           {{ latest.weightKg.toFixed(1) }}
@@ -145,7 +146,7 @@ async function commitTarget(): Promise<void> {
         class="text-emerald-400"
       />
     </div>
-    <p v-else class="mt-3 text-xs text-slate-500">
+    <p v-else-if="!latest" class="mt-3 text-xs text-slate-500">
       Записей пока нет. Взвесьтесь и добавьте первое измерение.
     </p>
 
@@ -175,7 +176,7 @@ async function commitTarget(): Promise<void> {
       <p v-if="error" class="text-xs text-amber-400" data-testid="weight-error">{{ error }}</p>
     </form>
 
-    <ul v-if="recent.length > 0" class="mt-3 divide-y divide-slate-800">
+    <ul v-if="!compact && recent.length > 0" class="mt-3 divide-y divide-slate-800">
       <li
         v-for="entry in recent"
         :key="entry.id"

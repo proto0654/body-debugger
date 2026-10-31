@@ -12,3 +12,8 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# Local secrets
+.env
+.env.*
+!.env.example

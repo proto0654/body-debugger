@@ -73,6 +73,22 @@ afterEach(() => {
 })
 
 describe('DashboardView — optional layers', () => {
+  it('keeps four primary sections and groups identity and build in the character section', async () => {
+    wrapper = mountDashboard()
+    expect(wrapper.get('nav[aria-label="Разделы приложения"]').findAll('button').map(button => button.text()))
+      .toEqual(['Сегодня', 'Персонаж', 'Прогресс', 'Настройки'])
+    await wrapper.findAll('nav button').find(button => button.text() === 'Персонаж')!.trigger('click')
+    expect(wrapper.findAll('[data-character-pack]')).toHaveLength(10)
+    expect(wrapper.findAll('[data-build]')).toHaveLength(3)
+    expect(wrapper.find('[data-testid="character-journey"] .journey-stages').exists()).toBe(true)
+  })
+
+  it.each(['calendar', 'stats'])('maps the old %s deep link into progress', tab => {
+    window.location.hash = `#/dashboard?tab=${tab}`
+    wrapper = mountDashboard()
+    expect(wrapper.get('nav[aria-label="Разделы приложения"] [aria-current="page"]').text()).toBe('Прогресс')
+    expect(wrapper.find(`[data-testid="${tab === 'calendar' ? 'calendar-heatmap' : 'stats-panel'}"]`).exists()).toBe(true)
+  })
   it('shows accumulated neglect and restores the earned form after five saved completions', async () => {
     vi.useFakeTimers()
     const skips = Array.from({ length: 10 }, () => makeSession({ exerciseId: 'neck-tilts', status: 'missed' }))
@@ -120,7 +136,7 @@ describe('DashboardView — optional layers', () => {
     useSessionsStore().hydrate([makeSession({ exerciseId: 'neck-tilts', completedAt: new Date().toISOString() })])
     await nextTick()
     expect(scene.get('img').attributes('src')).toMatch(/emotion-happy-average/)
-    expect(wrapper.get('.hero-speech').text()).toBe(useCharacterStore().reaction.caption)
+    expect(wrapper.get('.hero-speech > span').text()).toBe(useCharacterStore().reaction.caption)
     expect(wrapper.get('.hero-speech').attributes('data-tone')).toBe('cheer')
     vi.advanceTimersByTime(3500)
     await nextTick()
@@ -194,7 +210,8 @@ describe('DashboardView — optional layers', () => {
 
     expect(saveSettings.mock.calls[0][0].photos.enabled).toBe(true)
     expect(listPhotos).toHaveBeenCalled()
-    await wrapper.findAll('nav button').find(button => button.text() === 'Сегодня')!.trigger('click')
+    await wrapper.findAll('nav button').find(button => button.text() === 'Прогресс')!.trigger('click')
+    await wrapper.findAll('nav button').find(button => button.text() === 'Фотографии')!.trigger('click')
     expect(wrapper.get('[data-testid="photo-gallery"]').text()).toContain('Фото пока нет')
   })
 
@@ -212,10 +229,10 @@ describe('DashboardView — optional layers', () => {
     wrapper = mountDashboard()
     const nav = wrapper.findAll('nav button')
 
-    await nav.find((button) => button.text() === 'Календарь')!.trigger('click')
+    await nav.find((button) => button.text() === 'Прогресс')!.trigger('click')
     expect(wrapper.find('[data-testid="calendar-heatmap"]').exists()).toBe(true)
 
-    await nav.find((button) => button.text() === 'Статистика')!.trigger('click')
+    await wrapper.findAll('nav button').find((button) => button.text() === 'Статистика')!.trigger('click')
     expect(wrapper.find('[data-testid="stats-panel"]').exists()).toBe(true)
   })
 

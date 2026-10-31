@@ -14,6 +14,7 @@ import { CHARACTER_BRANCH_LABELS, CHARACTER_STAGE_LABELS } from '../constants/ch
 import { labActions, type LabAction, type LabPlaybackMode, type LabPlaybackState } from './laboratory-playback'
 import { normalizeCharacterPackId } from '../constants/character-packs'
 import type { DataSnapshot } from '../types/persistence'
+import type { LabVisualPreview } from './laboratory-preview'
 
 export const LAB_MAX_IMPORT_BYTES = 2 * 1024 * 1024
 export const LAB_MAX_EVENTS = 2000
@@ -71,11 +72,14 @@ export interface LabState {
   activePopup: boolean
   playback?: LabPlaybackState
   hasOriginal?: boolean
+  visualPreview?: LabVisualPreview | null
   /** A durable outcome projects cursor, clock and domain stores in one renderer update. */
   snapshot?: DataSnapshot
 }
 
 export type LabCommand =
+  | { action: 'visual-preview'; preview: LabVisualPreview; open?: boolean }
+  | { action: 'close-preview' }
   | { action: 'scenario'; id: LabScenarioId }
   | { action: 'generate'; options: LabGeneratorOptions }
   | { action: 'seek'; cursor: number }
@@ -83,8 +87,8 @@ export type LabCommand =
   | { action: 'date'; date: string }
   | { action: 'play'; delayMs: number }
   | { action: 'mode'; mode: LabPlaybackMode }
-  | { action: 'phase-step' | 'restart' | 'original' }
-  | { action: 'popup'; preset: 'normal' | 'stage-up' | 'soft' | 'medium' | 'hardcore' | 'details' }
+  | { action: 'phase-step' | 'restart' | 'original' | 'restore-preferences' | 'reset-history' }
+  | { action: 'popup'; preset: 'normal' | 'stage-up' | 'soft' | 'medium' | 'hardcore' | 'details'; exerciseId?: string }
   | { action: 'advance'; seconds: number }
   | { action: 'idle'; seconds: number }
   | { action: 'pause' | 'reset' | 'save' | 'restore' | 'export' | 'import' | 'detach' | 'fail-save' }
@@ -262,7 +266,7 @@ export function labEventExplanation(plan: LabPlan, cursor: number): string {
 }
 
 /** Strict import boundary: bounded size, known exercises, chronology and unique identities. */
-export function validateLabPlan(raw: unknown): LabPlan {
+export function validateLabPlan(raw: unknown, knownExerciseIds: readonly string[] = EXERCISE_CATALOG.map(exercise => exercise.id)): LabPlan {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid laboratory file')
   const value = raw as LabPlan
   if (![1, 2].includes(value.version) || typeof value.id !== 'string' || value.id.length > 80
@@ -270,7 +274,7 @@ export function validateLabPlan(raw: unknown): LabPlan {
     || !Array.isArray(value.events) || value.events.length < 1 || value.events.length > LAB_MAX_EVENTS) throw new Error('Invalid laboratory file')
   let previous = -Infinity
   const ids = new Set<string>()
-  const catalog = new Set(EXERCISE_CATALOG.map(exercise => exercise.id))
+  const catalog = new Set(knownExerciseIds)
   if (value.version === 2 && normalizeCharacterPackId(value.settings.characterPackId) !== value.settings.characterPackId) throw new Error('Unknown laboratory character')
   for (const event of value.events) {
     const at = Date.parse(event?.at)
@@ -292,8 +296,8 @@ export function validateLabPlan(raw: unknown): LabPlan {
 }
 
 /** V1 preserves its original resolved timestamps; actions are inferred, not a recording. */
-export function upgradeLabPlan(raw: unknown): LabPlan {
-  const plan = validateLabPlan(raw)
+export function upgradeLabPlan(raw: unknown, knownExerciseIds?: readonly string[]): LabPlan {
+  const plan = validateLabPlan(raw, knownExerciseIds)
   if (plan.version === 2) return plan
   return { ...plan, version: 2, convertedFrom: 1,
     settings: { ...plan.settings, characterPackId: normalizeCharacterPackId(plan.settings.characterPackId) },

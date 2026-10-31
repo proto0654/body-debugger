@@ -3,6 +3,7 @@ import { labActions, type LabDriverAck, type LabDriverAction, type LabDriverComm
   type LabPlaybackMode, type LabPlaybackState, type LabPhase } from '../../shared/domain/laboratory-playback'
 import type { Session } from '../../shared/types/session'
 import type { SeverityLevel } from '../../shared/types/settings'
+import { REACTION_TIMING_MS } from '../../shared/domain/reaction-timing'
 
 export interface NativePlaybackPort {
   plan(): LabPlan | null
@@ -36,6 +37,8 @@ export class NativePlayback {
   private targetTime = 0
   private exerciseEnd = 0
   private failedPhase: LabPhase | null = null
+  private feedbackComplete = false
+  private feedbackDeadline = 0
 
   constructor(private readonly port: NativePlaybackPort) {}
 
@@ -110,6 +113,7 @@ export class NativePlayback {
     const wasPaused = this.state.paused
     this.state.paused = false
     if (this.state.phase === 'error') {
+      this.feedbackDeadline = Date.now() + REACTION_TIMING_MS.milestone + REACTION_TIMING_MS.exit + 5000
       this.state.error = ''
       this.state.waiting = false
       this.state.phase = this.failedPhase ?? 'idle'
@@ -185,6 +189,13 @@ export class NativePlayback {
 
   acknowledge(ack: LabDriverAck): void {
     if (!ack || ack.sessionId !== this.state.sessionId) return
+    if (ack.kind === 'feedback-complete') {
+      if (!['saved', 'reaction', 'closing'].includes(this.state.phase)) return
+      this.feedbackComplete = true
+      this.update('closing')
+      this.schedule(100)
+      return
+    }
     if (ack.kind === 'ready') {
       if ((this.state.phase !== 'reminder' && !(this.state.phase === 'error' && this.failedPhase === 'reminder')) || this.ready) return
       this.ready = true
@@ -234,6 +245,8 @@ export class NativePlayback {
     const manual = this.manual || this.state.mode === 'interactive' || session.status !== event?.session?.status
       || (session.skipReason === 'popup-closed' && !event?.actions?.includes('close'))
     this.freeze()
+    this.feedbackComplete = session.status === 'missed' || session.skipReason === 'popup-closed'
+    this.feedbackDeadline = Date.now() + REACTION_TIMING_MS.milestone + REACTION_TIMING_MS.exit + 5000
     this.state.waiting = false
     this.port.commit(this.state.eventIndex, session, manual)
     this.update('saved')
@@ -310,10 +323,18 @@ export class NativePlayback {
         this.choose()
         break
       case 'saving': this.fail('Ожидаем сохранения. Проверьте попап и повторите действие.'); break
-      case 'saved': this.update('reaction'); this.schedule(Math.max(1200, this.delay)); break
-      case 'reaction': this.update('closing'); this.schedule(Math.min(this.delay, 700)); break
+      case 'saved': this.update('reaction'); this.schedule(100); break
+      case 'reaction':
+        if (!this.port.active() || this.feedbackComplete) { this.update('closing'); this.schedule(100) }
+        else if (Date.now() >= this.feedbackDeadline) this.fail('Результат сохранён. Закройте попап, чтобы продолжить сценарий.')
+        else this.schedule(100)
+        break
       case 'closing':
-        if (this.port.active()) this.port.close()
+        if (this.port.active()) {
+          if (Date.now() >= this.feedbackDeadline) this.fail('Результат сохранён. Закройте попап, чтобы продолжить сценарий.')
+          else this.schedule(100)
+          break
+        }
         this.state.sessionId = null
         if (this.event()?.session?.status === 'snoozed') {
           this.state.action = 'Пять минут до повторного напоминания'

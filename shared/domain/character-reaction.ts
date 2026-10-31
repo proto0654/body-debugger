@@ -1,15 +1,22 @@
 import type { CharacterEmotion } from '../types/character'
 
-export type CharacterReactionEvent =
-  | 'welcome' | 'ready' | 'active' | 'done' | 'first-done'
-  | 'stage-up' | 'streak' | 'paused' | 'skipped' | 'snoozed'
+export const CHARACTER_REACTION_EVENTS = ['welcome', 'ready', 'active', 'done', 'first-done', 'stage-up', 'streak', 'paused', 'skipped', 'snoozed'] as const
+export type CharacterReactionEvent = typeof CHARACTER_REACTION_EVENTS[number]
+export const CHARACTER_REACTION_LABELS: Record<CharacterReactionEvent, string> = {
+  welcome: 'Приветствие', ready: 'Напоминание', active: 'Начало разминки', done: 'Выполнено',
+  'first-done': 'Первая за день', 'stage-up': 'Новая форма', streak: 'Серия', paused: 'Пауза', skipped: 'Пропуск', snoozed: 'Отложено'
+}
 
 export type CharacterReactionTone = 'calm' | 'cheer' | 'milestone'
+export type ComicVariant = 'speech' | 'burst' | 'ribbon' | 'cloud'
 
 export interface CharacterReaction {
   caption: string
   emotion: CharacterEmotion
   tone: CharacterReactionTone
+  variant: ComicVariant
+  decoration: string
+  animationId: string
 }
 
 interface ReactionDefinition {
@@ -73,5 +80,13 @@ export function characterReaction(
   if (definition.captions[index] === previousCaption) {
     index = (index + 1) % definition.captions.length
   }
-  return { caption: definition.captions[index], emotion: definition.emotion, tone: definition.tone }
+  const variants: readonly ComicVariant[] = definition.tone === 'milestone' ? ['ribbon', 'burst']
+    : definition.tone === 'cheer' ? ['burst', 'speech']
+      : event === 'snoozed' || event === 'paused' ? ['cloud'] : ['speech', 'cloud']
+  return {
+    caption: definition.captions[index], emotion: definition.emotion, tone: definition.tone,
+    variant: variants[safeSequence % variants.length]!,
+    decoration: definition.tone === 'milestone' ? '✦' : definition.tone === 'cheer' ? '!' : '·',
+    animationId: `${event}-${safeSequence}-${index}`
+  }
 }

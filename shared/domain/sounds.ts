@@ -14,6 +14,10 @@ export const SOUND_CUES = [
 ] as const
 
 export type SoundCue = (typeof SOUND_CUES)[number]
+export const SOUND_CUE_LABELS: Record<SoundCue, string> = {
+  popup: 'Напоминание', done: 'Выполнено', skip: 'Пропуск', snooze: 'Отложено',
+  'stage-up': 'Новая форма', streak: 'Серия', alert: 'Внимание', error: 'Ошибка'
+}
 
 /** Packs shipped with the app. Theme packs can extend this list later. */
 export const SOUND_PACK_IDS = ['default'] as const
@@ -21,7 +25,7 @@ export const SOUND_PACK_IDS = ['default'] as const
 export type SoundPackId = (typeof SOUND_PACK_IDS)[number]
 
 export const DEFAULT_SOUND_SETTINGS: SoundSettings = {
-  enabled: false,
+  enabled: true,
   volume: 0.4,
   packId: 'default'
 }
@@ -38,7 +42,8 @@ export function isSoundPackId(value: unknown): value is SoundPackId {
 export function normalizeSoundSettings(
   stored: Partial<SoundSettings> | null | undefined
 ): SoundSettings {
-  if (!stored) return { ...DEFAULT_SOUND_SETTINGS }
+  // A missing block in a legacy profile preserves the former muted default.
+  if (!stored) return { ...DEFAULT_SOUND_SETTINGS, enabled: false }
 
   const volume =
     typeof stored.volume === 'number' && Number.isFinite(stored.volume)

@@ -7,6 +7,11 @@ import { applySnapshot } from '@/bootstrap/hydrate'
 import { buildLabScenario, type LabCommand, type LabState } from '@shared/domain/laboratory'
 import { setLaboratoryClock } from '@shared/domain/clock'
 import { defaultProgress, defaultSettings } from '../../electron/main/persistence/defaults'
+import { useCharacterStore } from '@/stores/character'
+import { makeSession } from '../fixtures'
+
+const preview = vi.hoisted(() => ({ play: vi.fn() }))
+vi.mock('@/sounds', () => ({ createSoundPlayer: () => preview }))
 
 let wrapper: VueWrapper | undefined
 let listener: ((state: LabState) => void) | undefined
@@ -21,13 +26,14 @@ beforeEach(() => {
   applySnapshot({ laboratory: { at: state.now, running: false, silent: true },
     settings: defaultSettings(), progress: defaultProgress(), sessions: [], weights: [] })
   command.mockClear(); unsubscribe.mockClear()
+  preview.play.mockClear()
   Object.defineProperty(window, 'api', { configurable: true, value: {
     getLabState: async () => state,
     labCommand: command,
     onLabChanged: (handler: (state: LabState) => void) => { listener = handler; return unsubscribe }
   } })
 })
-afterEach(() => { wrapper?.unmount(); wrapper = undefined; setLaboratoryClock() })
+afterEach(() => { wrapper?.unmount(); wrapper = undefined; setLaboratoryClock(); vi.useRealTimers() })
 
 async function panel() {
   wrapper = mount(LaboratoryPanel, { global: { stubs: { CharacterPortrait: true, CalendarHeatmap: true, StatsPanel: true } } })
@@ -36,6 +42,51 @@ async function panel() {
 }
 
 describe('laboratory controls', () => {
+  it('exposes the full preference controls and optional data layers inside the laboratory', async () => {
+    const view = await panel()
+    await view.findAll('nav button').find(button => button.text() === 'Настройки')!.trigger('click')
+    for (const id of ['interval-control', 'severity-controls', 'picker-mode-controls', 'focus-controls', 'inventory-controls', 'ai-controls', 'sound-controls', 'extras-controls', 'weight-controls', 'photo-controls', 'theme-controls']) {
+      expect(view.find(`[data-testid="${id}"]`).exists(), id).toBe(true)
+    }
+    await view.findAll('nav button').find(button => button.text() === 'Данные')!.trigger('click')
+    expect(view.find('[data-testid="ai-controls"]').exists()).toBe(true)
+    expect(view.find('[data-testid="weight-controls"]').exists()).toBe(true)
+    expect(view.find('[data-testid="photo-controls"]').exists()).toBe(true)
+  })
+
+  it('passes a specifically selected exercise to main', async () => {
+    const view = await panel()
+    await view.findAll('nav button').find(button => button.text() === 'Попап и цикл')!.trigger('click')
+    await view.get('[aria-label="Упражнение для проверки"]').setValue('neck-tilts')
+    await view.findAll('button').find(button => button.text() === 'Обычная разминка')!.trigger('click')
+    expect(command).toHaveBeenCalledWith({ action: 'popup', preset: 'normal', exerciseId: 'neck-tilts' })
+  })
+
+  it('keeps replay silent in the control window and only plays explicit sound previews', async () => {
+    const view = await panel()
+    listener?.({ ...state, playing: true })
+    applySnapshot({ laboratory: { at: state.now, running: false, silent: false }, settings: defaultSettings(),
+      progress: defaultProgress(), sessions: [makeSession({ exerciseId: 'neck-tilts' })], weights: [] })
+    await flushPromises()
+    expect(preview.play).not.toHaveBeenCalled()
+    await view.findAll('nav button').find(button => button.text() === 'Попап и цикл')!.trigger('click')
+    await view.findAll('button').find(button => button.text() === 'Новая форма')!.trigger('click')
+    expect(preview.play).toHaveBeenCalledExactlyOnceWith('stage-up')
+  })
+
+  it('can hold and repeat a local reaction without modifying the profile emotion or history', async () => {
+    vi.useFakeTimers()
+    wrapper = mount(AppearancePanel, { global: { stubs: { CharacterPortrait: true } } })
+    await wrapper.get('[aria-label="Удерживать предпросмотр"]').setValue(true)
+    await wrapper.get('[data-testid="replay-reaction"]').trigger('click')
+    const bubble = wrapper.get('.comic-bubble').element
+    vi.advanceTimersByTime(10000)
+    expect(wrapper.find('.comic-bubble').exists()).toBe(true)
+    await wrapper.get('[data-testid="replay-reaction"]').trigger('click')
+    expect(wrapper.get('.comic-bubble').element).not.toBe(bubble)
+    expect(useCharacterStore().emotion).toBe('neutral')
+    expect(command).not.toHaveBeenCalled()
+  })
   it('loads six stories and sends a scenario command without renderer-owned history writes', async () => {
     const view = await panel()
     expect(view.findAll('[data-lab-scenario]')).toHaveLength(6)
@@ -61,7 +112,8 @@ describe('laboratory controls', () => {
   it('keeps the primary play action, identity picker and dynamics discoverable before choosing a history', async () => {
     const view = await panel()
     expect(view.get('[data-testid="lab-console"] [data-testid="lab-play"]').text()).toContain('Проиграть сценарий')
-    expect(view.findAll('[data-character-pack]')).toHaveLength(10)
+    expect(view.findAll('[aria-label="Персонаж тестового профиля"] option')).toHaveLength(10)
+    expect(view.findAll('[data-build]')).toHaveLength(3)
     expect(view.find('[data-testid="lab-dynamics"]').exists()).toBe(true)
   })
   it('shows command errors and releases controls for retry', async () => {
@@ -81,7 +133,28 @@ describe('laboratory controls', () => {
   })
   it('keeps appearance overrides local', async () => {
     wrapper = mount(AppearancePanel, { global: { stubs: { CharacterPortrait: true } } })
-    await wrapper.findAll('select')[0]!.setValue(5)
+    await wrapper.get('[data-preview-stage="5"]').trigger('click')
     expect(command).not.toHaveBeenCalled()
+  })
+  it('keeps scenarios and explicit manual state controls independently accessible', async () => {
+    const view = await panel()
+    expect(view.findAll('[data-lab-scenario]')).toHaveLength(6)
+    await view.findAll('nav button').find(button => button.text() === 'Ручная проверка')!.trigger('click')
+    expect(view.findAll('[data-preview-stage]')).toHaveLength(6)
+    expect(view.findAll('[data-preview-condition]')).toHaveLength(4)
+    expect(view.findAll('[data-preview-emotion]')).toHaveLength(6)
+    expect(view.find('[data-preview-popup="error"]').exists()).toBe(true)
+    expect(view.find('[data-testid="open-visual-popup"]').exists()).toBe(true)
+  })
+  it('preserves manual selections while switching back to scenarios and returning', async () => {
+    const view = await panel()
+    await view.findAll('nav button').find(button => button.text() === 'Ручная проверка')!.trigger('click')
+    await view.get('[data-preview-stage="5"]').trigger('click')
+    expect(view.get('.lab-live').attributes('data-manual-stage')).toBe('5')
+    await view.findAll('nav button').find(button => button.text() === 'Сценарии')!.trigger('click')
+    expect(view.get('.lab-live').attributes('data-manual-stage')).toBeUndefined()
+    expect(view.findAll('[data-lab-scenario]')).toHaveLength(6)
+    await view.findAll('nav button').find(button => button.text() === 'Ручная проверка')!.trigger('click')
+    expect(view.get('[data-preview-stage="5"]').attributes('aria-pressed')).toBe('true')
   })
 })

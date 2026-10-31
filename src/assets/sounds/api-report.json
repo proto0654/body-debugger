@@ -1,0 +1,50 @@
+[
+  {
+    "clipId": "desk-hulk__ready__02",
+    "characterId": "desk-hulk",
+    "event": "ready",
+    "takeNumber": 1,
+    "voiceId": "QNU3QKXr1vjhbmTwRf69",
+    "model": "eleven_v4",
+    "outputFormat": "mp3_44100_192",
+    "inputText": "[sarcastic] Пузо сидя не прокачаешь.",
+    "rawFile": "src/assets/sounds/desk-hulk/source/api__desk-hulk__ready__02__take-1.mp3",
+    "deliveryFile": "src/assets/sounds/desk-hulk/desk-hulk__ready__02__take-1.mp3",
+    "measuredDurationSec": 1.998277,
+    "maxDurationSec": 2.2,
+    "status": "pending",
+    "generatedAt": "2026-10-31T08:28:51.051Z"
+  },
+  {
+    "clipId": "desk-hulk__done__02",
+    "characterId": "desk-hulk",
+    "event": "done",
+    "takeNumber": 1,
+    "voiceId": "QNU3QKXr1vjhbmTwRf69",
+    "model": "eleven_v4",
+    "outputFormat": "mp3_44100_192",
+    "inputText": "[pleased] Разминка есть. Отмазок нет.",
+    "rawFile": "src/assets/sounds/desk-hulk/source/api__desk-hulk__done__02__take-1.mp3",
+    "deliveryFile": "src/assets/sounds/desk-hulk/desk-hulk__done__02__take-1.mp3",
+    "measuredDurationSec": 1.462018,
+    "maxDurationSec": 2.2,
+    "status": "pending",
+    "generatedAt": "2026-10-31T08:28:56.216Z"
+  },
+  {
+    "clipId": "desk-hulk__stage-up__02",
+    "characterId": "desk-hulk",
+    "event": "stage-up",
+    "takeNumber": 1,
+    "voiceId": "QNU3QKXr1vjhbmTwRf69",
+    "model": "eleven_v4",
+    "outputFormat": "mp3_44100_192",
+    "inputText": "[excited] Вырос! Кресло просит пощады.",
+    "rawFile": "src/assets/sounds/desk-hulk/source/api__desk-hulk__stage-up__02__take-1.mp3",
+    "deliveryFile": "src/assets/sounds/desk-hulk/desk-hulk__stage-up__02__take-1.mp3",
+    "measuredDurationSec": 0.878413,
+    "maxDurationSec": 3.2,
+    "status": "pending",
+    "generatedAt": "2026-10-31T08:29:01.836Z"
+  }
+]

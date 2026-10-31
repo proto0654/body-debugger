@@ -5,6 +5,7 @@ import type { LabDriverCommand } from '@shared/domain/laboratory-playback'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import CharacterPortrait from '@/components/character/CharacterPortrait.vue'
 import ComicBubble from '@/components/character/ComicBubble.vue'
+import PopupFeedback from '@/components/character/PopupFeedback.vue'
 import { useSessionsStore } from '@/stores/sessions'
 import { useCharacterStore } from '@/stores/character'
 import { useProgressStore } from '@/stores/progress'
@@ -26,7 +27,9 @@ import {
   POPUP_EXTRAS_COLLAPSED_HEIGHT,
   POPUP_EXTRAS_HEIGHT
 } from '@shared/constants/popup'
-import { POPUP_EXIT_MS, useMotionPreference } from '@/motion'
+import { useMotionPreference } from '@/motion'
+import { reactionDuration, REACTION_TIMING_MS } from '@shared/domain/reaction-timing'
+import type { CharacterReactionEvent } from '@shared/domain/character-reaction'
 import { cueForSessionStatus, type SoundCue } from '@shared/domain/sounds'
 import { computeCharacterProgress } from '@shared/domain/character-progress'
 import { CHARACTER_STAGE_LABELS } from '@shared/constants/character'
@@ -67,6 +70,8 @@ const remainingMs = ref(initialDurationMs)
 const holdProgress = ref(0)
 const leaving = ref(false)
 const exitKind = ref<'done' | 'quiet' | null>(null)
+let feedbackTimer: ReturnType<typeof setTimeout> | undefined
+let closeRequested = false
 
 // Optional details (CONCEPT §4, §10): hidden unless the user turned them on,
 // and collapsed by default so the core cycle stays one exercise + one timer.
@@ -329,6 +334,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  clearTimeout(feedbackTimer)
   unsubscribeDriver?.()
   unsubscribeLab?.()
   stopTimer()
@@ -371,10 +377,14 @@ async function submit(status: SessionStatus): Promise<void> {
       }
     } else {
       character.react(status === 'snoozed' ? 'snoozed' : 'skipped', reactionSequence)
+      successLabel.value = status === 'snoozed' ? 'Разминка отложена' : 'Разминка пропущена'
+      successDetail.value = status === 'snoozed' ? 'Вернёмся через пять минут' : 'Следующая возможность впереди'
     }
     sounds.play(cue)
-    await playExit(status)
-    await closeResolved()
+    exitKind.value = status === 'done' ? 'done' : 'quiet'
+    const event: CharacterReactionEvent = status === 'done' ? stageUp ? 'stage-up' : 'done'
+      : status === 'snoozed' ? 'snoozed' : 'skipped'
+    feedbackTimer = setTimeout(finishFeedback, reactionDuration(event))
   } catch (cause) {
     console.error('[popup] failed to save result', cause)
     errorMessage.value = 'Не удалось сохранить. Попробуйте ещё раз.'
@@ -385,43 +395,42 @@ async function submit(status: SessionStatus): Promise<void> {
 }
 
 async function closeResolved(): Promise<void> {
-  try { await window.api?.closePopup() }
+  if (closeRequested) return
+  closeRequested = true
+  clearTimeout(feedbackTimer)
+  try {
+    if (runtime.laboratory && resolved.value) {
+      await window.api.labDriverAck({ sessionId: popupSessionId, kind: 'feedback-complete' })
+        .catch(cause => console.warn('[laboratory] feedback acknowledgement failed', cause))
+    }
+    await window.api?.closePopup()
+  }
   catch (cause) {
+    closeRequested = false
     console.error('[popup] result saved; failed to close window', cause)
     leaving.value = false
     errorMessage.value = 'Результат сохранён. Можно закрыть окно.'
   }
 }
 
-/** Let the exit animation finish before the window closes (CONCEPT §13). */
-async function playExit(status: SessionStatus): Promise<void> {
-  exitKind.value = status === 'done' ? 'done' : 'quiet'
+/** Reading and exit are separate phases; reducing motion never shortens the reading time. */
+function finishFeedback(): void {
   leaving.value = true
-  if (reduced.value && status !== 'done') return
-  await new Promise((resolve) =>
-    setTimeout(resolve, status === 'done' ? POPUP_EXIT_MS.done : POPUP_EXIT_MS.quiet)
-  )
+  feedbackTimer = setTimeout(() => { void closeResolved() }, reduced.value ? 0 : REACTION_TIMING_MS.exit)
 }
 </script>
 
 <template>
-  <div class="relative flex h-full flex-col gap-2 p-3" :class="shellClass">
+  <div class="relative flex h-full flex-col gap-2 p-3" :class="shellClass" :style="{ '--popup-exit-duration': `${REACTION_TIMING_MS.exit}ms` }">
     <div
-      v-if="leaving && exitKind === 'done' && !reduced"
+      v-if="resolved && exitKind === 'done' && !reduced"
       class="popup-flash pointer-events-none absolute inset-0 z-20"
     />
-    <div v-if="resolved && exitKind === 'done'" class="popup-success absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 rounded-xl p-4 text-center" role="status">
-      <div class="relative">
-        <CharacterPortrait :pack-id="settings.characterPackId" variant="face" size="md" :stage="character.state.stage" :branch="character.state.branch" :build="character.state.build" :emotion="character.emotion" />
-        <span class="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-xs text-slate-950" aria-hidden="true">✓</span>
-      </div>
-      <p class="sr-only">{{ successLabel }}</p>
-      <ComicBubble compact :caption="character.reaction.caption" :tone="character.reaction.tone" />
-      <p class="text-xs text-slate-400">{{ successDetail }}</p>
-      <button v-if="errorMessage" type="button" class="setting-chip" @click="closeResolved">Закрыть</button>
-    </div>
+    <PopupFeedback v-if="resolved" :character="character.state" :reaction="character.reaction" :quiet="exitKind === 'quiet'"
+      :label="successLabel" :detail="successDetail" :error="errorMessage" @close="closeResolved" />
+    <template v-if="!resolved">
     <p v-if="runtime.laboratory && labPaused" class="text-[10px] text-amber-300">Сценарий на паузе</p>
-    <ComicBubble v-if="!resolved" compact :key="character.reaction.caption"
+    <ComicBubble v-if="!resolved" compact :variant="character.reaction.variant" :animation-id="character.reaction.animationId"
       :caption="character.reaction.caption" :tone="character.reaction.tone" class="popup-speech" />
     <header class="flex items-start justify-between gap-2">
       <div class="min-w-0 flex-1">
@@ -621,5 +630,6 @@ async function playExit(status: SessionStatus): Promise<void> {
         <span class="relative">Готово</span>
       </button>
     </div>
+    </template>
   </div>
 </template>

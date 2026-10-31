@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { mount, type VueWrapper } from '@vue/test-utils'
+import CharacterSettingsPanel from '@/components/character/CharacterSettingsPanel.vue'
 import PreferencesPanel from '@/components/settings/PreferencesPanel.vue'
 import { useProgressStore } from '@/stores/progress'
 import { useSettingsStore } from '@/stores/settings'
@@ -36,12 +37,12 @@ const saveProgress = vi.fn(
   })
 )
 
-function mountPanel(): VueWrapper {
+function mountPanel(character = false): VueWrapper {
   const pinia = createPinia()
   setActivePinia(pinia)
   useSettingsStore().hydrate(makeSettings())
   useProgressStore().hydrate(progress)
-  return mount(PreferencesPanel, { global: { plugins: [pinia] } })
+  return mount(character ? CharacterSettingsPanel : PreferencesPanel, { global: { plugins: [pinia] } })
 }
 
 async function settle(): Promise<void> {
@@ -64,8 +65,19 @@ beforeEach(() => {
 })
 
 describe('PreferencesPanel', () => {
+  it('rolls back a failed build save and allows retry from the shared character panel', async () => {
+    const wrapper = mountPanel(true)
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    saveProgress.mockRejectedValueOnce(new Error('disk full'))
+    await click(wrapper, '[data-build="stocky"]')
+    expect(wrapper.get('[data-build="average"]').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('[role="alert"]').text()).toContain('Не удалось сохранить телосложение')
+    await click(wrapper, '[data-build="stocky"]')
+    expect(wrapper.get('[data-build="stocky"]').attributes('aria-pressed')).toBe('true')
+    wrapper.unmount()
+  })
   it('persists the chosen identity and rolls back a failed save so retry remains possible', async () => {
-    const wrapper = mountPanel()
+    const wrapper = mountPanel(true)
     expect(wrapper.findAll('[data-character-pack]')).toHaveLength(10)
     await click(wrapper, '[data-character-pack="engineer"]')
     expect(saveSettings.mock.calls.at(-1)![0].characterPackId).toBe('engineer')
@@ -77,7 +89,7 @@ describe('PreferencesPanel', () => {
     await click(wrapper, '[data-character-pack="hipster"]')
     expect(wrapper.get('[data-character-pack="hipster"]').attributes('aria-pressed')).toBe('true')
   })
-  it('renders the four preference groups from the stored state', () => {
+  it('groups rhythm, strictness and exercise selection together', () => {
     const wrapper = mountPanel()
 
     expect(wrapper.find('[data-testid="preferences-panel"]').exists()).toBe(true)
@@ -86,7 +98,9 @@ describe('PreferencesPanel', () => {
     )
     expect(wrapper.get('[data-picker-mode="balance"]').attributes('aria-pressed')).toBe('true')
     expect(wrapper.get('[data-focus-primary="none"]').attributes('aria-pressed')).toBe('true')
-    expect(wrapper.get('[data-build="average"]').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('[data-testid="severity-controls"]').text()).toContain('Средняя')
+    expect(wrapper.find('[data-testid="inventory-controls"]').exists()).toBe(true)
+    expect(wrapper.find('[data-character-pack]').exists()).toBe(false)
   })
 
   it('saves a quick interval preset', async () => {
@@ -154,7 +168,7 @@ describe('PreferencesPanel', () => {
   })
 
   it('saves the character build through the progress store', async () => {
-    const wrapper = mountPanel()
+    const wrapper = mountPanel(true)
 
     await click(wrapper, '[data-build="stocky"]')
 

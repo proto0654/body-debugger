@@ -47,8 +47,10 @@ export const useProgressStore = defineStore('progress', () => {
   /** Build is a user preference (CONCEPT.md §5); unknown values are ignored. */
   async function setCharacterBuild(next: CharacterBuild): Promise<void> {
     if (!CHARACTER_BUILDS.includes(next) || characterBuild.value === next) return
+    const previous = characterBuild.value
     characterBuild.value = next
-    await persist()
+    try { await persist() }
+    catch (cause) { characterBuild.value = previous; throw cause }
   }
 
   return {

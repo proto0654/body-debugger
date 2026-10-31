@@ -19,10 +19,12 @@ export const useCharacterStore = defineStore('character', () => {
   const reaction = ref(characterReaction('welcome'))
   const emotion = computed(() => reaction.value.emotion)
   const reactionCounts: Partial<Record<CharacterReactionEvent, number>> = {}
+  let reactionId = 0
 
   function react(event: CharacterReactionEvent, sequence?: number): void {
     const nextSequence = sequence ?? reactionCounts[event] ?? 0
     reaction.value = characterReaction(event, nextSequence, reaction.value.caption)
+    reaction.value.animationId = `reaction-${++reactionId}`
     reactionCounts[event] = (Number.isSafeInteger(nextSequence) ? nextSequence : 0) + 1
   }
 

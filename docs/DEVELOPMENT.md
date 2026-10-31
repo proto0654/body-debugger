@@ -56,7 +56,7 @@ Do **not** download Electron into `%LOCALAPPDATA%\electron` or park the profile 
 
 - App stays in the tray when all windows close.
 - Tray menu: **Дашборд**, **Напоминание сейчас**, **Пауза / Продолжить**, Quit. **Настройки** opens the preferences tab directly, including in an existing dashboard.
-- Dashboard tabs: **Сегодня** (character, day totals, next form, weight and photos), **Календарь**, **Статистика**, **Настройки** (interval, picker mode, Focus, character identity/build, comfort and optional-layer switches, AI imports) plus the dev-only **Лаборатория** entry — see [ARCHITECTURE.md](ARCHITECTURE.md#core-preferences).
+- Dashboard sections: **Сегодня** (character, day totals, next form, quick weight entry), **Персонаж** (identity/build, preview, evolution), **Прогресс** (calendar, statistics, weight history, photos), **Настройки** (rhythm/strictness, selection/Focus, inventory/AI, sounds and appearance); the dev-only **Лаборатория** entry is a separate header action — see [ARCHITECTURE.md](ARCHITECTURE.md#core-preferences).
 - Renderer routes: `#/dashboard`, `#/popup`, `#/laboratory` (controls in an isolated laboratory process); `#/dashboard?tab=settings` opens the settings tab directly (direct links and the tray settings action).
 - After a **Готово** in the popup, streak, sessions and character survive quit/relaunch (check `.userdata/data/`).
 - If the shell exports `ELECTRON_RUN_AS_NODE=1` (some editors/agents do), `electron.exe .` boots as plain Node and crashes on `electron.app`. Clear the variable for smoke runs.
@@ -86,7 +86,7 @@ Rules live in [shared/domain/severity.ts](../shared/domain/severity.ts); switch 
 | Средняя (default) | Unlocks at 80% of the exercise timer |
 | Жёсткая | Same unlock + hold the button for 1.5 s |
 
-The 320×260 popup includes a compact comic caption; expanded details use 380 px (plus 36 px for errors, capped at 420). The timer waits for «Начать». A saved result shows feedback for one second; a failed write leaves the popup retryable. Duplicate results do not count twice. Closing the popup without an answer is recorded as `skipped` at every level.
+The 320×260 popup includes a compact comic caption; expanded details use 380 px (plus 36 px for errors, capped at 420). The timer waits for «Начать». A saved result shows feedback for 2.5 seconds (3.5 for a new form, 1.2 for skip/snooze) and then a 180 ms exit; an always-available close button skips the remaining reading time; a failed write leaves the popup retryable. Duplicate results do not count twice. Closing the popup without an answer is recorded as `skipped` at every level.
 
 ## Session details
 
@@ -106,11 +106,11 @@ python scripts/cut-character-sprites.py   # needs Pillow + NumPy
 
 The script detects figures, drops the flat background from legacy sheets and writes 42 individual PNGs to `src/assets/character/desk-hulk/frames/`. The neglect sheet has authored alpha: detection uses that alpha and cropping preserves its antialiased transparency. Its three rows are levels 1/2/3 and columns are lean/average/stocky; fixed equal-cell cuts would clip the first row's shoes. Generation used the built-in `image_gen` tool with the existing stage sheet as an identity/style reference; the exact prompt is [stored beside the source](../src/assets/character/desk-hulk/sprite-sheet-neglect.prompt.txt). Do not edit `frames/` by hand. Naming and resolution rules: [ARCHITECTURE.md](ARCHITECTURE.md).
 
-The approved [nine-character casting sheet](../src/assets/character/character-casting-sheet.png) now has 432 separate RGBA frames: three builds and sixteen states per character. Sources, exact prompts, the build comparison and regeneration commands live in the [character art library](../src/assets/character/README.md). Use `python scripts/cut-character-sprites.py --packs` for these packs. The runtime resolver and settings still use Desk Hulk; selecting the new packs is a separate integration step.
+The approved [nine-character casting sheet](../src/assets/character/character-casting-sheet.png) now has 432 separate RGBA frames: three builds and sixteen states per character. Sources, exact prompts, the build comparison and regeneration commands live in the [character art library](../src/assets/character/README.md). Use `python scripts/cut-character-sprites.py --packs` for these packs. The runtime resolver and character profile support these packs alongside Desk Hulk in dashboard, popup and laboratory.
 
 ## Motion
 
-Keyframes and reduced-motion overrides live in `src/styles/index.css`; popup exit timings in `src/motion.ts` — keep the CSS durations and `POPUP_EXIT_MS` in sync. The «Уменьшить анимации» switch on «Настройки» persists `settings.reduceMotion`; the main process reads it for tray frames through `TrayHandlers.isReducedMotion`, so no IPC round trip is needed.
+Keyframes and reduced-motion overrides live in `src/styles/index.css`; reading/exit timings in `shared/domain/reaction-timing.ts`. The popup separates feedback from closing; the laboratory waits for feedback completion and actual closure. `src/motion.ts` owns the combined app/OS motion preference. The «Уменьшить анимации» switch on «Настройки» persists `settings.reduceMotion`; the main process reads it for tray frames through `TrayHandlers.isReducedMotion`, so no IPC round trip is needed.
 
 The OS `prefers-reduced-motion` setting is honoured in the renderer only; the main process cannot read it.
 
@@ -126,7 +126,7 @@ The glyph is a placeholder "person stretching" mark. Replace the drawing in the 
 
 ## Sounds
 
-Default cue pack: `src/assets/sounds/default/*.mp3`. Settings (`sound.enabled` / `volume` / `packId`) and the gated renderer player live in `shared/domain/sounds.ts` + `src/sounds.ts`; mute/DND rules: [SOUNDS.md](SOUNDS.md). Audio remains an optional layer: a failed play is logged, never surfaced.
+Default cue pack: `src/assets/sounds/default/*.mp3`. Settings (`sound.enabled` / `volume` / `packId`) and the gated renderer player live in `shared/domain/sounds.ts` + `src/sounds.ts`; mute/DND rules: [SOUNDS.md](SOUNDS.md). New profiles enable the default pack at 40%; explicit stored choices and legacy mute are preserved. Audio remains an optional layer: a failed play is logged, never surfaced.
 
 ## Photos
 

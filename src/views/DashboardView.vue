@@ -2,38 +2,38 @@
 import { nowDate } from '@shared/domain/clock'
 import { useRuntimeStore } from '@/stores/runtime'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import CharacterSettingsPanel from '@/components/character/CharacterSettingsPanel.vue'
+import CharacterJourney from '@/components/character/CharacterJourney.vue'
+import ProgressPanel from '@/components/stats/ProgressPanel.vue'
+import { reactionDuration } from '@shared/domain/reaction-timing'
 import DebugPanel from '@/debug/DebugPanel.vue'
 import { isDebugEnabled } from '@/debug/is-debug-enabled'
 import CharacterPortrait from '@/components/character/CharacterPortrait.vue'
 import ComicBubble from '@/components/character/ComicBubble.vue'
 import WeightCard from '@/components/weight/WeightCard.vue'
-import CalendarHeatmap from '@/components/stats/CalendarHeatmap.vue'
-import StatsPanel from '@/components/stats/StatsPanel.vue'
-import PhotoGallery from '@/components/photos/PhotoGallery.vue'
 import PreferencesPanel from '@/components/settings/PreferencesPanel.vue'
 import ComfortSettingsPanel from '@/components/settings/ComfortSettingsPanel.vue'
-import { usePhotosStore } from '@/stores/photos'
 import { useProgressStore } from '@/stores/progress'
 import { useCharacterStore } from '@/stores/character'
 import { useSettingsStore } from '@/stores/settings'
 import { useReminderStore } from '@/stores/reminder'
 import { useSessionsStore } from '@/stores/sessions'
 import { CHARACTER_BRANCH_LABELS, CHARACTER_STAGE_LABELS } from '@shared/constants/character'
-import { EXERCISE_CATALOG } from '@shared/constants/exercises'
-import { mergeCatalogs } from '@shared/domain/ai-proposal'
 import { characterJourney } from '@shared/domain/character-progress'
 import { CHARACTER_CONDITION_MAX_POINTS, CHARACTER_CONDITION_RECOVERY_POINTS } from '@shared/domain/character-condition'
 import type { CharacterReactionEvent } from '@shared/domain/character-reaction'
 import { computeStreak } from '@shared/domain/streak'
 import { localDateKey } from '@shared/domain/stats'
-import { useCustomExercisesStore } from '@/stores/custom-exercises'
-import type { CharacterStage } from '@shared/types/character'
 
-type TabId = 'today' | 'calendar' | 'stats' | 'settings' | 'debug'
+type TabId = 'today' | 'character' | 'progress' | 'settings' | 'debug'
+type ProgressSection = 'calendar' | 'stats' | 'weight' | 'photos'
+const requestedTab = () => /[?&]tab=([a-z]+)/.exec(window.location.hash)?.[1]
+const progressSection = ref<ProgressSection>(requestedTab() === 'stats' ? 'stats' : 'calendar')
 const debugEnabled = isDebugEnabled() || !!useRuntimeStore().laboratory
 function initialTab(): TabId {
-  const requested = /[?&]tab=([a-z]+)/.exec(window.location.hash)?.[1]
-  if (requested === 'calendar' || requested === 'stats' || requested === 'settings') return requested
+  const requested = requestedTab()
+  if (requested === 'calendar' || requested === 'stats') return 'progress'
+  if (requested === 'settings' || requested === 'character' || requested === 'progress') return requested
   if (requested === 'debug' && debugEnabled) return 'debug'
   return 'today'
 }
@@ -43,8 +43,6 @@ const character = useCharacterStore()
 const settings = useSettingsStore()
 const reminder = useReminderStore()
 const sessions = useSessionsStore()
-const photos = usePhotosStore()
-const customExercises = useCustomExercisesStore()
 const runtime = useRuntimeStore()
 const now = ref(nowDate())
 const celebration = ref('')
@@ -53,7 +51,6 @@ const actionError = ref('')
 let clock: ReturnType<typeof setInterval> | undefined
 let reactionTimer: ReturnType<typeof setTimeout> | undefined
 let unsubscribeNavigation: (() => void) | undefined
-const statsCatalog = computed(() => mergeCatalogs(EXERCISE_CATALOG, customExercises.entries))
 const journey = computed(() => characterJourney(sessions.history))
 const remainingLabel = computed(() => {
   const count = journey.value.remaining
@@ -65,26 +62,30 @@ const streak = computed(() => computeStreak(sessions.history, now.value))
 const todayDone = computed(() => sessions.history.filter(session =>
   session.status === 'done' && localDateKey(new Date(session.completedAt ?? session.triggeredAt)) === localDateKey(now.value)
 ).length)
-const stages: CharacterStage[] = [0, 1, 2, 3, 4, 5]
 const tabs = computed<{ id: TabId; label: string }[]>(() => [
-  { id: 'today', label: 'Сегодня' }, { id: 'calendar', label: 'Календарь' },
-  { id: 'stats', label: 'Статистика' }, { id: 'settings', label: 'Настройки' },
-  ...(debugEnabled ? [{ id: 'debug' as const, label: 'Лаборатория' }] : [])
+  { id: 'today', label: 'Сегодня' }, { id: 'character', label: 'Персонаж' },
+  { id: 'progress', label: 'Прогресс' }, { id: 'settings', label: 'Настройки' }
 ])
 const dateLabel = computed(() => now.value.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'long' }))
 
 function refreshClock(): void { now.value = nowDate() }
+function navigateFromHash(): void {
+  tab.value = initialTab()
+  if (requestedTab() === 'calendar' || requestedTab() === 'stats') progressSection.value = requestedTab() as ProgressSection
+}
 watch(() => runtime.revision, refreshClock, { flush: 'sync' })
 onMounted(() => {
   resetReaction()
   clock = setInterval(refreshClock, 30_000)
   document.addEventListener('visibilitychange', refreshClock)
+  window.addEventListener('hashchange', navigateFromHash)
   unsubscribeNavigation = window.api?.onNavigateDashboard?.(() => { tab.value = 'settings' })
 })
 onBeforeUnmount(() => {
   clearInterval(clock)
   clearTimeout(reactionTimer)
   document.removeEventListener('visibilitychange', refreshClock)
+  window.removeEventListener('hashchange', navigateFromHash)
   unsubscribeNavigation?.()
 })
 function resetReaction(): void {
@@ -98,7 +99,7 @@ function showReaction(event: CharacterReactionEvent, message = '', showFace = tr
   character.react(event, sessions.history.length)
   celebration.value = message
   reactionActive.value = showFace
-  reactionTimer = setTimeout(resetReaction, showFace ? 3500 : 2500)
+  reactionTimer = setTimeout(resetReaction, reactionDuration(event))
 }
 
 watch([() => journey.value.stage, todayDone, () => streak.value.current, () => sessions.lastSession?.id],
@@ -141,13 +142,15 @@ async function triggerReminder(): Promise<void> {
         <p class="brand-label">BODY DEBUGGER <span class="ml-2 text-slate-500">/ ПЕРЕРЫВ В ПОЛЬЗУ СЕБЯ</span></p>
         <h1 class="mt-2 text-2xl font-semibold tracking-tight text-white">Твой рабочий ритм</h1>
       </div>
+      <div class="flex flex-wrap justify-end gap-2"><button v-if="debugEnabled" type="button" class="setting-chip lab-entry" @click="tab = 'debug'">Лаборатория ↗</button>
       <button type="button" class="setting-chip" :aria-pressed="settings.paused" @click="settings.togglePause()">
         {{ settings.paused ? 'Продолжить' : 'Пауза' }}
       </button>
+      </div>
     </header>
     <p v-if="runtime.laboratory" class="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-amber-200" data-testid="lab-banner">ЛАБОРАТОРИЯ · Тестовый профиль · {{ dateLabel }}. Обычная история изолирована.</p>
     <nav class="dashboard-tabs" aria-label="Разделы приложения">
-      <button v-for="item in tabs" :key="item.id" type="button" :aria-pressed="tab === item.id"
+      <button v-for="item in tabs" :key="item.id" type="button" :aria-current="tab === item.id ? 'page' : undefined"
         :class="{ 'is-active': tab === item.id }" @click="tab = item.id">{{ item.label }}</button>
     </nav>
 
@@ -156,7 +159,7 @@ async function triggerReminder(): Promise<void> {
       <section class="today-hero" data-testid="today-hero">
         <div class="hero-copy">
           <p class="brand-label text-slate-400">{{ dateLabel }}</p>
-          <ComicBubble :key="character.reaction.caption" class="hero-speech" heading tail="right"
+          <ComicBubble :animation-id="character.reaction.animationId" :variant="character.reaction.variant" :decoration="character.reaction.decoration" class="hero-speech" heading tail="right"
             :caption="character.reaction.caption" :tone="character.reaction.tone" />
           <p class="mt-4 max-w-sm text-sm leading-relaxed text-slate-400">
             {{ journey.done === 0 ? 'Одна короткая разминка — уже начало. Твой герой растёт с каждым выполнением.' : 'Маленькие перерывы складываются в привычку. Твой герой растёт вместе с тобой.' }}
@@ -174,9 +177,9 @@ async function triggerReminder(): Promise<void> {
           </div>
           <p v-if="actionError" class="mt-2 text-xs text-red-300" role="alert">{{ actionError }}</p>
         </div>
-        <div class="hero-character" :class="{ 'hero-character--speaking': reactionActive }" data-testid="character-scene">
+        <div class="hero-character" :class="{ 'hero-character--speaking': reactionActive }" :data-idle="!reactionActive" data-testid="character-scene">
           <span class="character-badge">ФОРМА {{ character.state.stage + 1 }} / 6</span>
-          <CharacterPortrait :pack-id="settings.characterPackId" size="xl" :variant="reactionActive ? 'face' : 'body'" :show-label="false" :stage="character.state.stage" :branch="character.state.branch"
+          <CharacterPortrait :pack-id="settings.characterPackId" :reaction-id="character.reaction.animationId" size="xl" :variant="reactionActive ? 'face' : 'body'" :show-label="false" :stage="character.state.stage" :branch="character.state.branch"
             :build="character.state.build" :emotion="character.emotion" :condition="character.condition.level" />
           <p class="mt-1 text-lg font-semibold text-white">{{ CHARACTER_STAGE_LABELS[character.state.stage] }}</p>
           <p class="mt-1 text-xs text-emerald-400">{{ CHARACTER_BRANCH_LABELS[character.state.branch] }}</p>
@@ -187,38 +190,13 @@ async function triggerReminder(): Promise<void> {
         <div class="metric-card" data-testid="current-streak"><p>Дней подряд</p><strong>{{ streak.current }}</strong><span>Рекорд: {{ Math.max(streak.max, progress.streak.max) }}</span></div>
         <div class="metric-card"><p>Разминок всего</p><strong>{{ journey.done }}</strong><span>Каждая идёт в зачёт</span></div>
       </section>
-      <section class="settings-card space-y-4" data-testid="character-journey">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div><p class="brand-label text-slate-500">ТВОЯ ЭВОЛЮЦИЯ</p>
-            <h2 class="mt-1 text-sm font-semibold text-white">{{ journey.nextStage === null ? 'Пиковая форма достигнута' : `Следующая форма: ${CHARACTER_STAGE_LABELS[journey.nextStage]}` }}</h2>
-          </div>
-          <p class="text-xs text-emerald-400">{{ journey.nextStage === null ? 'Продолжай в своём ритме' : remainingLabel }}</p>
-        </div>
-        <div class="journey-track" role="progressbar" aria-label="До следующей формы" :aria-valuenow="Math.round(journey.ratio * 100)" aria-valuemin="0" aria-valuemax="100">
-          <div :style="{ width: `${journey.ratio * 100}%` }"></div>
-        </div>
-        <ol class="journey-stages">
-          <li v-for="stage in stages" :key="stage" :class="{ reached: stage <= journey.stage, current: stage === journey.stage }" :aria-current="stage === journey.stage ? 'step' : undefined">
-            <span>{{ stage + 1 }}</span><p>{{ CHARACTER_STAGE_LABELS[stage] }}</p>
-          </li>
-        </ol>
-      </section>
-      <WeightCard v-if="settings.weight.enabled" />
-      <section v-if="settings.photos.enabled" class="settings-card space-y-3">
-        <h2 class="text-sm font-semibold text-white">Фото прогресса</h2>
-        <PhotoGallery :photos="photos.entries" @remove="photos.remove" />
-      </section>
+      <CharacterJourney compact />
+      <WeightCard v-if="settings.weight.enabled" compact />
       <p class="text-center text-xs text-slate-500">Всё хранится на твоём компьютере. <button class="text-slate-400 hover:text-white" type="button" @click="tab = 'settings'">Настроить под себя →</button></p>
     </template>
-    <section v-else-if="tab === 'calendar'" class="settings-card space-y-4">
-      <h2 class="text-sm font-semibold text-white">Активность за 13 недель</h2>
-      <CalendarHeatmap :sessions="sessions.history" :catalog="statsCatalog" :now="now" />
-    </section>
-    <section v-else-if="tab === 'stats'" class="settings-card space-y-4">
-      <h2 class="text-sm font-semibold text-white">Твоя статистика</h2>
-      <StatsPanel :sessions="sessions.history" :catalog="statsCatalog" :now="now" />
-    </section>
-    <template v-else-if="tab === 'settings'"><PreferencesPanel /><ComfortSettingsPanel /></template>
+    <div v-else-if="tab === 'character'" class="space-y-4"><CharacterSettingsPanel /><CharacterJourney /></div>
+    <ProgressPanel v-else-if="tab === 'progress'" :now="now" :initial-section="progressSection" @settings="tab = 'settings'" />
+    <template v-else-if="tab === 'settings'"><PreferencesPanel /><ComfortSettingsPanel group="presentation" /></template>
     <DebugPanel v-else />
   </div>
 </template>

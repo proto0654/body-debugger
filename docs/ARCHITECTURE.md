@@ -130,7 +130,9 @@ Skipped / snoozed / missed sessions never count as training. Difficulty and
 
 `#/dashboard?tab=settings` opens the tab directly. The tray «Настройки» item opens it in a new dashboard or sends `window:navigate-dashboard` to an existing window without reloading the renderer.
 
-`ComfortSettingsPanel.vue` owns severity, themes, reduced motion and optional switches; AI imports appear there. «Сегодня» contains the character hero, day counts, live streak and `characterJourney` (the same thresholds used by character progression), plus enabled weight/photo cards. Stage changes and completed breaks trigger a brief non-blocking banner. The Electron application menu is hidden by default. The dashboard height is capped at 900 px and the available work area minus 80 px; shorter screens keep normal scrolling.
+The dashboard has four primary sections: «Сегодня», «Персонаж», «Прогресс» and «Настройки». Today contains the hero, day counts, streak, a compact journey and optional quick weight entry. `CharacterSettingsPanel.vue` groups identity/build with a preview; `CharacterJourney.vue` shows the full evolution. `ProgressPanel.vue` groups calendar, statistics, full weight history and photos using keyboard-accessible `SectionTabs.vue`. Legacy `tab=calendar` / `tab=stats` links select the matching progress subsection. The dev laboratory entry is a separate header action.
+
+`PreferencesPanel.vue` groups interval/strictness and picker/Focus. Its selection group reuses `ComfortSettingsPanel.vue` for inventory and AI approval. The presentation group owns sound with volume/previews, details, weight/photo switches, themes and reduced motion; each layer's controls stay beside its switch. Character identity/build remain on «Персонаж». Stage changes and completed breaks trigger a brief non-blocking banner. The Electron application menu is hidden by default. The dashboard height is capped at 900 px and the available work area minus 80 px; shorter screens keep normal scrolling.
 
 ### Popup severity
 
@@ -143,7 +145,7 @@ Skipped / snoozed / missed sessions never count as training. Difficulty and
 | `hardcore` | same unlock + press-and-hold for 1.5 s |
 
 The popup shows a countdown (`mm:ss`), a progress bar and a one-line hint for the
-current level. It stays at full duration until «Начать». Keyboard hold uses Space/Enter, ignores repeat keydowns and cancels on blur/release. A saved done result remains readable for 1000 ms even with reduced motion; skip/snooze exit quietly. A failed save shows a retryable error without optimistic history or a reward. Closing the popup without an answer is `skipped` at every level.
+current level. It stays at full duration until «Начать». Keyboard hold uses Space/Enter, ignores repeat keydowns and cancels on blur/release. A durable result enters a separate readable scene: done 2500 ms, stage-up 3500 ms, skip/snooze 1200 ms, followed by a 180 ms exit. Reduced motion keeps the reading time and removes the animated exit. Every saved scene has an early-close button; unmount/early close cancels its timer. A failed save shows a retryable error without optimistic history or a reward. Closing the popup without an answer is `skipped` at every level.
 Extra hardcore checks (CONCEPT §3) are not implemented yet.
 
 ### Optional session details
@@ -172,7 +174,7 @@ The block is **off by default**. «Детали в попапе» on «Наст�
 | Summary | Latest entry overall, change = latest − earliest inside the window, goal gap = latest − target |
 | Stored file | Re-validated on load; malformed entries are dropped |
 
-The layer is **off by default** (`settings.weight.enabled`). «История веса» on «Настройки» turns it on and reveals `WeightCard` with the current value, a sparkline, a manual entry form, a goal input and the last five measurements (deletable). A target outside the range is ignored, `null` clears it. Nothing in the core cycle reads weight history.
+The layer is **off by default** (`settings.weight.enabled`). «История веса» on «Настройки» turns it on. Today shows a compact `WeightCard` for quick entry; «Прогресс» → «Вес» shows the current value, sparkline, manual entry, goal and last five measurements (deletable). A target outside the range is ignored, `null` clears it. Nothing in the core cycle reads weight history.
 
 ### Streak
 
@@ -199,7 +201,7 @@ Main stores it on `done` and recomputes it when reading a snapshot; the historic
 
 ### Sounds
 
-`shared/domain/sounds.ts` + `src/sounds.ts` — optional layer, off by default.
+`shared/domain/sounds.ts` + `src/sounds.ts` — optional layer, enabled at 40% for new profiles. Explicit stored preferences are preserved; legacy files without a sound block stay muted.
 
 | Rule | Behaviour |
 |------|-----------|
@@ -221,7 +223,7 @@ Stage-up is automatic; `streak` has a file and a debug preview but no automatic 
 | Storage | Main writes `.userdata/photos/<uuid>.<ext>` + `data/photos.json`; renderer only sees metadata |
 | Serving | `photo://<id>` resolves only ids present in metadata; unknown → 404 |
 | Session | At most 6 `photoIds`; main drops ids that do not exist before writing the session |
-| UI | Popup attaches/removes photos inside the optional details block; dashboard shows a gallery with delete |
+| UI | Popup attaches/removes photos inside the optional details block; «Прогресс» → «Фотографии» shows a gallery with delete |
 
 The layer is off by default (`settings.photos.enabled`). `photoIds` are only carried by `done` sessions.
 
@@ -262,9 +264,11 @@ The dev dashboard entry launches a separate Electron process with `--body-debugg
 | Renderer runtime projection | `src/stores/runtime.ts`; applied before hydrating domain stores |
 | Separate controls and visual previews | `electron/main/windows/laboratory.ts`, `src/debug/LaboratoryPanel.vue`, `src/debug/AppearancePanel.vue` |
 
-Silent date viewing reconstructs only the selected prefix. Native replay moves through reminder readiness, visible start/choice, exercise, durable save, reaction and close/repeat phases. The semantic driver calls the same popup actions as real input, including the normal severity gate and real-time Hardcore hold. It cannot append a final history snapshot as a playback result. Main checks generation, command sequence and session identity; driver acknowledgements are accepted only from the active popup WebContents in an isolated unpackaged process. Late popup close/resize requests also require the currently active WebContents.
+Silent date viewing reconstructs only the selected prefix. Native replay moves through reminder readiness, visible start/choice, exercise, durable save, reaction and close/repeat phases. Reading time comes from `shared/domain/reaction-timing.ts`, never from replay speed. The active popup sends `feedback-complete` before closing; main also waits for its actual window to disappear and reports a retryable error if closing stalls, rather than forcing it closed. A paused/stepped run cannot bypass an open result scene. The semantic driver calls the same popup actions as real input, including the normal severity gate and real-time Hardcore hold. It cannot append a final history snapshot as a playback result. Main checks generation, command sequence and session identity; driver acknowledgements are accepted only from the active popup WebContents in an isolated unpackaged process. Late popup close/resize requests also require the currently active WebContents.
 
 Controller-owned popup openings do not interrupt replay. Actual user actions cancel automatic dispatch and form a manual branch; the original resolved future is retained separately. A durable outcome publishes its cursor and snapshot together to the laboratory. Normal dashboard hydration uses the same canonical result. Pause freezes application time and result deadlines, cancels a partial hold and rearms remaining work on resume. Closing the separate control window pauses the driver without losing the run. Seek/reset/mode changes invalidate the generation and cancel the discarded native session before closing its window.
+
+The laboratory uses a permanent scenario transport above a responsive workspace: sticky live/profile scene and dynamics beside five sections («Сценарии», «Попап и цикл», «Ручная проверка», «Данные», «Настройки»). Profile settings reuse production components and IPC. The manual section exposes six clickable stage cards, four temporary condition levels, branches, builds and emotions. Its cached local state drives the permanent scene while the manual tab is active; returning to scenarios restores history-derived visuals. A shared `PopupFeedback.vue` renders durable popup results and visual result previews. Inline popup buttons and `#/laboratory-preview` use runtime-only visual state (`shared/domain/laboratory-preview.ts`), never the session-result IPC. Main validates every override; `visual-preview` updates a separate native window and `close-preview` closes it without touching history, clock or playback. Native and inline previews can be clicked through ready/start/result/skip/snooze/error states, and manual selections are held by default. `popup.exerciseId` is optional and must exist in the merged approved catalog before any preset mutation. The normal preset preserves all preferences; named presets change only their advertised setting/history. `restore-preferences` restores the original plan's settings/build without changing the cursor or sessions. `reset-history` preserves preferences and auxiliary data; `reset` resets sessions/progress/settings and retains weights, photos, approved exercises and the saved run.
 
 Saved plans use laboratory format 2 with semantic actions, character/build, settings, generator parameters and resolved events; the save envelope also retains the original plan, branch flag, mode and cursor. Version-1 imports are explicitly converted to inferred actions, not presented as recorded input. Production history/envelope schemas are unchanged. Detailed migration, rollback and verification limits: [TESTING.md](TESTING.md).
 
@@ -320,15 +324,15 @@ Desk Hulk source frames (the other identities follow the manifest contract linke
 | Emotion | `emotion-*` busts feed the popup face; `surprised` uses the happy bust |
 | Fallback | requested frame/build → average build → neutral body/face of the same identity → emoji. Image-load errors continue through the same candidates; laboratory diagnostics report the fallback |
 
-`CharacterPortrait` normally renders `variant="body"` on the dashboard and switches to a large `variant="face"` for 3.5 seconds after a completion or milestone; the popup uses `variant="face"`; `src/components/character/frames.ts` maps a winning key to the bundled URL. Source sheets stay in the repo as the only art source — never edit `frames/` by hand.
+`CharacterPortrait` normally renders `variant="body"` on the dashboard and switches to a large `variant="face"` for 2.5 seconds after a completion or 3.5 seconds after a milestone; the popup uses `variant="face"`; `src/components/character/frames.ts` maps a winning key to the bundled URL. Source sheets stay in the repo as the only art source — never edit `frames/` by hand.
 
-The runtime glob bundles Desk Hulk and all nine supplied characters (432 additional frames). [packs.json](../src/assets/character/packs.json) owns the cast IDs and labels; `shared/constants/character-packs.ts` adds the built-in default and normalizes unknown IDs. `CharacterPicker.vue` is reused by normal preferences and the laboratory. The chosen identity is passed through dashboard bodies, popup faces/reactions and appearance previews. Frame lookup never switches to a different identity when a selected pack lacks a frame. The cutter and source contracts remain in the [art library](../src/assets/character/README.md).
+The runtime glob bundles Desk Hulk and all nine supplied characters (432 additional frames). [packs.json](../src/assets/character/packs.json) owns the cast IDs and labels; `shared/constants/character-packs.ts` adds the built-in default and normalizes unknown IDs. `CharacterPicker.vue` is reused by the character profile and laboratory, with a compact selector beside the live test scene. The chosen identity is passed through dashboard bodies, popup faces/reactions and appearance previews. Frame lookup never switches to a different identity when a selected pack lacks a frame. The cutter and source contracts remain in the [art library](../src/assets/character/README.md).
 
 ### Comic reactions
 
-`shared/domain/character-reaction.ts` owns event → emotion/tone/caption rules. `useCharacterStore.react` keeps the caption and emotion together without writing progress. Session-history length seeds variation across separate popup windows; a previous-caption guard prevents immediate repeats. Reaction counters are UI-only and are not persisted.
+`shared/domain/character-reaction.ts` owns event → emotion/tone/caption/silhouette/decor rules. Variants are deterministic; UI reaction identities allow the same emotion to animate again. `useCharacterStore.react` keeps the caption and emotion together without writing progress. Session-history length seeds variation across separate popup windows; a previous-caption guard prevents immediate repeats. Reaction counters are UI-only and are not persisted.
 
-`ComicBubble.vue` renders text safely as text, with a heading variant for the hero and a compact variant for the popup. CSS paper, ink and milestone tokens support all themes. Cheer/milestone captions pop briefly; calm invitations, pause and skips do not. Global reduced-motion rules suppress those animations.
+`ComicBubble.vue` renders text safely as text, with a heading variant for the hero and a compact variant for the popup. Speech clouds, SVG bursts, achievement ribbons and soft clouds share CSS paper, ink and milestone tokens across all themes. Cheer/milestone captions pop briefly; calm invitations, pause and skips do not. Global reduced-motion rules suppress those animations.
 
 The dashboard restores the current body (including temporary neglect) after a reaction and keeps skip/snooze captions calm. The popup changes ready → focused on explicit start, then chooses first-done/done/stage-up only after durable acknowledgement. No caption is treated as proof of physical activity. Geometry reserves a 40 px dialogue row: 260 px base, 290 px collapsed details, 380 px expanded, plus 36 px for errors (max 420).
 
@@ -339,11 +343,11 @@ CONCEPT §13 micro-animations. Each surface owns its own effect:
 | Surface | Motion |
 |---------|--------|
 | Tray | `electron/main/tray-icons.ts` maps every `TrayState` to frames + interval; `tray.ts` swaps them on a timer. `success` plays once (jump + flash), `soon` / `standup` / `streak` loop |
-| Popup | `.popup-in` entrance, `.timer-urgent` pulse in the last 10 s, then on `done`: flash + happy crossfade + `.popup-out-done`; skip / snooze use `.popup-out-quiet`. The window stays open for `POPUP_EXIT_MS` while the exit runs |
+| Popup | `.popup-in` entrance, `.timer-urgent` pulse in the last 10 s, then on `done`: flash + happy crossfade + `.popup-out-done`; skip / snooze use `.popup-out-quiet`. Reading time and the 180 ms exit are separate; `shared/domain/reaction-timing.ts` owns the durations |
 | Character | `CharacterPortrait` crossfades sprite frames (`<Transition name="frame-fade">`), bounces on happy/surprised reactions, and fades in on the dashboard |
-| Dashboard | Large reaction portrait with contextual comic speech, then restoration of the stage body; reduced-motion switch on «Настройки» |
+| Dashboard | Large reaction portrait, then restoration of the stage body; selection feedback and brief panel entrances; a one-second environmental accent every ten seconds while idle |
 
-Reduced motion: `src/motion.ts` combines `settings.reduceMotion` with the OS `prefers-reduced-motion`. `App.vue` mirrors it into `data-reduce-motion` on `<html>`; `src/styles/index.css` then collapses animation/transition durations. Timed effects check the preference in code — the tray uses the app setting only, because the main process cannot read the media query.
+Reduced motion: `src/motion.ts` combines `settings.reduceMotion` with the OS `prefers-reduced-motion`. `App.vue` mirrors it into `data-reduce-motion` on `<html>` and tracks window visibility; idle accents stop in hidden windows and during reactions; `src/styles/index.css` then collapses animation/transition durations. Timed effects check the preference in code — the tray uses the app setting only, because the main process cannot read the media query.
 
 Tray frames are generated by `scripts/build-tray-icons.py` (a placeholder stretching-figure glyph); see [DEVELOPMENT.md](DEVELOPMENT.md). The `streak` frame set exists, but no event sets the `streak` tray state yet — it waits for streak milestones.
 
@@ -396,7 +400,7 @@ Preload: `electron/preload/index.ts`.
 | Trigger loop (interval, idle, snooze, missed, pause) | Yes — [ROADMAP.md](ROADMAP.md) #2 |
 | Popup shows the triggered exercise (pulled from main) | Yes |
 | Popup severity (timer gate, hold to confirm) | Yes — [ROADMAP.md](ROADMAP.md) #5 |
-| Dashboard: character hero + day counts + next form; all switches on «Настройки» | Yes |
+| Dashboard: character hero + day counts + next form; grouped settings, separate character profile and progress sections | Yes |
 | Core preferences (interval, picker mode, Focus, build) + «Настройки» tab | Yes — dashboard tab and tray deep link |
 | Optional session details (reps / feeling / weight) | Yes — popup block + dashboard switch; ROADMAP #8 (partial) |
 | Weight history (sparkline, manual entries, goal) | Yes — dashboard card; sessions backfilled once; ROADMAP #8 (partial) |

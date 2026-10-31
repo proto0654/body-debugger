@@ -10,16 +10,16 @@ import {
 } from '@shared/domain/sounds'
 
 describe('sound settings', () => {
-  it('starts muted, with the default pack and an audible volume', () => {
-    expect(DEFAULT_SOUND_SETTINGS.enabled).toBe(false)
+  it('starts enabled for new profiles, with the default pack and an audible volume', () => {
+    expect(DEFAULT_SOUND_SETTINGS.enabled).toBe(true)
     expect(DEFAULT_SOUND_SETTINGS.packId).toBe('default')
     expect(DEFAULT_SOUND_SETTINGS.volume).toBeGreaterThan(0)
     expect(DEFAULT_SOUND_SETTINGS.volume).toBeLessThanOrEqual(1)
   })
 
   it('fills a settings file written before the sound layer existed', () => {
-    expect(normalizeSoundSettings(undefined)).toEqual(DEFAULT_SOUND_SETTINGS)
-    expect(normalizeSoundSettings({})).toEqual(DEFAULT_SOUND_SETTINGS)
+    expect(normalizeSoundSettings(undefined)).toEqual({ ...DEFAULT_SOUND_SETTINGS, enabled: false })
+    expect(normalizeSoundSettings({})).toEqual({ ...DEFAULT_SOUND_SETTINGS, enabled: false })
   })
 
   it('keeps the stored switch, pack and volume', () => {

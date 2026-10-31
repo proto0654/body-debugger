@@ -32,12 +32,15 @@ Project docs and this file override global agent rules when they conflict.
 | Weight history (rules, store, card) | `shared/domain/weight.ts`, `src/stores/weight.ts`, `src/components/weight/` |
 | Streak (day-based) | `shared/domain/streak.ts` |
 | Sounds (rules, player, pack) | `shared/domain/sounds.ts`, `src/sounds.ts`, `src/assets/sounds/default/` |
+| Voice production catalog + manual batch cutter | `src/assets/sounds/production.json`, `scripts/cut-audio-batch.py` |
+| Per-clip audio API generator + take log | `scripts/generate-audio-api.mjs`, `src/assets/sounds/api-report.json` |
 | Progress photos (rules, main store, protocol, UI) | `shared/domain/photos.ts`, `electron/main/photos.ts`, `electron/main/photo-protocol.ts`, `src/components/photos/` |
 | AI proposals (parsing, approval, store, UI) | `shared/domain/ai-proposal.ts`, `electron/main/custom-exercises.ts`, `src/components/ai/` |
 | Themes / equipment | `shared/constants/themes.ts`, `shared/constants/equipment.ts`, `src/styles/index.css` |
 | Core preferences (interval, picker mode, Focus, identity/build) | `shared/domain/preferences.ts`, `shared/constants/focus.ts`, `src/components/settings/` |
 | Dashboard calendar + stats | `shared/domain/stats.ts`, `src/components/stats/` |
 | Native laboratory (dev-only, isolated profile) | `src/debug/`, `shared/domain/laboratory.ts`, `electron/main/laboratory.ts` |
+| Manual visual preview | `src/debug/AppearancePanel.vue`, `src/views/LaboratoryPreviewView.vue`, `shared/domain/laboratory-preview.ts` |
 | Native replay phases / semantic driver | `electron/main/laboratory-playback.ts`, `shared/domain/laboratory-playback.ts` |
 | Application clock / laboratory time | `shared/domain/clock.ts`, `src/stores/runtime.ts` |
 | Preload bridge | `electron/preload/` |
@@ -47,11 +50,12 @@ Project docs and this file override global agent rules when they conflict.
 | Exercise catalog + domain rules (picker, character, session extras, weight) | `shared/constants/exercises.ts`, `shared/domain/` |
 | Character assets (source sheets + cut frames) | `src/assets/character/desk-hulk/` |
 | Additional character art (nine packs, three builds) | [Art library](src/assets/character/README.md), `src/assets/character/packs.json` |
+| Character profile / evolution | `src/components/character/CharacterSettingsPanel.vue`, `src/components/character/CharacterJourney.vue` |
 | Character identity catalog / picker | `shared/constants/character-packs.ts`, `src/components/character/CharacterPicker.vue` |
 | Temporary character condition (neglect / recovery) | `shared/domain/character-condition.ts` |
 | Character frame rules / resolver | `shared/domain/character-visual.ts`, `src/components/character/frames.ts` |
 | Sprite cutting script | `scripts/cut-character-sprites.py` |
-| Motion preference / exit timings | `src/motion.ts` |
+| Motion preference / feedback timings | `src/motion.ts`, `shared/domain/reaction-timing.ts` |
 | Keyframes + reduced-motion CSS | `src/styles/index.css` |
 | Tray frames + animation specs | `electron/resources/tray/`, `electron/main/tray-icons.ts` |
 | Tray icon script | `scripts/build-tray-icons.py` |
@@ -68,6 +72,8 @@ npm run build
 npm run typecheck    # main + renderer + tests
 npm test             # Vitest suite
 ```
+
+Audio production: `node scripts/generate-audio-api.mjs --character <id> --dry-run` lists the next clips without spending credits; see [docs/AUDIO-PRODUCTION.md](docs/AUDIO-PRODUCTION.md).
 
 Caches and Electron binary stay on **E:** — see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Do not download Electron into `%LOCALAPPDATA%` on the system drive.
 

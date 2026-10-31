@@ -7,11 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LabCommand } from '@shared/domain/laboratory'
 import { LAB_SCENARIOS, labSummary } from '@shared/domain/laboratory'
 import type { LabDriverCommand } from '@shared/domain/laboratory-playback'
+import { makeExercise } from '../fixtures'
+import type { LabVisualPreview } from '@shared/domain/laboratory-preview'
 
 const mocks = vi.hoisted(() => ({
   dir: '', enabled: true, packaged: false, popup: false, closed: null as (() => void) | null,
   broadcast: vi.fn(), trayState: 'idle',
-  dialogOpen: vi.fn(), dialogSave: vi.fn(), spawn: vi.fn(), driver: vi.fn()
+  dialogOpen: vi.fn(), dialogSave: vi.fn(), spawn: vi.fn(), driver: vi.fn(), previewOpen: vi.fn(), previewClose: vi.fn()
 }))
 vi.mock('electron', () => ({
   app: { get isPackaged() { return mocks.packaged }, getPath: () => mocks.dir, getAppPath: () => mocks.dir },
@@ -24,6 +26,7 @@ vi.mock('../../electron/main/broadcast', () => ({
   broadcastToWindows: mocks.broadcast, notifyDataUpdated: mocks.broadcast
 }))
 vi.mock('../../electron/main/windows/laboratory', () => ({ openLaboratoryWindow: vi.fn() }))
+vi.mock('../../electron/main/windows/laboratory-preview', () => ({ openLabPreviewWindow: mocks.previewOpen, closeLabPreviewWindow: mocks.previewClose }))
 vi.mock('../../electron/main/windows/popup', () => ({
   getPopupWindow: () => mocks.popup ? { focus: vi.fn(), webContents: { send: mocks.driver } } : null,
   createPopupWindow: () => { mocks.popup = true; return { once: (_event: string, handler: () => void) => { mocks.closed = handler } } },
@@ -48,6 +51,7 @@ beforeEach(async () => {
   mocks.dir = mkdtempSync(join(tmpdir(), 'body-debugger-lab-'))
   mocks.enabled = true; mocks.packaged = false; mocks.popup = false; mocks.closed = null; mocks.trayState = 'idle'
   mocks.spawn.mockReset()
+  mocks.previewOpen.mockReset(); mocks.previewClose.mockReset()
   mocks.driver.mockReset()
   mocks.dialogOpen.mockReset(); mocks.dialogSave.mockReset(); mocks.broadcast.mockClear()
   controller = await import('../../electron/main/laboratory')
@@ -64,6 +68,98 @@ afterEach(() => {
 })
 
 describe('main-owned laboratory', () => {
+  it('opens and updates visual preview without changing history, preferences, playback or the real popup', async () => {
+    const preview: LabVisualPreview = { packId: 'engineer', stage: 5, branch: 'power', build: 'stocky',
+      condition: 3, emotion: 'happy', popup: 'done', sequence: 1 }
+    const before = store.getSnapshot()
+    const playback = controller.getLabState().playback
+    await command({ action: 'visual-preview', preview, open: true })
+    expect(mocks.previewOpen).toHaveBeenCalledOnce()
+    expect(controller.getLabState().visualPreview).toEqual(preview)
+    await command({ action: 'visual-preview', preview: { ...preview, popup: 'error', sequence: 2 } })
+    expect(mocks.previewOpen).toHaveBeenCalledOnce()
+    expect(controller.getLabState().visualPreview?.popup).toBe('error')
+    expect(store.getSnapshot()).toEqual(before)
+    expect(controller.getLabState().playback).toEqual(playback)
+    expect(loop.getActivePopup()).toBeNull()
+    await command({ action: 'close-preview' })
+    expect(controller.getLabState().visualPreview).toBeNull()
+    expect(mocks.previewClose).toHaveBeenCalledOnce()
+    mocks.enabled = false
+    await expect(command({ action: 'visual-preview', preview, open: true })).rejects.toThrow('isolated')
+  })
+
+  it('rejects malformed preview data before creating a native window', async () => {
+    await expect(command({ action: 'visual-preview', preview: { stage: 9 } as unknown as LabVisualPreview, open: true }))
+      .rejects.toThrow('Invalid visual preview')
+    expect(mocks.previewOpen).not.toHaveBeenCalled()
+    expect(controller.getLabState().visualPreview).toBeNull()
+  })
+  it('rolls back visual state if the native preview window cannot open', async () => {
+    mocks.previewOpen.mockImplementationOnce(() => { throw new Error('window failed') })
+    await expect(command({ action: 'visual-preview', open: true, preview: { packId: 'engineer', stage: 0, build: 'average',
+      branch: 'neutral', condition: 0, emotion: 'neutral', popup: 'ready', sequence: 0 } })).rejects.toThrow('window failed')
+    expect(controller.getLabState().visualPreview).toBeNull()
+    expect(loop.getActivePopup()).toBeNull()
+  })
+  it('saves and restores a branch using an approved exercise without trusting unknown imported IDs', async () => {
+    const custom = await import('../../electron/main/custom-exercises')
+    expect(custom.addCustomExercise(makeExercise({ id: 'approved-lab-exercise' }))).not.toBeNull()
+    await command({ action: 'scenario', id: 'growth' })
+    await command({ action: 'popup', preset: 'normal', exerciseId: 'approved-lab-exercise' })
+    const active = loop.getActivePopup()!
+    loop.handleSessionResult({ sessionId: active.sessionId, exerciseId: active.exercise.id, status: 'skipped' })
+    mocks.popup = false
+    await command({ action: 'save' })
+    await command({ action: 'reset-history' })
+    await command({ action: 'restore' })
+    expect(store.getSnapshot().sessions.at(-1)?.exerciseId).toBe('approved-lab-exercise')
+    custom.removeCustomExercise('approved-lab-exercise')
+    await expect(command({ action: 'restore' })).rejects.toThrow('Invalid laboratory session')
+  })
+  it('opens a chosen catalog exercise without changing current normal-popup preferences', async () => {
+    store.updateSettings({ ...store.getSnapshot().settings, severity: 'hardcore', sessionExtras: { enabled: true } })
+    const before = store.getSnapshot().settings
+    await command({ action: 'popup', preset: 'normal', exerciseId: 'neck-tilts' })
+    expect(loop.getActivePopup()?.exercise.id).toBe('neck-tilts')
+    expect(store.getSnapshot().settings).toEqual(before)
+  })
+
+  it('rejects an unknown exercise before changing history or preferences', async () => {
+    const before = store.getSnapshot()
+    await expect(command({ action: 'popup', preset: 'stage-up', exerciseId: '../missing' })).rejects.toThrow('Unknown laboratory exercise')
+    expect(store.getSnapshot()).toEqual(before)
+    expect(loop.getActivePopup()).toBeNull()
+  })
+
+  it('restores scenario preferences without moving the cursor or rewriting its history', async () => {
+    const initial = await command({ action: 'scenario', id: 'growth' })
+    const originalSettings = structuredClone(initial.plan!.settings)
+    await command({ action: 'seek', cursor: 5 })
+    const history = store.getSnapshot().sessions
+    store.updateSettings({ ...store.getSnapshot().settings, characterPackId: 'engineer', severity: 'soft' })
+    store.updateProgress({ ...store.getSnapshot().progress, characterBuild: 'stocky' })
+    controller.rememberLabPreferences()
+    await command({ action: 'seek', cursor: 5 })
+    expect(store.getSnapshot().settings.characterPackId).toBe('engineer')
+    await command({ action: 'restore-preferences' })
+    expect(controller.getLabState().cursor).toBe(5)
+    expect(store.getSnapshot().sessions).toEqual(history)
+    expect(store.getSnapshot().settings).toEqual(originalSettings)
+    expect(store.getSnapshot().progress.characterBuild).toBe('average')
+  })
+
+  it('resets history while keeping profile preferences and weight entries', async () => {
+    await command({ action: 'scenario', id: 'growth' })
+    await command({ action: 'seek', cursor: 5 })
+    store.updateSettings({ ...store.getSnapshot().settings, characterPackId: 'engineer', sound: { enabled: false, volume: 0.2, packId: 'default' } })
+    store.updateProgress({ ...store.getSnapshot().progress, characterBuild: 'stocky' })
+    store.addWeightEntry({ weightKg: 75 })
+    const before = store.getSnapshot()
+    await command({ action: 'reset-history' })
+    expect(store.getSnapshot()).toMatchObject({ sessions: [], settings: before.settings, weights: before.weights,
+      progress: { characterStage: 0, characterBuild: 'stocky', streak: { current: 0, max: 0 } } })
+  })
   it('launches a separate profile and removes Node-mode environment instead of setting it to an empty value', async () => {
     mocks.enabled = false
     vi.stubEnv('ELECTRON_RUN_AS_NODE', '1')

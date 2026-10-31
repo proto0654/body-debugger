@@ -9,7 +9,7 @@ Slim TOC. Agents start from [CONTEXT.md](CONTEXT.md).
 | Explorable architecture snapshot (2026-10-30) | [Diagram](../.archify/architecture-app-20261030-020407/body-debugger-architecture.html) |
 | Run / cache / Electron on E: | [DEVELOPMENT.md](DEVELOPMENT.md) |
 | Optional sounds (packs, cues, mute rules) | [SOUNDS.md](SOUNDS.md) |
-| Manual character voice and effect production package (not integrated) | [AUDIO-PRODUCTION.md](AUDIO-PRODUCTION.md) |
+| Character voice and effect production (manual batch + API per clip; not integrated) | [AUDIO-PRODUCTION.md](AUDIO-PRODUCTION.md) |
 | Unit tests + debug / scenario panel | [TESTING.md](TESTING.md) |
 | Character art sources, builds and sprite regeneration | [Character art library](../src/assets/character/README.md) |
 | Milestones after the skeleton | [ROADMAP.md](ROADMAP.md) |

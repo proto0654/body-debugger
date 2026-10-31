@@ -3,7 +3,7 @@ import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import PopupView from '@/views/PopupView.vue'
-import { POPUP_EXIT_MS } from '@/motion'
+import { REACTION_TIMING_MS } from '@shared/domain/reaction-timing'
 import {
   POPUP_EXTRAS_COLLAPSED_HEIGHT,
   POPUP_EXTRAS_HEIGHT
@@ -107,6 +107,49 @@ afterEach(() => {
 })
 
 describe('PopupView — done flow', () => {
+  it('allows early closing after a durable save and cancels automatic closing', async () => {
+    wrapper = await mountPopup()
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+    await wrapper.get('[data-testid="close-result"]').trigger('click')
+    await flushMicrotasks()
+    vi.advanceTimersByTime(10000)
+    await flushMicrotasks()
+    expect(api.closePopup).toHaveBeenCalledOnce()
+    expect(api.sessionResult).toHaveBeenCalledOnce()
+  })
+
+  it('cancels the feedback timer when its window is unmounted', async () => {
+    wrapper = await mountPopup()
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+    wrapper.unmount(); wrapper = null
+    vi.advanceTimersByTime(10000)
+    await flushMicrotasks()
+    expect(api.closePopup).not.toHaveBeenCalled()
+  })
+
+  it('keeps a new form readable for 3500 ms before fading out', async () => {
+    wrapper = await mountPopup()
+    useSessionsStore().hydrate([
+      makeSession({ id: 'prior-1', exerciseId: 'neck-tilts' }),
+      makeSession({ id: 'prior-2', exerciseId: 'neck-tilts' })
+    ])
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+    vi.advanceTimersByTime(REACTION_TIMING_MS.milestone - 1)
+    await nextTick()
+    expect(wrapper.get('[role="status"]').text()).toContain('Новая форма')
+    expect(wrapper.classes()).not.toContain('popup-out-done')
+    expect(api.closePopup).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    await nextTick()
+    expect(wrapper.classes()).toContain('popup-out-done')
+    vi.advanceTimersByTime(REACTION_TIMING_MS.exit)
+    await flushMicrotasks()
+    expect(api.closePopup).toHaveBeenCalledOnce()
+  })
+
   it('pairs the ready and active captions with the matching portrait', async () => {
     wrapper = await mountPopup({ start: false })
     const readyCaption = wrapper.get('.popup-speech').text()
@@ -171,11 +214,14 @@ describe('PopupView — done flow', () => {
       expect.objectContaining({ sessionId: 'session-1', exerciseId: 'neck-circles', status: 'done' })
     )
     expect(useCharacterStore().emotion).toBe('happy')
+    expect(wrapper.classes()).not.toContain('popup-out-done')
+    vi.advanceTimersByTime(REACTION_TIMING_MS.done)
+    await nextTick()
     expect(wrapper.classes()).toContain('popup-out-done')
     expect(wrapper.find('.popup-flash').exists()).toBe(true)
     expect(api.closePopup).not.toHaveBeenCalled()
 
-    vi.advanceTimersByTime(POPUP_EXIT_MS.done)
+    vi.advanceTimersByTime(REACTION_TIMING_MS.exit)
     await flushMicrotasks()
     expect(api.closePopup).toHaveBeenCalledTimes(1)
   })
@@ -221,7 +267,8 @@ describe('PopupView — done flow', () => {
     expect(api.sessionResult).toHaveBeenCalledTimes(1)
     expect(api.closePopup).not.toHaveBeenCalled()
     expect(wrapper.get('[role="status"]').text()).toContain('Разминка в зачёт')
-    vi.advanceTimersByTime(POPUP_EXIT_MS.done)
+    vi.advanceTimersByTime(REACTION_TIMING_MS.done)
+    vi.advanceTimersByTime(1)
     await flushMicrotasks()
     expect(api.closePopup).toHaveBeenCalledTimes(1)
     expect(wrapper.classes()).not.toContain('popup-out-done')
@@ -261,7 +308,19 @@ describe('PopupView — severity gate', () => {
 })
 
 describe('PopupView — skip flow', () => {
-  it('records a skip, shows the tired face and fades out quietly', async () => {
+  it('keeps snooze readable for 1200 ms with reduced motion', async () => {
+    wrapper = await mountPopup({ reduceMotion: true })
+    await findButton(wrapper, 'Отложить').trigger('click')
+    await flushMicrotasks()
+    expect(wrapper.get('[role="status"]').text()).toContain('через пять минут')
+    vi.advanceTimersByTime(1199)
+    await flushMicrotasks()
+    expect(api.closePopup).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(2)
+    await flushMicrotasks()
+    expect(api.closePopup).toHaveBeenCalledOnce()
+  })
+  it('records a skip, keeps its calm reaction readable and fades out quietly', async () => {
     wrapper = await mountPopup()
     await findButton(wrapper, 'Пропустить').trigger('click')
     await flushMicrotasks()
@@ -270,10 +329,14 @@ describe('PopupView — skip flow', () => {
       expect.objectContaining({ status: 'skipped' })
     )
     expect(useCharacterStore().emotion).toBe('neutral')
+    expect(wrapper.classes()).not.toContain('popup-out-quiet')
+    expect(wrapper.get('[role="status"]').text()).toContain('Разминка пропущена')
+    vi.advanceTimersByTime(REACTION_TIMING_MS.quiet)
+    await nextTick()
     expect(wrapper.classes()).toContain('popup-out-quiet')
     expect(wrapper.find('.popup-flash').exists()).toBe(false)
 
-    vi.advanceTimersByTime(POPUP_EXIT_MS.quiet)
+    vi.advanceTimersByTime(REACTION_TIMING_MS.exit)
     await flushMicrotasks()
     expect(api.closePopup).toHaveBeenCalledTimes(1)
   })
@@ -394,6 +457,16 @@ describe('PopupView — isolated semantic driver', () => {
     } })
   })
   const action = (sequence: number, value: LabDriverCommand['action']) => dispatch({ generation: 9, sessionId: 'session-1', sequence, action: value })
+  it('acknowledges completed feedback before asking main to close the saved popup', async () => {
+    wrapper = await mountPopup({ laboratory: true })
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+    expect(acknowledge).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'feedback-complete' }))
+    await wrapper.get('[data-testid="close-result"]').trigger('click')
+    await flushMicrotasks()
+    expect(acknowledge).toHaveBeenCalledWith({ sessionId: 'session-1', kind: 'feedback-complete' })
+    expect(api.closePopup).toHaveBeenCalledOnce()
+  })
   it('waits for readiness, highlights the real control and rejects done before its severity gate', async () => {
     wrapper = await mountPopup({ start: false, severity: 'medium', laboratory: true })
     await flushMicrotasks()

@@ -29,6 +29,7 @@ const props = withDefaults(
     showLabel?: boolean
     /** `body` = full sprite for the dashboard, `face` = emotion bust for the popup */
     variant?: 'body' | 'face'
+    reactionId?: string | number
   }>(),
   {
     stage: 0,
@@ -78,8 +79,8 @@ const bouncing = ref(false)
 let bounceTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(
-  () => props.emotion,
-  (next) => {
+  () => [props.emotion, props.reactionId] as const,
+  ([next]) => {
     if (next !== 'happy' && next !== 'surprised') return
     bouncing.value = true
     if (bounceTimer) clearTimeout(bounceTimer)

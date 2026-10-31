@@ -11,13 +11,16 @@ import type { Session } from '../../shared/types/session'
 import { NativePlayback } from './laboratory-playback'
 import { labActions, type LabDriverAck } from '../../shared/domain/laboratory-playback'
 import { closePopupWindow, getPopupWindow } from './windows/popup'
-import { applyDebugState, getSnapshot } from './persistence'
+import { applyDebugState, getSnapshot, updateSettings, updateProgress } from './persistence'
+import { getAvailableCatalog } from './custom-exercises'
 import { defaultProgress, defaultSettings, normalizeProgress, normalizeSettings } from './persistence/defaults'
 import { readJsonEnvelope, writeJsonEnvelope } from './persistence/json-file'
 import { getDataDir } from './persistence/paths'
 import { broadcastToWindows, notifyDataUpdated } from './broadcast'
 import { isLabProcess, LAB_ARGUMENT } from './lab-environment'
 import { openLaboratoryWindow } from './windows/laboratory'
+import { closeLabPreviewWindow, openLabPreviewWindow } from './windows/laboratory-preview'
+import { validateLabVisualPreview, type LabVisualPreview } from '../../shared/domain/laboratory-preview'
 import { cancelLoopForLaboratory, configureLoopSimulation, getActivePopup, syncLoopFromSettings,
   tickTriggerLoop, triggerNow, triggerLaboratoryExercise } from './trigger-loop'
 
@@ -30,6 +33,7 @@ let interrupted = false
 let hasBranch = false
 let projectingResult = false
 let message = 'Выберите историю или создайте календарь'
+let visualPreview: LabVisualPreview | null = null
 
 const playback = new NativePlayback({
   plan: () => plan, cursor: () => cursor, now: nowMs, severity: () => getSnapshot().settings.severity,
@@ -104,7 +108,8 @@ export async function launchLaboratory(): Promise<void> {
 
 export function getLabState(): LabState {
   return { enabled: isLabProcess(), plan, cursor, playing: playback.playing, detached, interrupted, message,
-    now: nowDate().toISOString(), activePopup: getActivePopup() !== null, playback: { ...playback.state }, hasOriginal: !!originalPlan && hasBranch }
+    now: nowDate().toISOString(), activePopup: getActivePopup() !== null, playback: { ...playback.state }, hasOriginal: !!originalPlan && hasBranch,
+    visualPreview: visualPreview ? { ...visualPreview } : null }
 }
 
 function publish(): LabState {
@@ -133,14 +138,16 @@ function seek(next: number, silent = true): void {
   message = plan.events[cursor]!.label
 }
 
+function knownExerciseIds(): string[] { return getAvailableCatalog().map(exercise => exercise.id) }
+
 function load(next: LabPlan): void {
   pause()
-  plan = upgradeLabPlan(next)
-  originalPlan = structuredClone(plan)
+  plan = upgradeLabPlan(next, knownExerciseIds())
   hasBranch = false
   // Imports cross the same normalization boundary as regular persisted settings.
   plan.settings = normalizeSettings(plan.settings)
   plan.progress = normalizeProgress(plan.progress)
+  originalPlan = structuredClone(plan)
   seek(0)
   if (plan.convertedFrom) message = 'Формат 1: действия выведены из исходов, а не записаны. Просмотр дат сохраняет исходную историю.'
 }
@@ -209,9 +216,11 @@ function dateCursor(date: string): number {
   return result
 }
 
-function openPopup(preset: Extract<LabCommand, { action: 'popup' }>['preset']): void {
-  pause()
+function openPopup(preset: Extract<LabCommand, { action: 'popup' }>['preset'], exerciseId?: string): void {
   if (!['normal', 'stage-up', 'soft', 'medium', 'hardcore', 'details'].includes(preset)) throw new Error('Invalid popup preset')
+  if (exerciseId !== undefined && (typeof exerciseId !== 'string' || !getAvailableCatalog().some(exercise => exercise.id === exerciseId))) throw new Error('Unknown laboratory exercise')
+  if (getPopupWindow()) throw new Error('Close the current popup first')
+  pause()
   cancelLoopForLaboratory()
   if (preset === 'stage-up') {
     const next = buildLabScenario('growth', nowDate(), getSnapshot().settings, getSnapshot().progress)
@@ -221,16 +230,19 @@ function openPopup(preset: Extract<LabCommand, { action: 'popup' }>['preset']): 
     seek(Math.max(0, (stageUp ?? 1) - 1))
   }
   const snapshot = getSnapshot()
-  const settings = { ...snapshot.settings, severity: preset === 'soft' || preset === 'hardcore' ? preset : 'medium',
-    sessionExtras: { enabled: preset === 'details' } } as typeof snapshot.settings
+  const settings = { ...snapshot.settings,
+    ...(['soft', 'medium', 'hardcore'].includes(preset) ? { severity: preset as 'soft' | 'medium' | 'hardcore' } : {}),
+    ...(preset === 'details' ? { sessionExtras: { enabled: true } } : {}) }
   applyDebugState({ sessions: snapshot.sessions, settings, progress: snapshot.progress })
+  rememberLabPreferences()
   const at = nowDate().toISOString()
   setLaboratoryClock({ at, running: true, silent: false })
   configureLoopSimulation({ hold: false, idleSeconds: 0 })
   detached = true
   notifyDataUpdated()
   syncLoopFromSettings()
-  triggerNow('manual')
+  if (exerciseId) triggerLaboratoryExercise(exerciseId)
+  else triggerNow('manual')
   message = 'Настоящее окно Electron. Начните упражнение и проверьте результат вручную.'
 }
 
@@ -240,6 +252,18 @@ export async function executeLabCommand(command: LabCommand): Promise<LabState> 
   if (!isLabProcess()) throw new Error('Open the isolated laboratory first')
   if (!command || typeof command.action !== 'string') throw new Error('Invalid laboratory command')
   switch (command.action) {
+    case 'visual-preview': {
+      const next = validateLabVisualPreview(command.preview)
+      if (command.open !== undefined && typeof command.open !== 'boolean') throw new Error('Invalid visual preview')
+      if (command.open || visualPreview) {
+        const previous = visualPreview
+        visualPreview = next
+        try { if (command.open) openLabPreviewWindow(() => { visualPreview = null; publish() }) }
+        catch (cause) { visualPreview = previous; throw cause }
+      }
+      break
+    }
+    case 'close-preview': closeLabPreviewWindow(); visualPreview = null; break
     case 'scenario': load(buildLabScenario(command.id, new Date(), getSnapshot().settings, getSnapshot().progress)); break
     case 'generate': load(buildRandomCalendar(command.options, getSnapshot().settings, getSnapshot().progress)); break
     case 'seek': pause(); seek(command.cursor); break
@@ -273,15 +297,28 @@ export async function executeLabCommand(command: LabCommand): Promise<LabState> 
     case 'original': {
       if (!originalPlan) throw new Error('No original scenario')
       const preferences = getSnapshot()
+      const baseline = structuredClone(originalPlan)
       const selected = structuredClone(originalPlan)
       selected.settings = preferences.settings
       selected.progress.characterBuild = preferences.progress.characterBuild
       load(selected)
+      originalPlan = baseline
       message = 'Исходный сценарий восстановлен. Ручная ветка заменена только в текущем просмотре.'
       break
     }
     case 'pause': pause(); message = 'Воспроизведение остановлено'; break
-    case 'popup': openPopup(command.preset); break
+    case 'popup': openPopup(command.preset, command.exerciseId); break
+    case 'restore-preferences': {
+      if (!originalPlan) throw new Error('Choose a scenario first')
+      if (getPopupWindow()) throw new Error('Close the current popup first')
+      pause()
+      updateSettings(originalPlan.settings)
+      updateProgress({ ...getSnapshot().progress, characterBuild: originalPlan.progress.characterBuild })
+      rememberLabPreferences()
+      syncLoopFromSettings(); notifyDataUpdated()
+      message = 'Параметры исходного сценария восстановлены. История и позиция сохранены.'
+      break
+    }
     case 'advance': {
       pause()
       if (!Number.isFinite(command.seconds) || command.seconds < 0 || command.seconds > 86400) throw new Error('Invalid time jump')
@@ -305,29 +342,34 @@ export async function executeLabCommand(command: LabCommand): Promise<LabState> 
       configureLoopSimulation({ failNextWrite: true })
       message = 'Следующая запись результата завершится ошибкой. Повтор должен сохранить её один раз.'
       break
-    case 'reset':
+    case 'reset-history':
+    case 'reset': {
+      const preferences = getSnapshot()
       pause()
       cancelLoopForLaboratory()
       configureLoopSimulation({ hold: true, idleSeconds: 0 })
       playback.cancel()
       plan = null; originalPlan = null; hasBranch = false; cursor = 0; detached = false; interrupted = false
       setLaboratoryClock({ at: new Date().toISOString(), running: false, silent: true })
-      applyDebugState({ sessions: [], settings: defaultSettings(), progress: defaultProgress() })
+      applyDebugState({ sessions: [], settings: command.action === 'reset-history' ? preferences.settings : defaultSettings(),
+        progress: { ...defaultProgress(), ...(command.action === 'reset-history' ? { characterBuild: preferences.progress.characterBuild } : {}) } })
       syncLoopFromSettings(); notifyDataUpdated()
-      message = 'Тестовая история и настройки сброшены. Сохранённый вариант доступен для восстановления.'
+      message = command.action === 'reset-history' ? 'История сброшена. Настройки, вес, фотографии и AI-упражнения сохранены.'
+        : 'История и настройки сброшены. Вес, фотографии, AI-упражнения и сохранённый вариант не удалены.'
       break
+    }
     case 'save':
       if (!plan) throw new Error('Choose a scenario first')
-      validateLabPlan(plan)
+      validateLabPlan(plan, knownExerciseIds())
       writeJsonEnvelope(savedPath(), { plan, cursor, originalPlan, hasBranch, mode: playback.state.mode })
       message = 'Вариант и позиция сохранены в тестовом профиле'
       break
     case 'restore': {
       const saved = readJsonEnvelope<{ plan: unknown; cursor: number; originalPlan?: unknown; hasBranch?: boolean; mode?: string }>(savedPath())
       if (!saved || !Number.isInteger(saved.cursor)) throw new Error('No saved laboratory run')
-      const restored = validateLabPlan(saved.plan)
+      const restored = validateLabPlan(saved.plan, knownExerciseIds())
       if (saved.cursor < 0 || saved.cursor >= restored.events.length) throw new Error('Invalid saved position')
-      const original = saved.originalPlan ? upgradeLabPlan(saved.originalPlan) : null
+      const original = saved.originalPlan ? upgradeLabPlan(saved.originalPlan, knownExerciseIds()) : null
       load(restored); seek(saved.cursor)
       if (original) originalPlan = original
       hasBranch = saved.hasBranch === true
@@ -338,7 +380,7 @@ export async function executeLabCommand(command: LabCommand): Promise<LabState> 
     case 'export': {
       pause()
       if (!plan) throw new Error('Choose a scenario first')
-      validateLabPlan(plan)
+      validateLabPlan(plan, knownExerciseIds())
       const serialized = JSON.stringify({ plan, cursor, originalPlan, hasBranch, mode: playback.state.mode })
       if (Buffer.byteLength(serialized, 'utf8') > LAB_MAX_IMPORT_BYTES) throw new Error('Laboratory file is too large')
       const result = await dialog.showSaveDialog({ title: 'Сохранить сценарий лаборатории', defaultPath: 'body-debugger-scenario.json', filters: [{ name: 'JSON', extensions: ['json'] }] })
@@ -355,9 +397,9 @@ export async function executeLabCommand(command: LabCommand): Promise<LabState> 
       if (!result.canceled && path) {
         if (statSync(path).size > LAB_MAX_IMPORT_BYTES) throw new Error('Laboratory file is too large')
         const saved = JSON.parse(readFileSync(path, 'utf8')) as { plan: unknown; cursor: number; originalPlan?: unknown; hasBranch?: boolean; mode?: string }
-        const imported = validateLabPlan(saved.plan)
+        const imported = validateLabPlan(saved.plan, knownExerciseIds())
         if (!Number.isInteger(saved.cursor) || saved.cursor < 0 || saved.cursor >= imported.events.length) throw new Error('Invalid saved position')
-        const original = saved.originalPlan ? upgradeLabPlan(saved.originalPlan) : null
+        const original = saved.originalPlan ? upgradeLabPlan(saved.originalPlan, knownExerciseIds()) : null
         load(imported); seek(saved.cursor)
         if (original) originalPlan = original
         hasBranch = saved.hasBranch === true

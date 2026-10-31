@@ -8,6 +8,12 @@ import {
 import type { AppSettings } from '@shared/types/settings'
 
 describe('settings defaults', () => {
+  it('enables new profiles while preserving a legacy mute and explicit sound preferences', () => {
+    expect(normalizeSettings(undefined).sound).toEqual({ enabled: true, volume: 0.4, packId: 'default' })
+    expect(normalizeSettings({}).sound.enabled).toBe(false)
+    expect(normalizeSettings({ sound: { enabled: false, volume: 0.2, packId: 'default' } }).sound)
+      .toEqual({ enabled: false, volume: 0.2, packId: 'default' })
+  })
   it('fills a setting added after the stored file was written', () => {
     const stored = { severity: 'soft', intervalMinutes: 25 } as Partial<AppSettings>
     const settings = normalizeSettings(stored)

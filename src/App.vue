@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { watchEffect } from 'vue'
+import { onBeforeUnmount, watchEffect } from 'vue'
 import { RouterView } from 'vue-router'
 import { useMotionPreference } from '@/motion'
 import { useSettingsStore } from '@/stores/settings'
 
 const settings = useSettingsStore()
 const { reduced } = useMotionPreference()
+function updateVisibility(): void {
+  document.documentElement.dataset.windowVisible = String(!document.hidden)
+}
+updateVisibility()
+document.addEventListener('visibilitychange', updateVisibility)
+onBeforeUnmount(() => document.removeEventListener('visibilitychange', updateVisibility))
 
 watchEffect(() => {
   document.documentElement.dataset.reduceMotion = String(reduced.value)

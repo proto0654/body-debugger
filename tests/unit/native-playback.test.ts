@@ -20,13 +20,33 @@ function setup() {
     clock: (value) => { at = value },
     open: event => { popup = true; return event.session!.id },
     active: () => popup, close: () => { popup = false }, timeout: vi.fn(),
-    send: value => sent.push(value), commit: vi.fn(), changed: vi.fn(), intervention: vi.fn()
+    send: value => sent.push(value), commit: vi.fn((index: number) => { cursor = index }), changed: vi.fn(), intervention: vi.fn()
   }
   const replay = new NativePlayback(port)
   return { replay, port, plan, sent, cursor: () => cursor }
 }
 
 describe('native semantic playback', () => {
+  it('never cuts feedback short and waits for the actual window to close after acknowledgement', () => {
+    const { replay, plan, port } = setup()
+    const close = vi.spyOn(port, 'close')
+    replay.play(500); vi.advanceTimersByTime(700)
+    const sessionId = replay.state.sessionId!
+    replay.resolved({ ...plan.events[2]!.session!, id: sessionId })
+    vi.advanceTimersByTime(3500)
+    expect(replay.state.phase).toBe('reaction')
+    expect(replay.state.sessionId).toBe(sessionId)
+    expect(close).not.toHaveBeenCalled()
+    replay.pause()
+    replay.acknowledge({ kind: 'feedback-complete', sessionId })
+    replay.step()
+    expect(replay.state.sessionId).toBe(sessionId)
+    port.close()
+    replay.play(500); vi.advanceTimersByTime(500)
+    expect(replay.state.sessionId).not.toBe(sessionId)
+    replay.cancel()
+  })
+
   it('waits for the actual popup, then visibly highlights and starts without writing history', () => {
     const { replay, sent, port } = setup()
     replay.play(500)

@@ -149,6 +149,7 @@ describe('settings store', () => {
 
   it('persists the sound layer switch, volume and pack', async () => {
     const settings = useSettingsStore()
+    settings.sound.enabled = false
 
     await settings.setSoundEnabled(true)
     await settings.setSoundVolume(0.35)

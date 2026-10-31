@@ -46,7 +46,7 @@ export interface LabDriverAck {
   sessionId: string
   generation?: number
   sequence?: number
-  kind: 'ready' | 'applied' | 'failed' | 'manual'
+  kind: 'ready' | 'applied' | 'failed' | 'manual' | 'feedback-complete'
 }
 
 /** Bounded rolling branch window and one condition transition per resolved session. */

@@ -128,7 +128,7 @@ The dev build is not a second production app: it uses a dev icon, a dev profile 
 ### Versioning
 
 - **Dev prerelease**: `npm version prerelease --preid dev` from the current version. If the current is `0.2.1`, this yields `0.2.2-dev.0`; repeating yields `0.2.2-dev.1`.
-- **Stable**: `npm version minor` (or `patch`) from the current line. The first stable release carrying this delivery work is `0.3.0` (published).
+- **Stable**: `npm version minor` (or `patch`) from the current line. `0.3.0` first shipped the delivery pipeline; `0.4.0` carries the Playground/lab release.
 - `npm version` creates a commit and a `v*` tag. Keep the working tree clean; the publish script refuses a dirty tree.
 
 ### Local publish
@@ -195,6 +195,6 @@ Verified this way before the prompt existed on `0.2.0 → 0.2.1`: detection, dow
 | 0 | Profile split, single instance, build stamp, log file, «О программе» | Done |
 | 1 | `electron-builder` config, NSIS installer, icon, installed-build smoke test | Done |
 | 2 | `electron-updater` + IPC + tray/dashboard update UI + install gating | Done |
-| 3 | Release workflow, release checklist, tester instructions | Done — local scripts, CI workflow, personal/parallel/test flows documented; CI activates when the source repo is on GitHub with `RELEASE_TOKEN` |
+| 3 | Release workflow, release checklist, tester instructions | Done — local scripts, CI workflow, personal/parallel/test flows documented; CI activates once `RELEASE_TOKEN` is configured on the public source repo |
 | 4 | Dev prerelease channel, update prompt with progress, autostart | Implemented and partly verified — packaged prod/dev identity, dev installer/uninstall, `dev.yml`, `channel: dev`, `body-debugger-dev-updater`, prompt download/restart and stable `0.3.0` install were verified locally; the autostart toggle remains in the manual checklist |
 | 5 | Heartbeat, `beta`/`stable` split, code signing | Later |

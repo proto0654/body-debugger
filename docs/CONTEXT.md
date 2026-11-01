@@ -21,6 +21,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 
 - Electron + Vue 3 + Vite (`electron-vite`) + TypeScript
 - Pinia, Vue Router (hash routes `#/popup`, `#/dashboard`, `#/lab-playground`, `#/laboratory-preview`)
+- Repositories: public source `proto0654/body-debugger`; public release feed `proto0654/body-debugger-releases`
 - Tailwind CSS v4 (`@tailwindcss/vite`)
 - Persistence: **JSON files** in `.userdata/data/` (main process SoT; Pinia hydrates via IPC)
 

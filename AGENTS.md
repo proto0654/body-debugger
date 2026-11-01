@@ -22,6 +22,11 @@ Project docs and this file override global agent rules when they conflict.
 3. [CONCEPT.md](CONCEPT.md) — product rules (cycle, character, picker)
 4. Optional layers: [docs/SOUNDS.md](docs/SOUNDS.md), [docs/TESTING.md](docs/TESTING.md)
 
+## Repository
+
+- Public source: https://github.com/proto0654/body-debugger
+- Public release feed: https://github.com/proto0654/body-debugger-releases
+
 ## Key paths
 
 | Area | Path |

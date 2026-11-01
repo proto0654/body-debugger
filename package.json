@@ -6,6 +6,10 @@
   "main": "./out/main/index.js",
   "author": "Body Debugger",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/proto0654/body-debugger.git"
+  },
   "scripts": {
     "dev": "node scripts/run-electron-vite.cjs",
     "build": "electron-vite build",

@@ -361,6 +361,22 @@ describe('trigger loop — session results', () => {
     )
     expect(mocks.setTrayState).toHaveBeenLastCalledWith('idle')
   })
+
+  it('marks chronicle preview popups so the renderer scopes voice rotation', async () => {
+    loop = await loadLoop()
+    loop.triggerNow('manual')
+    expect(loop.getActivePopup()?.preview).toBe(false)
+
+    const live = loop.getActivePopup()!
+    expect(loop.handleSessionResult({
+      sessionId: live.sessionId, exerciseId: live.exercise.id, status: 'skipped'
+    })).toEqual({ saved: true })
+    mocks.closePopupWindow()
+
+    loop.setSessionPreviewMode(true)
+    loop.triggerNow('manual')
+    expect(loop.getActivePopup()?.preview).toBe(true)
+  })
 })
 
 describe('trigger loop — schedule', () => {

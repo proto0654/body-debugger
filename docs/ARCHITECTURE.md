@@ -212,7 +212,7 @@ Main stores it on `done` and recomputes it when reading a snapshot; the historic
 | Settings | `sound { enabled, volume 0..1, packId, voiceEnabled }`, normalized on load; unknown pack → `default`; missing voice flag → on, explicit false stays off |
 | Gate | Master switch, audible volume, paused reminders and quiet/DND context suppress playback |
 | Cues | `popup`, `done`, `skip`, `snooze`, `stage-up`, `streak`, `alert`, `error` map to the generated `system/` effect takes, with `default/*.mp3` as fallback |
-| Voice | `VOICE_CUE_EVENTS` maps a cue to a spoken event plus direct `active` / `first-done` calls; variants rotate without immediate repeats (last take survives popup recreation) and the line replaces the signal, which stays as the fallback |
+| Voice | `VOICE_CUE_EVENTS` maps a cue to a spoken event plus direct `active` / `first-done` calls; variants rotate without immediate repeats (last take survives popup recreation; chronicle preview uses a separate namespace via `SessionPopupPayload.preview`) and the line replaces the signal, which stays as the fallback |
 | Popup | Line on mount (`ready`), `active` on timer start, result voice after the durable acknowledgement with the generated cue as fallback; a done session that raises the stage speaks `stage-up` instead of `done`; `error/01` only after a rejected save |
 | Failure | A rejected `audio.play()` is logged and swallowed; audio never breaks the core cycle |
 

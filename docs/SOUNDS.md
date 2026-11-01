@@ -85,7 +85,10 @@ The generated voice package plays through the same gate and the same player:
 - One principal voice clip per event. Variants of that event (lines and vocal reactions) rotate through
   `pickVoiceVariant`, which never repeats the previous take; the rotation state is per character and event
   and survives popup window recreation via shared last-variant memory (`localStorage` in `useSoundPlayer`).
-  Preview players omit that memory so laboratory/settings previews do not advance the live rotation.
+  Live reminders use the `live` namespace; chronicle preview reuses the same popup engine with
+  `SessionPopupPayload.preview` and a separate `preview` namespace so replay does not advance live takes.
+  Laboratory popups keep their own Chromium storage via the isolated lab profile. Cue-preview players omit
+  that memory so laboratory/settings buttons do not advance either namespace.
 - The line plays **instead of** the short signal of the same event: one sound per event, never both at once. If the voice is off,
   the character has no take, or playback is gated, the signal still plays, so the feedback never depends on the generated
   files.

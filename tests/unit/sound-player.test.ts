@@ -5,7 +5,12 @@ import {
   type SoundCue
 } from '@shared/domain/sounds'
 import type { SoundSettings } from '@shared/types/settings'
-import { createSoundPlayer, SOUND_CUE_URLS, type SoundAudio } from '@/sounds'
+import {
+  createSoundPlayer,
+  SOUND_CUE_URLS,
+  voiceLastStorageKey,
+  type SoundAudio
+} from '@/sounds'
 
 interface FakeAudio {
   src: string
@@ -254,6 +259,36 @@ describe('character voice playback', () => {
     expect(second.instance.playVoice('popup')).toBe(true)
     expect(first.factory.created[0].src).toBe('voice/desk-hulk__ready__01.mp3')
     expect(second.factory.created[0].src).toBe('voice/desk-hulk__ready__01.mp3')
+  })
+
+  it('keeps live and preview rotation namespaces from mixing', () => {
+    expect(voiceLastStorageKey('live')).toBe('body-debugger:voice-last')
+    expect(voiceLastStorageKey('preview')).toBe('body-debugger:voice-last:preview')
+
+    const live = memoryVoiceLast()
+    const preview = memoryVoiceLast()
+    const livePlayer = player(
+      { enabled: true, voiceEnabled: true },
+      {},
+      fakeFactory(),
+      { variants: { done: ['01', '02'] }, ...live }
+    )
+    const previewPlayer = player(
+      { enabled: true, voiceEnabled: true },
+      {},
+      fakeFactory(),
+      { variants: { done: ['01', '02'] }, ...preview }
+    )
+
+    expect(livePlayer.instance.playVoice('done')).toBe(true)
+    expect(previewPlayer.instance.playVoice('done')).toBe(true)
+    expect(livePlayer.factory.created[0].src).toBe('voice/desk-hulk__done__01.mp3')
+    expect(previewPlayer.factory.created[0].src).toBe('voice/desk-hulk__done__01.mp3')
+
+    expect(livePlayer.instance.playVoice('done')).toBe(true)
+    expect(livePlayer.factory.created[1].src).toBe('voice/desk-hulk__done__02.mp3')
+    expect(previewPlayer.instance.playVoice('done')).toBe(true)
+    expect(previewPlayer.factory.created[1].src).toBe('voice/desk-hulk__done__02.mp3')
   })
 
   it('honours an explicit variant for the save-failure error line', () => {

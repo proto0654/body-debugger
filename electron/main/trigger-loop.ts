@@ -192,7 +192,9 @@ export function getLoopState(): SessionLoopStatePayload {
 
 /** The popup currently asking for a result, if any. */
 export function getActivePopup(): SessionPopupPayload | null {
-  return awaiting ? { sessionId: awaiting.sessionId, exercise: awaiting.exercise } : null
+  return awaiting
+    ? { sessionId: awaiting.sessionId, exercise: awaiting.exercise, preview: previewMode }
+    : null
 }
 
 /**

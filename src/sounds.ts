@@ -74,12 +74,19 @@ export interface SoundPlayerDeps {
   writeLastVariant?: (key: string, variant: string) => void
 }
 
-/** Shared across renderer windows on the default Electron session partition. */
-const VOICE_LAST_STORAGE_KEY = 'body-debugger:voice-last'
+/**
+ * Live reminders and chronicle preview share the popup engine but keep separate
+ * durable rotation namespaces (docs/SOUNDS.md). Lab uses its own userData.
+ */
+export type VoiceRotationScope = 'live' | 'preview'
 
-function readStoredVoiceLast(key: string): string | null {
+export function voiceLastStorageKey(scope: VoiceRotationScope = 'live'): string {
+  return scope === 'preview' ? 'body-debugger:voice-last:preview' : 'body-debugger:voice-last'
+}
+
+function readStoredVoiceLast(scope: VoiceRotationScope, key: string): string | null {
   try {
-    const raw = localStorage.getItem(VOICE_LAST_STORAGE_KEY)
+    const raw = localStorage.getItem(voiceLastStorageKey(scope))
     if (!raw) return null
     const map = JSON.parse(raw) as unknown
     if (!map || typeof map !== 'object') return null
@@ -90,15 +97,16 @@ function readStoredVoiceLast(key: string): string | null {
   }
 }
 
-function writeStoredVoiceLast(key: string, variant: string): void {
+function writeStoredVoiceLast(scope: VoiceRotationScope, key: string, variant: string): void {
   try {
-    const raw = localStorage.getItem(VOICE_LAST_STORAGE_KEY)
+    const storageKey = voiceLastStorageKey(scope)
+    const raw = localStorage.getItem(storageKey)
     const parsed = raw ? JSON.parse(raw) as unknown : {}
     const map = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? { ...(parsed as Record<string, string>) }
       : {}
     map[key] = variant
-    localStorage.setItem(VOICE_LAST_STORAGE_KEY, JSON.stringify(map))
+    localStorage.setItem(storageKey, JSON.stringify(map))
   } catch {
     // Storage must never break the popup cycle.
   }
@@ -200,14 +208,14 @@ export function createSoundPlayer(deps: SoundPlayerDeps): SoundPlayer {
 }
 
 /** Renderer-side player bound to the settings store. */
-export function useSoundPlayer(): SoundPlayer {
+export function useSoundPlayer(scope: VoiceRotationScope = 'live'): SoundPlayer {
   const settings = useSettingsStore()
   return createSoundPlayer({
     createAudio: (src) => new Audio(src),
     getSettings: () => settings.sound,
     isPaused: () => settings.paused,
     getCharacterId: () => settings.characterPackId,
-    readLastVariant: readStoredVoiceLast,
-    writeLastVariant: writeStoredVoiceLast
+    readLastVariant: (key) => readStoredVoiceLast(scope, key),
+    writeLastVariant: (key, variant) => writeStoredVoiceLast(scope, key, variant)
   })
 }

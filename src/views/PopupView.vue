@@ -34,7 +34,7 @@ import { cueForSessionStatus, type SoundCue, type VoiceEvent } from '@shared/dom
 import { computeCharacterProgress } from '@shared/domain/character-progress'
 import { CHARACTER_STAGE_LABELS } from '@shared/constants/character'
 import { localDateKey } from '@shared/domain/stats'
-import { useSoundPlayer } from '@/sounds'
+import { useSoundPlayer, type SoundPlayer } from '@/sounds'
 import type { Feeling, SessionExtras, SessionStatus } from '@shared/types/session'
 import type { PhotoEntry } from '@shared/types/photo'
 
@@ -45,7 +45,8 @@ const settings = useSettingsStore()
 const photos = usePhotosStore()
 const runtime = useRuntimeStore()
 const { reduced } = useMotionPreference()
-const sounds = useSoundPlayer()
+/** Scope is finalized on mount from `getCurrentPopup().preview` (chronicle vs live). */
+let sounds: SoundPlayer = useSoundPlayer('live')
 
 // Entrance/exit animations translate and scale the shell; without this the
 // popup window flashes classic scrollbars for the duration of the animation.
@@ -307,10 +308,12 @@ function onHoldKeyDown(event: KeyboardEvent): void {
 
 onMounted(async () => {
   try {
-    if (!sessions.current) {
-      // Main owns the active session; never invent a session when it is missing.
-      const active = await window.api?.getCurrentPopup()
-      if (active) sessions.beginSession(active.exercise, active.sessionId)
+    // Main owns the active session; never invent a session when it is missing.
+    const active = await window.api?.getCurrentPopup?.()
+    if (active) {
+      // Chronicle preview reuses this engine but keeps voice rotation off the live profile.
+      sounds = useSoundPlayer(active.preview ? 'preview' : 'live')
+      if (!sessions.current) sessions.beginSession(active.exercise, active.sessionId)
     }
     durationMs.value = Math.max(0, (sessions.current?.durationSec ?? 0) * 1000)
     remainingMs.value = durationMs.value

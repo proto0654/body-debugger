@@ -44,7 +44,12 @@ const api = {
   resizePopup: vi.fn(async () => undefined),
   addPhoto: vi.fn(async () => photoEntry),
   removePhoto: vi.fn(async () => ({ removed: true, photos: [] })),
-  listPhotos: vi.fn(async () => [photoEntry])
+  listPhotos: vi.fn(async () => [photoEntry]),
+  getCurrentPopup: vi.fn(async () => ({
+    sessionId: 'session-1',
+    exercise: makeExercise({ id: 'neck-circles', durationSec: 30 }),
+    preview: false
+  }))
 }
 
 /** Resolves a chain of microtasks while fake timers are active. */
@@ -98,6 +103,12 @@ beforeEach(() => {
   api.addPhoto.mockClear()
   api.removePhoto.mockClear()
   api.listPhotos.mockClear()
+  api.getCurrentPopup.mockClear()
+  api.getCurrentPopup.mockResolvedValue({
+    sessionId: 'session-1',
+    exercise: makeExercise({ id: 'neck-circles', durationSec: 30 }),
+    preview: false
+  })
   soundPlayer.play.mockClear()
   soundPlayer.playVoice.mockClear()
   soundPlayer.playVoiceEvent.mockClear()

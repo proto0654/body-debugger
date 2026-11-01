@@ -80,6 +80,11 @@ export interface SessionTriggerPayload {
 export interface SessionPopupPayload {
   exercise: Exercise
   sessionId: string
+  /**
+   * Chronicle preview reuses the same popup engine without writing history.
+   * The renderer scopes durable voice rotation away from the live profile.
+   */
+  preview: boolean
 }
 
 /** Runtime reminder schedule — derived state, never persisted */

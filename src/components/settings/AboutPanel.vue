@@ -19,7 +19,7 @@ const updateStatusLabel = computed(() => {
     case 'disabled':
       return 'В сборке разработчика обновления отключены.'
     case 'idle':
-      return 'Проверка выполняется автоматически раз в 4 часа.'
+      return 'Проверка выполняется автоматически раз в час.'
     case 'checking':
       return 'Проверяем обновления…'
     case 'current':

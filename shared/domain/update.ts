@@ -25,7 +25,8 @@ export interface UpdateState {
 }
 
 export const UPDATE_FIRST_CHECK_DELAY_MS = 25_000
-export const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000
+/** Once an hour is enough for rare releases without hammering the GitHub feed. */
+export const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000
 
 /** The update prompt follows a live download only while one of these is active. */
 const UPDATE_PROMPT_STATUSES: readonly UpdateStatus[] = ['downloading', 'ready']

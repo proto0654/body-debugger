@@ -120,7 +120,7 @@ The updater lives in [electron/main/updater.ts](../electron/main/updater.ts); sc
 
 1. Install the latest stable installer from the release repository once (`Body-Debugger-Setup-<version>.exe`).
 2. Open **Настройки → Система**, enable **«Запускать при входе в Windows»**. The app now lives in the tray and starts hidden after login.
-3. When a new stable version is published, the background check finds it within the 4-hour interval, downloads it and shows the prompt with progress. Press **«Перезапустить и обновить»** — or choose **«Позже»** and quit normally, which installs it too.
+3. When a new stable version is published, the background check finds it within the hourly interval, downloads it and shows the prompt with progress. Press **«Перезапустить и обновить»** — or choose **«Позже»** and quit normally, which installs it too.
 4. If an exercise popup is open, the prompt waits; the update applies on the next quit at the latest.
 5. Roll back by installing the previous installer manually. The updater never downgrades on its own (`allowDowngrade=false`).
 

@@ -10,7 +10,7 @@ export const CHARACTER_STAGE_KEYS: Record<CharacterStage, string> = {
 }
 
 export const CHARACTER_STAGE_LABELS: Record<CharacterStage, string> = {
-  0: 'Скуф',
+  0: 'Овощ',
   1: 'Проснулся',
   2: 'Разминается',
   3: 'В тонусе',

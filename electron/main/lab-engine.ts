@@ -1,23 +1,31 @@
 import { app, ipcMain, type WebContents } from 'electron'
 import { spawn, type ChildProcess } from 'node:child_process'
-import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { LAB_ARGUMENT, LAB_HEADLESS_ARGUMENT } from './lab-environment'
 import { IpcChannels } from '../../shared/types/events'
-import { LAB_BRIDGE_METHODS, type LabBridgeMethod, type LabBridgeResponse, type LabChildMessage, type LabParentMessage } from '../../shared/types/lab-bridge'
+import {
+  LAB_BRIDGE_METHODS,
+  type LabBridgeMethod,
+  type LabBridgeResponse,
+  type LabChildMessage,
+  type LabParentMessage
+} from '../../shared/types/lab-bridge'
+import { beginPlayback, endPlayback, registerPlaybackStopper } from './playback-coordinator'
+import type { LabCommand, LabState } from '../../shared/domain/laboratory'
 
 /**
- * The playground hosts the full laboratory UI in a webview. The sandbox itself
- * stays a separate, headless Electron process: its profile, reminder loop and
- * real popup windows must not share the main process. This module is the only
- * bridge between the lab view and that engine.
+ * Dashboard hosts the laboratory UI natively. The sandbox stays a separate
+ * headless Electron process so its profile, reminder loop and popup windows
+ * never share the main process. This module bridges the host to that engine.
  */
 
 let engine: ChildProcess | null = null
 let ready: Promise<void> | null = null
-let labView: WebContents | null = null
+let labHost: WebContents | null = null
 let nextRequestId = 0
-const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>()
+const pending = new Map<
+  number,
+  { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }
+>()
 
 function clearPending(error: Error): void {
   for (const entry of Array.from(pending.values())) {
@@ -39,9 +47,19 @@ function settle(response: LabBridgeResponse): void {
 function onChildMessage(message: LabChildMessage): void {
   if (!message || typeof message !== 'object') return
   if (message.type === 'ready') return
-  if (message.type === 'response') { settle(message.response); return }
-  if (message.type === 'event' && labView && !labView.isDestroyed()) {
-    labView.send(message.channel, message.payload)
+  if (message.type === 'response') {
+    settle(message.response)
+    return
+  }
+  if (message.type === 'event') {
+    if (message.channel === IpcChannels.LabChanged) {
+      const state = message.payload as LabState
+      if (!state?.playing) endPlayback('laboratory')
+      // Only LabChanged reaches the dashboard host — never DataUpdated, so the
+      // real-profile Pinia cannot be overwritten by sandbox snapshots.
+      if (labHost && !labHost.isDestroyed()) labHost.send(message.channel, message.payload)
+      return
+    }
   }
 }
 
@@ -64,7 +82,10 @@ export function ensureLabEngine(): Promise<void> {
     const timeout = setTimeout(() => {
       if (settled) return
       settled = true
-      if (engine === child) { engine = null; ready = null }
+      if (engine === child) {
+        engine = null
+        ready = null
+      }
       child.kill()
       reject(new Error('Laboratory engine did not start'))
     }, 20_000)
@@ -75,7 +96,7 @@ export function ensureLabEngine(): Promise<void> {
       if (error) reject(error)
       else resolve()
     }
-    child.once('error', error => {
+    child.once('error', (error) => {
       engine = null
       ready = null
       finish(error)
@@ -88,7 +109,10 @@ export function ensureLabEngine(): Promise<void> {
       finish(error)
     })
     child.on('message', (message: LabChildMessage) => {
-      if (message?.type === 'ready') { finish(); return }
+      if (message?.type === 'ready') {
+        finish()
+        return
+      }
       onChildMessage(message)
     })
   })
@@ -118,15 +142,6 @@ export function requestLab(method: LabBridgeMethod, payload?: unknown): Promise<
   })
 }
 
-function expectedLabViewUrl(): string {
-  const base = process.env.ELECTRON_RENDERER_URL
-    ? process.env.ELECTRON_RENDERER_URL
-    : pathToFileURL(join(__dirname, '../renderer/index.html')).toString()
-  const url = new URL(base)
-  url.hash = '/lab-playground'
-  return url.toString()
-}
-
 export function stopLabEngine(): void {
   if (!engine) return
   const child = engine
@@ -136,24 +151,44 @@ export function stopLabEngine(): void {
   clearPending(new Error('Laboratory engine stopped'))
 }
 
+function pauseLabEngine(): void {
+  if (!engine) return
+  void requestLab(LAB_BRIDGE_METHODS.labCommand, { action: 'pause' }).catch(() => undefined)
+  endPlayback('laboratory')
+}
+
 export function registerLabEngineIpc(): void {
+  registerPlaybackStopper('laboratory', pauseLabEngine)
+
   ipcMain.on(IpcChannels.LabViewRegister, (event) => {
     const sender = event.sender
-    if (sender.getType() !== 'webview' || new URL(sender.getURL()).toString() !== expectedLabViewUrl()) return
-    labView = sender
+    // Native dashboard host (window) or legacy webview.
+    if (sender.getType() !== 'window' && sender.getType() !== 'webview') return
+    labHost = sender
     sender.once('destroyed', () => {
-      if (labView === sender) labView = null
-      // Leaving the Playground lab context pauses the sandbox run, matching the
-      // old window-close behaviour, but keeps the headless engine alive.
-      if (engine) void requestLab(LAB_BRIDGE_METHODS.labCommand, { action: 'pause' }).catch(() => undefined)
+      if (labHost === sender) labHost = null
+      pauseLabEngine()
     })
     void ensureLabEngine().catch((cause: unknown) => {
       console.error('[lab-engine] failed to start', cause)
     })
   })
 
-  ipcMain.handle(IpcChannels.LabBridgeRequest, (event, request: { method: LabBridgeMethod; payload?: unknown }) => {
-    if (event.sender !== labView) throw new Error('Laboratory bridge is available only to the playground lab view')
-    return requestLab(request.method, request.payload)
-  })
+  ipcMain.handle(
+    IpcChannels.LabBridgeRequest,
+    async (event, request: { method: LabBridgeMethod; payload?: unknown }) => {
+      if (event.sender !== labHost) {
+        throw new Error('Laboratory bridge is available only to the registered lab host')
+      }
+      if (request.method === LAB_BRIDGE_METHODS.labCommand) {
+        const command = request.payload as LabCommand
+        if (command?.action === 'play') beginPlayback('laboratory')
+        if (command?.action === 'pause' || command?.action === 'seek' || command?.action === 'reset'
+          || command?.action === 'reset-history' || command?.action === 'restart') {
+          endPlayback('laboratory')
+        }
+      }
+      return requestLab(request.method, request.payload)
+    }
+  )
 }

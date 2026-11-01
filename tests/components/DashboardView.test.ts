@@ -84,27 +84,26 @@ describe('DashboardView — optional layers', () => {
   it('keeps the primary sections and groups identity and build in the character section', async () => {
     wrapper = mountDashboard()
     expect(wrapper.get('nav[aria-label="Разделы приложения"]').findAll('button').map(button => button.text()))
-      .toEqual(['Сегодня', 'Персонаж', 'Плейграунд', 'Прогресс', 'Настройки'])
+      .toEqual(['Сегодня', 'Персонаж', 'Лаборатория', 'Прогресс', 'Настройки'])
     await wrapper.findAll('nav button').find(button => button.text() === 'Персонаж')!.trigger('click')
     expect(wrapper.findAll('[data-character-pack]')).toHaveLength(10)
     expect(wrapper.findAll('[data-build]')).toHaveLength(3)
     expect(wrapper.find('[data-testid="character-journey"] .journey-stages').exists()).toBe(true)
   })
 
-  it('opens the playground with the main-character context and manual controls', async () => {
-    wrapper = mountDashboard([makeSession({ exerciseId: 'neck-tilts' })])
-    await wrapper.findAll('nav button').find(button => button.text() === 'Плейграунд')!.trigger('click')
-    expect(wrapper.find('[data-testid="playground"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="manual-character-controls"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="chronicle"]').exists()).toBe(true)
-  })
-
-  it('shows the real-history chronicle inside the character section', async () => {
+  it('keeps manual controls with the chronicle inside the character section', async () => {
     wrapper = mountDashboard([makeSession({ exerciseId: 'neck-tilts' })])
     await wrapper.findAll('nav button').find(button => button.text() === 'Персонаж')!.trigger('click')
     await wrapper.findAll('button').find(button => button.text() === 'Хроника')!.trigger('click')
+    expect(wrapper.find('[data-testid="manual-character-controls"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="chronicle"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="chronicle-transport"]').exists()).toBe(true)
+  })
+
+  it('opens the laboratory host tab', async () => {
+    wrapper = mountDashboard()
+    await wrapper.findAll('nav button').find(button => button.text() === 'Лаборатория')!.trigger('click')
+    expect(wrapper.find('[data-testid="laboratory-host"]').exists()).toBe(true)
   })
 
   it.each(['calendar', 'stats'])('maps the old %s deep link into progress', tab => {

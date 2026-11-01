@@ -3,6 +3,8 @@ import { EXERCISE_CATALOG } from '../constants/exercises'
 import type { CharacterBranch, CharacterConditionLevel, CharacterStage } from '../types/character'
 import type { Exercise } from '../types/exercise'
 import type { Session } from '../types/session'
+import type { AppSettings } from '../types/settings'
+import type { UserProgress } from '../types/progress'
 import { advanceCharacterCondition, characterConditionLevel } from './character-condition'
 import { characterStageFor, computeCharacterProgress } from './character-progress'
 import {
@@ -10,6 +12,8 @@ import {
   summarizeSessions,
   type SessionSummary
 } from './character-summary'
+import { labActions } from './laboratory-playback'
+import type { LabPlan } from './laboratory'
 import { localDateKey } from './stats'
 
 /**
@@ -215,4 +219,29 @@ export function chronicleDateIndex(chronicle: Chronicle, date: string): number |
     result = index
   }
   return result
+}
+
+/** Feed the shared NativePlayback engine from real history without mutating it. */
+export function chronicleToLabPlan(
+  sessions: readonly Session[],
+  settings: AppSettings,
+  progress: UserProgress,
+  now: Date,
+  catalog?: readonly Exercise[]
+): LabPlan {
+  const chronicle = buildChronicle(sessions, { now, catalog })
+  return {
+    version: 2,
+    id: 'chronicle-history',
+    title: 'Хроника',
+    settings,
+    progress,
+    events: chronicle.entries.map((entry) => ({
+      at: entry.at,
+      label: entry.label,
+      ...(entry.session
+        ? { session: { ...entry.session }, actions: labActions(entry.session) }
+        : {})
+    }))
+  }
 }

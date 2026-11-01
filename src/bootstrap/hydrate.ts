@@ -7,6 +7,7 @@ import { useWeightStore } from '@/stores/weight'
 import { useReminderStore } from '@/stores/reminder'
 import { usePhotosStore } from '@/stores/photos'
 import { useCustomExercisesStore } from '@/stores/custom-exercises'
+import { rendererApi } from '@/renderer-api'
 
 export function applySnapshot(snapshot: DataSnapshot): void {
   useRuntimeStore().apply(snapshot.laboratory)
@@ -18,7 +19,7 @@ export function applySnapshot(snapshot: DataSnapshot): void {
 
 /** Load main-owned state into Pinia and subscribe to loop / data updates. */
 export async function hydrateFromMain(): Promise<() => void> {
-  const api = window.api
+  const api = rendererApi()
   if (!api?.getSnapshot) {
     return () => undefined
   }

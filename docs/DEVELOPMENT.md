@@ -3,19 +3,18 @@
 ## Commands
 
 ```bash
-npm run dev          # tray + dashboard (electron-vite); Playground → Лаборатория starts the sandbox
-npm run build
-npm run build:dir    # unpacked Windows package in dist/win-unpacked (no installer)
-npm run build:win    # NSIS installer + latest.yml in dist/
-npm run build:dev    # dev NSIS installer in dist-dev/; dev.yml when the version is -dev.N
-npm run build:dev:dir # unpacked dev app in dist-dev/win-unpacked
-npm run publish:prod # build + publish stable to the release repo (GH_TOKEN)
-npm run publish:dev  # build + publish dev prerelease to the release repo (GH_TOKEN)
-npm run preview
+npm run dev          # primary: HMR tray + dashboard; Лаборатория starts the sandbox
+npm run build:dir    # optional packaged prod smoke in dist/win-unpacked
+npm run build:win    # local NSIS + latest.yml in dist/ (no upload)
+npm run publish:prod # ship stable to the release repo (GH_TOKEN) — client updates from here
 npm run typecheck    # main + preload + shared (tsc), renderer and tests (vue-tsc)
 npm test             # Vitest suite (see TESTING.md)
 npm run test:watch
+# Legacy until ROADMAP #18 (avoid for normal work):
+# npm run build:dev / build:dev:dir / publish:dev
 ```
+
+**Mental model:** develop with `npm run dev`; ship and update only through the stable GitHub prod installer. See [DELIVERY.md](DELIVERY.md).
 
 ## First run
 
@@ -70,7 +69,7 @@ Do **not** download Electron into `%LOCALAPPDATA%\electron` or park the profile 
 - Two builds can run side by side: prod (`Body Debugger`) and dev (`Body Debugger Dev`). They have separate icons, titles, `appId`, profiles, single-instance locks, updater caches and autostart registry values; the dev tray tooltip is prefixed with `Dev · `.
 - **Настройки → Система** controls autostart. It is available only in an installed Windows build; the login item starts the app with `--hidden`, so only the tray opens. A manual launch opens the dashboard. The uninstaller removes the entry.
 - Dashboard sections: **Сегодня** (character, day totals, next form, quick weight entry), **Персонаж** (**Профиль**: identity/build, preview, evolution; **Хроника**: read-only scrub/play of the real history with calendar and statistics), **Прогресс** (calendar, statistics, weight history, photos), **Настройки** (rhythm/strictness, selection/Focus, inventory/AI, sounds and appearance); the **Лаборатория** entry opens the sandboxed process from any shipped build — see [ARCHITECTURE.md](ARCHITECTURE.md#core-preferences).
-- Renderer routes: `#/dashboard`, `#/popup`, `#/lab-playground` (the Playground laboratory webview), `#/laboratory-preview` (visual popup preview inside the sandbox child); `#/dashboard?tab=settings` opens the settings tab directly. The dashboard has five primary sections including «Плейграунд»; the lab webview is the only laboratory UI.
+- Renderer routes: `#/dashboard`, `#/popup`, `#/laboratory-preview` (visual popup preview inside the sandbox child); `#/dashboard?tab=settings` or `?tab=laboratory` open those tabs directly. The dashboard has five primary sections including «Лаборатория»; the native laboratory host is the only laboratory UI.
 - After a **Готово** in the popup, streak, sessions and character survive quit/relaunch (check `.userdata/data/`).
 - If the shell exports `ELECTRON_RUN_AS_NODE=1` (some editors/agents do), `electron.exe .` boots as plain Node and crashes on `electron.app`. The npm `dev` script strips it for the Electron child; clear it yourself for a direct `electron.exe .` or a packaged smoke run — it also makes a packaged `Body Debugger.exe` exit instantly with no profile and no log.
 
@@ -180,8 +179,8 @@ No network call is made. The dashboard panel accepts pasted AI JSON, validates i
 
 `src/styles/index.css` defines `:root[data-theme='night']` / `[data-theme='warm']` token overrides. `App.vue` mirrors `settings.themeId` onto `<html>`; no component reads the theme directly. Unknown ids normalize to `default`.
 
-## Testing / playground laboratory
+## Testing / laboratory
 
-`npm test` runs the Vitest suite (domain, stores, persistence, popup/portrait, photos, AI, stats, chronicle, playground contexts, laboratory engine/bridge). `npm run typecheck` includes the test project (`tsconfig.test.json`). Layout, covered areas and gaps: [TESTING.md](TESTING.md). For native visual checks run `npm run dev` and open **«Плейграунд» → «Лаборатория»**. The main app spawns a headless Electron child with `--body-debugger-lab --body-debugger-lab-headless`; the child uses `.userdata/laboratory/` when unpackaged and `%APPDATA%\Body Debugger\laboratory` (or the dev-channel equivalent) when packaged, including media and Chromium cache. It has no tray or dashboard: the lab panel is embedded in the main dashboard webview. The real profile is untouched; native popups/previews are child windows. The lab run pauses when the lab webview is destroyed; reopening shows the paused state and the user can continue.
+`npm test` runs the Vitest suite (domain, stores, persistence, popup/portrait, photos, AI, stats, chronicle, playback coordinator, laboratory engine/bridge). `npm run typecheck` includes the test project (`tsconfig.test.json`). Layout, covered areas and gaps: [TESTING.md](TESTING.md). For native visual checks run `npm run dev` and open **«Лаборатория»**. The main app pre-warms a headless Electron child with `--body-debugger-lab --body-debugger-lab-headless`; the child uses `.userdata/laboratory/` when unpackaged and `%APPDATA%\Body Debugger\laboratory` (or the dev-channel equivalent) when packaged, including media and Chromium cache. It has no tray or dashboard: the lab panel mounts natively in the dashboard. The real profile is untouched; native popups/previews are child windows. The lab run pauses when leaving the tab; reopening shows the paused state and the user can continue.
 
 The npm `dev` wrapper removes `ELECTRON_RUN_AS_NODE` from the Electron child environment entirely; an empty value still enables Node mode in Electron. For a direct terminal launch or packaged smoke, clear the variable as described in the Windows notes. The packaged lab engine is started without the asar argument and skips the updater.

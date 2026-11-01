@@ -5,6 +5,8 @@ import { getUserDataPath, isLabHeadless, isLabProcess } from './lab-environment'
 import { initializeLaboratory, stopLaboratory } from './laboratory'
 import { registerLabEngineIpc, stopLabEngine } from './lab-engine'
 import { startHeadlessLabBridge } from './lab-headless'
+import { registerPlaybackCoordinatorIpc } from './playback-coordinator'
+import { registerChroniclePlaybackIpc } from './chronicle-playback'
 import { createAppTray } from './tray'
 import { createDashboardWindow } from './windows/dashboard'
 import { registerSessionCycleIpc } from './ipc/session-cycle'
@@ -78,13 +80,15 @@ app.whenReady().then(() => {
     registerDebugIpc()
   } else {
     registerLabEngineIpc()
+    registerPlaybackCoordinatorIpc()
+    registerChroniclePlaybackIpc()
     registerUpdateIpc()
   }
 
   startTriggerLoop()
 
   if (isLabProcess()) {
-    // No tray, dashboard or lab window: the playground is the only lab UI.
+    // No tray or dashboard: the dashboard laboratory tab hosts the only lab UI.
     if (isLabHeadless()) startHeadlessLabBridge()
   } else {
     createAppTray({

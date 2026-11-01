@@ -9,6 +9,7 @@ import {
   type WeightPoint
 } from '@shared/domain/weight'
 import type { WeightEntry } from '@shared/types/weight'
+import { rendererApi } from '@/renderer-api'
 
 /** Renderer mirror of the main-owned weight history (optional layer). */
 export const useWeightStore = defineStore('weight', () => {
@@ -37,17 +38,19 @@ export const useWeightStore = defineStore('weight', () => {
    */
   async function add(weightKg: number, at?: string): Promise<boolean> {
     if (!normalizeWeightEntry({ weightKg, at })) return false
-    if (!window.api?.addWeight) return false
+    const api = rendererApi()
+    if (!api?.addWeight) return false
 
-    const snapshot = await window.api.addWeight({ weightKg, at })
+    const snapshot = await api.addWeight({ weightKg, at })
     hydrate(snapshot.weights)
     return true
   }
 
   async function remove(id: string): Promise<void> {
-    if (!window.api?.removeWeight) return
+    const api = rendererApi()
+    if (!api?.removeWeight) return
 
-    const snapshot = await window.api.removeWeight({ id })
+    const snapshot = await api.removeWeight({ id })
     hydrate(snapshot.weights)
   }
 

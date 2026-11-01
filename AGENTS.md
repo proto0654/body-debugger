@@ -46,10 +46,11 @@ Project docs and this file override global agent rules when they conflict.
 | Themes / equipment | `shared/constants/themes.ts`, `shared/constants/equipment.ts`, `src/styles/index.css` |
 | Core preferences (interval, picker mode, Focus, identity/build) | `shared/domain/preferences.ts`, `shared/constants/focus.ts`, `src/components/settings/` |
 | Dashboard calendar + stats | `shared/domain/stats.ts`, `src/components/stats/` |
-| Real-history chronicle (read-only timeline, no writes) | `shared/domain/chronicle.ts`, `src/components/character/CharacterChronicle.vue`, `shared/domain/character-context.ts` |
+| Real-history chronicle (read-only timeline, shared playback engine) | `shared/domain/chronicle.ts`, `src/components/character/CharacterChronicle.vue`, `electron/main/chronicle-playback.ts`, `shared/domain/character-context.ts` |
 | Shared session summary / transition text | `shared/domain/character-summary.ts` |
-| Playground contexts (read-only main character, manual preview, lab) | `src/components/character/PlaygroundPanel.vue`, `src/components/character/ManualCharacterControls.vue`, `src/components/character/PlaygroundLabWebview.vue` |
-| Native laboratory (Playground tab, headless sandbox engine) | `src/debug/`, `src/views/PlaygroundLabView.vue`, `shared/domain/laboratory.ts`, `electron/main/laboratory.ts`, `electron/main/lab-engine.ts`, `electron/main/lab-headless.ts`, `electron/preload/lab.ts` |
+| Manual character preview (chronicle) | `src/components/character/ManualCharacterControls.vue` |
+| Native laboratory (dashboard tab, headless sandbox engine) | `src/debug/LaboratoryHost.vue`, `src/debug/LaboratoryPanel.vue`, `src/renderer-api.ts`, `shared/domain/laboratory.ts`, `electron/main/laboratory.ts`, `electron/main/lab-engine.ts`, `electron/main/lab-headless.ts` |
+| Shared playback mutex + reminder deferral | `shared/domain/playback-coordinator.ts`, `electron/main/playback-coordinator.ts` |
 | Manual visual preview | `src/debug/AppearancePanel.vue`, `src/views/LaboratoryPreviewView.vue`, `shared/domain/laboratory-preview.ts` |
 | Native replay phases / semantic driver | `electron/main/laboratory-playback.ts`, `shared/domain/laboratory-playback.ts` |
 | Application clock / laboratory time | `shared/domain/clock.ts`, `src/stores/runtime.ts` |
@@ -84,16 +85,13 @@ Project docs and this file override global agent rules when they conflict.
 ## Commands
 
 ```bash
-npm run dev          # electron-vite: tray + dashboard; open Playground → Лаборатория for the sandbox
-npm run build
-npm run build:win    # prod NSIS installer + latest.yml in dist/ (see docs/DELIVERY.md)
-npm run build:dir    # unpacked prod package for a quick packaged run
-npm run build:dev    # dev NSIS installer in dist-dev/; dev.yml for a -dev.N version
-npm run build:dev:dir # unpacked dev app in dist-dev/win-unpacked
-npm run publish:prod # build + publish stable (requires GH_TOKEN)
-npm run publish:dev  # build + publish dev prerelease (requires GH_TOKEN)
+npm run dev          # primary: HMR tray + dashboard; open Лаборатория for the sandbox
+npm run build:dir    # optional packaged prod smoke
+npm run build:win    # local NSIS + latest.yml (see docs/DELIVERY.md)
+npm run publish:prod # ship stable to GitHub releases (requires GH_TOKEN)
 npm run typecheck    # main + renderer + tests
 npm test             # Vitest suite
+# Legacy until ROADMAP #18: build:dev / publish:dev
 ```
 
 Audio production: `node scripts/generate-audio-api.mjs --character <id> --dry-run` lists the next clips without spending credits; casting and effects dry-runs: `node scripts/cast-voices-api.mjs --missing --dry-run`, `node scripts/generate-effects-api.mjs --dry-run`. See [docs/AUDIO-PRODUCTION.md](docs/AUDIO-PRODUCTION.md).

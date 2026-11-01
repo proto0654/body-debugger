@@ -19,6 +19,7 @@ import {
   chroniclePrefix,
   chronicleSummary
 } from '@shared/domain/chronicle'
+import type { ChroniclePlaybackState } from '@shared/domain/chronicle-playback'
 
 const props = defineProps<{ now: Date; context: CharacterContext }>()
 const emit = defineEmits<{ start: [] }>()
@@ -32,7 +33,8 @@ const cursor = ref(0)
 const playing = ref(false)
 const speed = ref(1500)
 const stepUnit = ref<'event' | 'day' | 'milestone'>('event')
-let timer: ReturnType<typeof setTimeout> | undefined
+const engineMessage = ref('')
+let unsubscribeChronicle: (() => void) | undefined
 
 const current = computed(() => entries.value[cursor.value] ?? null)
 const summary = computed(() => chronicleSummary(chronicle.value, cursor.value))
@@ -70,54 +72,94 @@ const events = computed(() => {
   return entries.value.slice(start, start + 10).map((entry, offset) => ({ ...entry, index: start + offset }))
 })
 
-function stop(): void {
-  playing.value = false
-  if (timer) clearTimeout(timer)
-  timer = undefined
+const hasEngine = computed(() => typeof window.api?.chronicleCommand === 'function')
+
+function applyEngineState(state: ChroniclePlaybackState): void {
+  cursor.value = Math.min(Math.max(0, state.cursor), Math.max(0, entries.value.length - 1))
+  playing.value = state.playing
+  engineMessage.value = state.message
 }
 
-function schedule(): void {
-  if (!playing.value) return
-  if (atEnd.value) { stop(); return }
-  timer = setTimeout(() => {
-    if (!playing.value) return
-    cursor.value += 1
-    schedule()
-  }, speed.value)
-}
-
-function togglePlay(): void {
-  if (playing.value) { stop(); return }
-  if (entries.value.length < 2) return
-  if (atEnd.value) cursor.value = 0
-  playing.value = true
-  schedule()
+async function runCommand(
+  command: Parameters<NonNullable<typeof window.api.chronicleCommand>>[0]
+): Promise<void> {
+  if (!hasEngine.value) {
+    // Test / degraded renderer: keep local scrubbing without native popups.
+    if (command.action === 'seek') cursor.value = command.cursor
+    if (command.action === 'pause') playing.value = false
+    if (command.action === 'play') {
+      if (cursor.value >= entries.value.length - 1) cursor.value = 0
+      playing.value = true
+      // Local visual autoplay fallback for unit tests without main IPC.
+      const tick = (): void => {
+        if (!playing.value) return
+        if (cursor.value >= entries.value.length - 1) {
+          playing.value = false
+          return
+        }
+        cursor.value += 1
+        if (cursor.value >= entries.value.length - 1) {
+          playing.value = false
+          return
+        }
+        window.setTimeout(tick, speed.value)
+      }
+      window.setTimeout(tick, speed.value)
+    }
+    if (command.action === 'step') {
+      let next = cursor.value + command.direction
+      if (command.unit === 'milestone') {
+        const candidates = milestones.value.filter((index) =>
+          command.direction > 0 ? index > cursor.value : index < cursor.value
+        )
+        next = command.direction > 0 ? candidates[0] ?? cursor.value : candidates[candidates.length - 1] ?? cursor.value
+      } else if (command.unit === 'day') {
+        const day = localDateKey(cursorDate.value)
+        while (
+          next >= 0 &&
+          next < entries.value.length &&
+          localDateKey(new Date(entries.value[next]!.at)) === day
+        ) {
+          next += command.direction
+        }
+      }
+      cursor.value = Math.min(Math.max(0, next), Math.max(0, entries.value.length - 1))
+    }
+    if (command.action === 'date') {
+      const index = chronicleDateIndex(chronicle.value, command.date)
+      if (index !== null) cursor.value = index
+    }
+    return
+  }
+  try {
+    applyEngineState(await window.api.chronicleCommand!(command))
+  } catch (cause) {
+    console.error('[chronicle] command failed', cause)
+    playing.value = false
+    engineMessage.value = cause instanceof Error ? cause.message : 'Не удалось управлять хроникой'
+  }
 }
 
 function seek(index: number): void {
-  stop()
-  cursor.value = Math.min(Math.max(0, index), Math.max(0, entries.value.length - 1))
+  void runCommand({ action: 'seek', cursor: Math.min(Math.max(0, index), Math.max(0, entries.value.length - 1)) })
 }
 
 function step(direction: -1 | 1, unit: 'event' | 'day' | 'milestone' = stepUnit.value): void {
   if (!entries.value.length) return
-  stop()
-  let next = cursor.value + direction
-  if (unit === 'milestone') {
-    const candidates = milestones.value.filter(index => (direction > 0 ? index > cursor.value : index < cursor.value))
-    next = direction > 0 ? candidates[0] ?? cursor.value : candidates[candidates.length - 1] ?? cursor.value
-  } else if (unit === 'day') {
-    const day = localDateKey(cursorDate.value)
-    while (next >= 0 && next < entries.value.length && localDateKey(new Date(entries.value[next]!.at)) === day) {
-      next += direction
-    }
-  }
-  seek(next)
+  void runCommand({ action: 'step', direction, unit })
 }
 
 function jumpToDate(value: string): void {
-  const index = chronicleDateIndex(chronicle.value, value)
-  if (index !== null) seek(index)
+  void runCommand({ action: 'date', date: value })
+}
+
+async function togglePlay(): Promise<void> {
+  if (playing.value) {
+    await runCommand({ action: 'pause' })
+    return
+  }
+  if (entries.value.length < 2) return
+  await runCommand({ action: 'play', delayMs: speed.value })
 }
 
 function milestoneLabel(index: number): string {
@@ -128,33 +170,26 @@ function milestoneLabel(index: number): string {
 }
 
 function pauseWhenHidden(): void {
-  if (document.hidden) stop()
+  if (document.hidden && playing.value) void runCommand({ action: 'pause' })
 }
 
 let initialized = false
 watch(() => entries.value.length, (next, previous) => {
-  if (next === 0) { cursor.value = 0; initialized = false; stop(); return }
+  if (next === 0) { cursor.value = 0; initialized = false; playing.value = false; return }
   if (!initialized) { cursor.value = next - 1; initialized = true; return }
-  const wasAtEnd = previouslyAtEnd(previous)
+  const wasAtEnd = previous !== undefined && cursor.value >= previous - 1
   if (wasAtEnd) cursor.value = next - 1
   else if (cursor.value >= next) cursor.value = next - 1
 }, { immediate: true })
 
-function previouslyAtEnd(previous: number | undefined): boolean {
-  if (previous === undefined) return true
-  return cursor.value >= previous - 1
-}
-
-watch(speed, () => {
-  if (!playing.value) return
-  if (timer) clearTimeout(timer)
-  schedule()
+onMounted(() => {
+  document.addEventListener('visibilitychange', pauseWhenHidden)
+  unsubscribeChronicle = window.api?.onChronicleChanged?.((state) => applyEngineState(state))
 })
-
-onMounted(() => document.addEventListener('visibilitychange', pauseWhenHidden))
 onBeforeUnmount(() => {
-  stop()
+  if (playing.value) void runCommand({ action: 'pause' })
   document.removeEventListener('visibilitychange', pauseWhenHidden)
+  unsubscribeChronicle?.()
 })
 </script>
 
@@ -189,7 +224,8 @@ onBeforeUnmount(() => {
           <p class="text-sm text-slate-300">{{ sceneConditionLabel }} · уровень {{ sceneCondition }}. До восстановления: {{ recovery }} выполнений.</p>
           <p class="text-xs text-slate-400">{{ milestoneHint }}. Рекорд серии: {{ streakMax }}.</p>
           <p v-if="context.manual" class="text-[11px] text-amber-300">Ручной вид меняет только картинку; серия, календарь и статистика считаются по позиции таймлайна.</p>
-          <p class="text-[11px] text-slate-500">Это просмотр истории. Форма, серия и настройки профиля не меняются.</p>
+          <p class="text-[11px] text-slate-500">Проигрывание использует тот же движок, что и лаборатория: попапы открываются без записи в профиль. Реальные напоминания ждут конца + 30 с.</p>
+          <p v-if="engineMessage" class="text-[11px] text-slate-400" data-testid="chronicle-engine-message">{{ engineMessage }}</p>
         </div>
       </section>
       <ProgressDynamics :sessions="prefix" :now="cursorDate" :start-at="chronicle.firstAt ?? undefined" />

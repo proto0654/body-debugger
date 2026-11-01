@@ -9,9 +9,9 @@ import type { Session } from '../types/session'
 import { summarizeSessions } from './character-summary'
 
 /**
- * A read-only character timeline context. The dashboard, the chronicle and the
- * playground pass plain objects instead of reading stores directly, so a
- * temporary context can never mutate the real profile.
+ * A read-only character timeline context. The dashboard and chronicle pass
+ * plain objects instead of reading stores directly, so a temporary context can
+ * never mutate the real profile.
  */
 
 export interface ManualCharacterState {

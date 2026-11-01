@@ -1,6 +1,16 @@
 # Delivery and updates
 
-How the production app, the side-by-side dev build and testers receive new versions, and how a build is identified. The app is a personal daily driver first: the installed prod app updates itself from the stable channel.
+How the production app receives new versions, and how a build is identified. Daily work uses HMR; shipped use is one stable GitHub channel with client auto-update.
+
+## Happy path (use this)
+
+| Mode | Command / action | Updates |
+|------|------------------|---------|
+| Develop | `npm run dev` | Disabled (HMR only; `.userdata/`) |
+| Ship | `npm run publish:prod` or CI on a stable `v*` tag | Writes `latest.yml` to [body-debugger-releases](https://github.com/proto0654/body-debugger-releases) |
+| Use | Install `Body-Debugger-Setup-<version>.exe`, then update from the client | Background check ~25 s after start and every 4 h |
+
+Do **not** use the side-by-side Dev product for ordinary work. Removing `Body Debugger Dev` / `publish:dev` / `dev.yml` is the next delivery wave — [ROADMAP.md](ROADMAP.md) #18.
 
 ## Decisions
 
@@ -9,17 +19,20 @@ How the production app, the side-by-side dev build and testers receive new versi
 | Target | Windows, per-user NSIS installer (`oneClick`, no admin rights) |
 | Feed | Public GitHub release repository: [proto0654/body-debugger-releases](https://github.com/proto0654/body-debugger-releases); holds artifacts and channel manifests only |
 | Source | Public source repository: [proto0654/body-debugger](https://github.com/proto0654/body-debugger) |
-| Channels | `latest.yml` for stable prod; `dev.yml` for prerelease dev builds (`x.y.z-dev.N`) |
+| Primary channel | `latest.yml` for stable prod |
+| Legacy channel (to remove in #18) | `dev.yml` for prerelease `Body Debugger Dev` builds (`x.y.z-dev.N`) |
 | Update model | `electron-updater` downloads in the background, shows a small prompt with progress and asks for a restart; it never restarts on its own |
 | Restart gating | A restart is refused while an exercise popup is open; a downloaded update also installs on a normal quit |
 | Autostart | Off by default; a settings toggle registers a per-user login item that launches the app hidden in the tray |
 | Signing | Unsigned for the beta; `publisherName` stays unset until a certificate exists, otherwise updates reject themselves |
 
-A public release repository is required: a private one would force an access token into the client. The repository holds only artifacts, channel manifests (`latest.yml`, `dev.yml`) and a short README; issues and wiki are disabled.
+A public release repository is required: a private one would force an access token into the client. The repository holds only artifacts, channel manifests (`latest.yml`, and legacy `dev.yml`) and a short README; issues and wiki are disabled.
 
 ## Build identities
 
-Prod and dev are separate Windows applications that can run at the same time without sharing data, locks, updater caches or autostart entries.
+**Preferred identity:** prod only (`Body Debugger`). Unpackaged `npm run dev` still reports the unpackaged/dev identity in «О программе», but it is not a second shipped product.
+
+**Legacy (remove in milestone 18):** prod and the side-by-side Dev app can still run at the same time without sharing data, locks, updater caches or autostart entries.
 
 | | Prod | Dev |
 |---|------|-----|
@@ -115,20 +128,20 @@ The updater lives in [electron/main/updater.ts](../electron/main/updater.ts); sc
 
 | Situation | What to run |
 |-----------|-------------|
-| Daily code edits | `npm run dev` — unpackaged, dev icon/title, `.userdata`, updater disabled |
-| Packaged visual/behavior check | `npm run build:dev:dir`, then `dist-dev\win-unpacked\Body Debugger Dev.exe` |
-| Installed dev app for native update checks | `npm run build:dev` from a `-dev.N` version; install `dist-dev\Body-Debugger-Dev-Setup-<version>.exe` |
-| Prod and dev side by side | Start both; separate icons, titles, trays, profiles and locks |
-| Laboratory | **«Плейграунд → Лаборатория»** in any installed or unpackaged dashboard; headless sandbox profile, lab UI embedded in the playground webview |
+| Daily code edits | `npm run dev` — HMR, `.userdata`, updater disabled |
+| Packaged prod smoke (no publish) | `npm run build:dir`, then `dist\win-unpacked\Body Debugger.exe` |
+| Install / client update | Stable installer from GitHub; updates via the in-app prompt |
+| Laboratory | **«Лаборатория»** in any installed or unpackaged dashboard; headless sandbox profile, lab UI mounted natively in the dashboard |
+| Legacy Dev channel (until #18) | `build:dev` / `publish:dev` / `Body Debugger Dev` — optional; do not use for normal shipping |
 
-The dev build is not a second production app: it uses a dev icon, a dev profile and the `dev` feed. Never publish a stable version from the dev config; never install the dev build over prod (they are separate products, but keep the distinction anyway).
+Never publish a stable version from the legacy dev config; never install the legacy Dev build over prod.
 
 ## Release flow
 
 ### Versioning
 
 - **Dev prerelease**: `npm version prerelease --preid dev` from the current version. If the current is `0.2.1`, this yields `0.2.2-dev.0`; repeating yields `0.2.2-dev.1`.
-- **Stable**: `npm version minor` (or `patch`) from the current line. `0.3.0` first shipped the delivery pipeline; `0.4.0` carries the Playground/lab release. Current stable: `0.4.0`, published 2026-11-01; previous installer `0.3.0` for rollback.
+- **Stable**: `npm version minor` (or `patch`) from the current line. `0.3.0` first shipped the delivery pipeline; `0.4.0` first shipped the laboratory-in-dashboard release line. Current stable: `0.4.0`, published 2026-11-01; previous installer `0.3.0` for rollback.
 - `npm version` creates a commit and a `v*` tag. Keep the working tree clean; the publish script refuses a dirty tree.
 
 ### Local publish

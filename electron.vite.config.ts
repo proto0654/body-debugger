@@ -47,8 +47,7 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
-          index: resolve('electron/preload/index.ts'),
-          lab: resolve('electron/preload/lab.ts')
+          index: resolve('electron/preload/index.ts')
         }
       }
     }

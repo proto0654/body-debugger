@@ -97,7 +97,7 @@ export function getLabState(): LabState {
 
 let labCommandQueue: Promise<unknown> = Promise.resolve()
 
-/** Serialize commands from the lab webview and the native preview window. */
+/** Serialize commands from the lab host bridge and the native preview window. */
 export function enqueueLabCommand(command: LabCommand): Promise<LabState> {
   const request = labCommandQueue.then(() => executeLabCommand(command)) as Promise<LabState>
   labCommandQueue = request.catch(() => undefined)
@@ -106,7 +106,9 @@ export function enqueueLabCommand(command: LabCommand): Promise<LabState> {
 
 function publish(): LabState {
   const state = getLabState()
-  if (projectingResult) state.snapshot = getSnapshot()
+  // Always attach the sandbox snapshot so the embedded host can hydrate its
+  // nested Pinia without sharing DataUpdated with the real dashboard profile.
+  state.snapshot = getSnapshot()
   broadcastToWindows(IpcChannels.LabChanged, state)
   return state
 }

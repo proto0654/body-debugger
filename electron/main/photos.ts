@@ -78,7 +78,7 @@ export function getPhotoFile(id: string): string | null {
   return existsSync(path) ? path : null
 }
 
-/** The playground lab webview resolves its sandbox photos through the same scheme. */
+/** The laboratory sandbox resolves its photos through the same scheme. */
 export function getLaboratoryPhotoFile(id: string): string | null {
   const root = getLaboratoryUserDataPath()
   const stored = readJsonEnvelope<unknown>(join(root, 'data', 'photos.json'))

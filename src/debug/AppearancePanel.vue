@@ -13,6 +13,7 @@ import { characterConditionLabel } from '@shared/domain/character-condition'
 import type { CharacterBuild, CharacterConditionLevel, CharacterEmotion, CharacterStage } from '@shared/types/character'
 import { characterBodyCandidates } from '@shared/domain/character-visual'
 import { resolveFrameUrl } from '@/components/character/frames'
+import { rendererApi } from '@/renderer-api'
 
 const props = withDefaults(defineProps<{ nativePreview?: LabVisualPreview | null }>(), { nativePreview: null })
 const emit = defineEmits<{ change: [preview: LabVisualPreview] }>()
@@ -69,7 +70,7 @@ async function sendPreview(open = false): Promise<void> {
   lastSent = key
   updates++
   error.value = ''
-  try { await window.api.labCommand({ action: 'visual-preview', preview: snapshot, open }) }
+  try { await rendererApi()?.labCommand({ action: 'visual-preview', preview: snapshot, open }) }
   catch (cause) { lastSent = ''; console.error('[laboratory-preview] update failed', cause); error.value = 'Не удалось открыть или обновить предпросмотр.' }
   finally { updates-- }
 }

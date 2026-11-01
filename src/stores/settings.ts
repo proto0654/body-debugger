@@ -28,6 +28,7 @@ import {
 } from '@shared/domain/sounds'
 import { DEFAULT_CHARACTER_PACK } from '@shared/constants/character'
 import { normalizeCharacterPackId } from '@shared/constants/character-packs'
+import { rendererApi } from '@/renderer-api'
 import { isEquipmentId } from '@shared/constants/equipment'
 import { normalizeThemeId } from '@shared/constants/themes'
 
@@ -112,8 +113,9 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   async function persist(): Promise<void> {
-    if (!window.api?.saveSettings) return
-    const snapshot = await window.api.saveSettings(asSettings())
+    const api = rendererApi()
+    if (!api?.saveSettings) return
+    const snapshot = await api.saveSettings(asSettings())
     hydrate(snapshot.settings)
   }
 

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { PhotoEntry } from '@shared/types/photo'
+import { rendererApi } from '@/renderer-api'
 
 /** Optional photo layer projection: metadata is hydrated from main. */
 export const usePhotosStore = defineStore('photos', () => {
@@ -13,22 +14,23 @@ export const usePhotosStore = defineStore('photos', () => {
   }
 
   async function refresh(): Promise<void> {
-    const photos = await window.api?.listPhotos?.()
+    const photos = await rendererApi()?.listPhotos?.()
     if (photos) hydrate(photos)
   }
 
   /** Reads the picked file in the renderer, main validates + writes it. */
   async function add(file: File, sessionId?: string): Promise<PhotoEntry | null> {
-    if (!window.api?.addPhoto) return null
+    const api = rendererApi()
+    if (!api?.addPhoto) return null
 
     const bytes = new Uint8Array(await file.arrayBuffer())
-    const entry = await window.api.addPhoto({ bytes, mimeType: file.type, sessionId })
+    const entry = await api.addPhoto({ bytes, mimeType: file.type, sessionId })
     if (entry) await refresh()
     return entry
   }
 
   async function remove(id: string): Promise<void> {
-    const result = await window.api?.removePhoto?.({ id })
+    const result = await rendererApi()?.removePhoto?.({ id })
     if (result?.photos) hydrate(result.photos)
   }
 

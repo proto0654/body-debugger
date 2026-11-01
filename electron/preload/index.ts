@@ -1,9 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import type { LabCommand, LabState } from '../../shared/domain/laboratory'
 import type { LabDriverAck, LabDriverCommand } from '../../shared/domain/laboratory-playback'
 import type { LaunchAtLoginState } from '../../shared/domain/launch-at-login'
+import type { ChronicleCommand, ChroniclePlaybackState } from '../../shared/domain/chronicle-playback'
+import type { PlaybackCoordinatorState, PlaybackOwner } from '../../shared/domain/playback-coordinator'
+import type { LabBridgeMethod } from '../../shared/types/lab-bridge'
 import {
   IpcChannels,
   type AppInfoPayload,
@@ -32,7 +33,11 @@ import {
 } from '../../shared/types/events'
 
 const api = {
-  labViewPreload: pathToFileURL(join(__dirname, 'lab.js')).toString(),
+  registerLabHost: (): void => {
+    ipcRenderer.send(IpcChannels.LabViewRegister)
+  },
+  labBridgeRequest: (method: LabBridgeMethod, payload?: unknown): Promise<unknown> =>
+    ipcRenderer.invoke(IpcChannels.LabBridgeRequest, { method, payload }),
   getAppInfo: (): Promise<AppInfoPayload> => ipcRenderer.invoke(IpcChannels.AppGetInfo),
   openLogs: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.AppOpenLogs),
   getUpdateState: (): Promise<UpdateStatePayload> => ipcRenderer.invoke(IpcChannels.AppUpdateState),
@@ -59,6 +64,28 @@ const api = {
     const listener = (_event: Electron.IpcRendererEvent, state: LabState): void => handler(state)
     ipcRenderer.on(IpcChannels.LabChanged, listener)
     return () => ipcRenderer.removeListener(IpcChannels.LabChanged, listener)
+  },
+  getPlaybackState: (): Promise<PlaybackCoordinatorState> =>
+    ipcRenderer.invoke(IpcChannels.PlaybackGetState),
+  beginPlayback: (owner: PlaybackOwner): Promise<PlaybackCoordinatorState> =>
+    ipcRenderer.invoke(IpcChannels.PlaybackBegin, owner),
+  endPlayback: (owner: PlaybackOwner): Promise<PlaybackCoordinatorState> =>
+    ipcRenderer.invoke(IpcChannels.PlaybackEnd, owner),
+  onPlaybackChanged: (handler: (state: PlaybackCoordinatorState) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: PlaybackCoordinatorState): void =>
+      handler(state)
+    ipcRenderer.on(IpcChannels.PlaybackChanged, listener)
+    return () => ipcRenderer.removeListener(IpcChannels.PlaybackChanged, listener)
+  },
+  getChroniclePlaybackState: (): Promise<ChroniclePlaybackState> =>
+    ipcRenderer.invoke(IpcChannels.ChronicleGetState),
+  chronicleCommand: (command: ChronicleCommand): Promise<ChroniclePlaybackState> =>
+    ipcRenderer.invoke(IpcChannels.ChronicleCommand, command),
+  onChronicleChanged: (handler: (state: ChroniclePlaybackState) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: ChroniclePlaybackState): void =>
+      handler(state)
+    ipcRenderer.on(IpcChannels.ChronicleChanged, listener)
+    return () => ipcRenderer.removeListener(IpcChannels.ChronicleChanged, listener)
   },
   openPopup: (): Promise<void> => ipcRenderer.invoke(IpcChannels.WindowOpenPopup),
   closePopup: (): Promise<void> => ipcRenderer.invoke(IpcChannels.WindowClosePopup),

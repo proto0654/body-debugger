@@ -35,6 +35,7 @@ import { computeStreak } from '@shared/domain/streak'
 import { createSoundPlayer } from '@/sounds'
 import { characterReaction } from '@shared/domain/character-reaction'
 import type { LabVisualPreview } from '@shared/domain/laboratory-preview'
+import { rendererApi } from '@/renderer-api'
 
 const state = ref<LabState | null>(null)
 type LabTab = 'history' | 'popup' | 'appearance' | 'sound' | 'data' | 'settings'
@@ -102,7 +103,7 @@ async function command(value: LabCommand): Promise<void> {
   if (busy.value) return
   busy.value = true
   error.value = ''
-  try { state.value = await window.api.labCommand(value) }
+  try { state.value = await rendererApi()!.labCommand(value) }
   catch (cause) {
     console.error('[laboratory] command failed', value.action, cause)
     const detail = cause instanceof Error ? cause.message : ''
@@ -161,11 +162,13 @@ watch(() => state.value?.plan?.generator, options => {
 
 onMounted(async () => {
   try {
-    unsubscribe = window.api.onLabChanged(next => {
+    const api = rendererApi()
+    if (!api?.getLabState) throw new Error('Laboratory API missing')
+    unsubscribe = api.onLabChanged(next => {
       if (next.snapshot) applySnapshot(next.snapshot)
       state.value = next
     })
-    state.value = await window.api.getLabState()
+    state.value = await api.getLabState()
     clock = setInterval(() => { tick.value++ }, 1000)
   } catch (cause) {
     console.error('[laboratory] initialization failed', cause)

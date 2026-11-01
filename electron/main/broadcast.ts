@@ -9,7 +9,7 @@ export function broadcastToWindows(channel: string, payload: unknown): void {
       win.webContents.send(channel, payload)
     }
   }
-  // Headless laboratory child: relay the same event to the playground webview.
+  // Headless laboratory child: relay the same event to the parent lab bridge.
   try {
     process.send?.({ type: 'event', channel, payload })
   } catch {

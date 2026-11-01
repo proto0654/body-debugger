@@ -2,6 +2,7 @@ import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import { IpcChannels, type WindowNavigateDashboardPayload } from '../../../shared/types/events'
 import { APP_IDENTITY, windowIconPath } from '../app-identity'
+import { ensureLabEngine } from '../lab-engine'
 
 export type DashboardTab = 'today' | 'settings'
 
@@ -49,8 +50,7 @@ export function createDashboardWindow(options: DashboardWindowOptions = {}): Bro
       preload: preloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
-      webviewTag: true
+      sandbox: false
     }
   })
   dashboardWindow = current
@@ -58,6 +58,11 @@ export function createDashboardWindow(options: DashboardWindowOptions = {}): Bro
 
   current.on('ready-to-show', () => {
     current.show()
+  })
+
+  // Warm the headless sandbox so the first laboratory tab open is near-instant.
+  void ensureLabEngine().catch((cause: unknown) => {
+    console.error('[dashboard] laboratory engine pre-warm failed', cause)
   })
 
   current.once('closed', () => {

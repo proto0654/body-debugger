@@ -2,6 +2,9 @@
 import type { LabCommand, LabState } from '@shared/domain/laboratory'
 import type { LabDriverAck, LabDriverCommand } from '@shared/domain/laboratory-playback'
 import type { LaunchAtLoginState } from '@shared/domain/launch-at-login'
+import type { ChronicleCommand, ChroniclePlaybackState } from '@shared/domain/chronicle-playback'
+import type { PlaybackCoordinatorState, PlaybackOwner } from '@shared/domain/playback-coordinator'
+import type { LabBridgeMethod } from '@shared/types/lab-bridge'
 
 import type {
   AppInfoPayload,
@@ -36,8 +39,8 @@ declare module '*.vue' {
 }
 
 export interface BodyDebuggerApi {
-  /** File URL of the dedicated lab preload; the playground uses it for the lab webview. */
-  labViewPreload: string
+  registerLabHost?: () => void
+  labBridgeRequest?: (method: LabBridgeMethod, payload?: unknown) => Promise<unknown>
   getAppInfo: () => Promise<AppInfoPayload>
   openLogs: () => Promise<boolean>
   getUpdateState: () => Promise<UpdateStatePayload>
@@ -52,6 +55,13 @@ export interface BodyDebuggerApi {
   getLabState: () => Promise<LabState>
   labCommand: (command: LabCommand) => Promise<LabState>
   onLabChanged: (handler: (state: LabState) => void) => () => void
+  getPlaybackState?: () => Promise<PlaybackCoordinatorState>
+  beginPlayback?: (owner: PlaybackOwner) => Promise<PlaybackCoordinatorState>
+  endPlayback?: (owner: PlaybackOwner) => Promise<PlaybackCoordinatorState>
+  onPlaybackChanged?: (handler: (state: PlaybackCoordinatorState) => void) => () => void
+  getChroniclePlaybackState?: () => Promise<ChroniclePlaybackState>
+  chronicleCommand?: (command: ChronicleCommand) => Promise<ChroniclePlaybackState>
+  onChronicleChanged?: (handler: (state: ChroniclePlaybackState) => void) => () => void
   openPopup: () => Promise<void>
   closePopup: () => Promise<void>
   resizePopup: (height: number) => Promise<void>

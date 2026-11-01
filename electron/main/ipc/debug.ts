@@ -8,7 +8,7 @@ import type { LabCommand } from '../../../shared/domain/laboratory'
 
 /**
  * Laboratory-only renderer IPC for the native popup and visual preview windows.
- * The playground lab webview uses the lab-engine bridge instead.
+ * The dashboard laboratory host uses the lab-engine bridge instead.
  */
 export function registerDebugIpc(): void {
   if (!isLabProcess()) return

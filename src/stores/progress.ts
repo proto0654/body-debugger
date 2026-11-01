@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import type { ExerciseLevels, Streak, UserFocus, UserProgress } from '@shared/types/progress'
 import type { CharacterBranch, CharacterBuild, CharacterStage } from '@shared/types/character'
 import { CHARACTER_BUILDS } from '@shared/constants/character'
+import { rendererApi } from '@/renderer-api'
 
 export const useProgressStore = defineStore('progress', () => {
   const streak = ref<Streak>({ current: 0, max: 0 })
@@ -39,8 +40,9 @@ export const useProgressStore = defineStore('progress', () => {
   }
 
   async function persist(): Promise<void> {
-    if (!window.api?.saveProgress) return
-    const snapshot = await window.api.saveProgress(asUserProgress())
+    const api = rendererApi()
+    if (!api?.saveProgress) return
+    const snapshot = await api.saveProgress(asUserProgress())
     hydrate(snapshot.progress)
   }
 

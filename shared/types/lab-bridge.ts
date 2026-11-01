@@ -1,7 +1,7 @@
 import { IpcChannels } from './events'
 
 /**
- * Renderer-main bridge used only by the laboratory webview in the playground.
+ * Renderer-main bridge used by the native laboratory host in the dashboard.
  * The main process forwards each request to the headless laboratory child and
  * relays its data/lab events back; the real profile never sees these methods.
  */

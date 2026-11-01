@@ -34,6 +34,9 @@ vi.mock('electron', () => ({
     close() { state.destroyed = true; state.handlers.get('closed')?.() }
   }
 }))
+vi.mock('../../electron/main/lab-engine', () => ({
+  ensureLabEngine: vi.fn(async () => undefined)
+}))
 
 beforeEach(() => {
   vi.resetModules()
@@ -46,11 +49,12 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllEnvs() })
 
 describe('dashboard window', () => {
-  it('opens the normal dashboard with the webview tag enabled', async () => {
+  it('opens the normal dashboard without a webview tag', async () => {
     const { createDashboardWindow } = await import('../../electron/main/windows/dashboard')
     createDashboardWindow()
     expect(state.options[0]).toMatchObject({ width: 960, title: 'Body Debugger' })
-    expect(state.options[0]!.webPreferences).toMatchObject({ webviewTag: true })
+    expect(state.options[0]!.webPreferences).toMatchObject({ contextIsolation: true })
+    expect((state.options[0]!.webPreferences as { webviewTag?: boolean }).webviewTag).toBeUndefined()
     expect(state.loadFile.mock.calls[0]![1]).toEqual({ hash: '/dashboard' })
     state.handlers.get('ready-to-show')?.()
     expect(state.show).toHaveBeenCalledOnce()

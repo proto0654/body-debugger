@@ -29,6 +29,7 @@ import {
 import { closePopupWindow, createPopupWindow, getPopupWindow } from './windows/popup'
 import { getTrayState, refreshTrayAnimation, refreshTrayMenu, setTrayPaused, setTrayState } from './tray'
 import { isLabProcess } from './lab-environment'
+import { isReminderDeferred } from './playback-coordinator'
 
 /**
  * Reminder loop (CONCEPT.md §2, ROADMAP #2).
@@ -90,6 +91,10 @@ let nextTriggerAt: number | null = null
 let awayStartedAt: number | null = null
 let awaiting: AwaitingResult | null = null
 let successTimer: NodeJS.Timeout | null = null
+/** Preview popups (chronicle) resolve without writing real history. */
+let previewMode = false
+/** At most one deferred real timer reminder while playback/grace is active. */
+let deferredTimerDue = false
 
 interface LoopSimulation {
   hold: boolean
@@ -105,6 +110,17 @@ const simulation: LoopSimulation = { hold: false, idleSeconds: null, failNextWri
 export function configureLoopSimulation(next: Partial<LoopSimulation>): void {
   Object.assign(simulation, next)
   if (awaiting) armResultDeadline()
+}
+
+export function setSessionPreviewMode(next: boolean): void {
+  previewMode = next
+}
+
+/** After playback grace ends, fire at most one deferred timer reminder. */
+export function flushDeferredReminder(): void {
+  if (!deferredTimerDue || isReminderDeferred() || paused || awaiting || getPopupWindow()) return
+  deferredTimerDue = false
+  trigger('timer')
 }
 
 function armResultDeadline(): void {
@@ -130,6 +146,7 @@ export function cancelLoopForLaboratory(): void {
   if (successTimer) clearTimeout(successTimer)
   successTimer = null
   simulation.failNextWrite = false
+  previewMode = false
   awayStartedAt = null
   nextTriggerAt = null
   closePopupWindow()
@@ -203,6 +220,18 @@ function completeSession(
     ...(photoIds.length > 0 ? { photoIds } : {})
   }
   if (typeof extras.skipReason === 'string') session.skipReason = extras.skipReason.slice(0, 500)
+
+  if (previewMode) {
+    // Chronicle / preview: drive NativePlayback without touching the real profile.
+    if (awaiting?.sessionId === origin.sessionId) {
+      clearTimeout(awaiting.timeout)
+      awaiting = null
+    }
+    simulation.onResolved?.(session)
+    awayStartedAt = null
+    publishLoopState()
+    return { saved: true }
+  }
 
   try {
     if (simulation.failNextWrite) {
@@ -308,6 +337,10 @@ function pickForCycle(): Exercise {
 /** Show the popup for one exercise and start the answer timeout. */
 function trigger(reason: SessionTriggerReason, exercise?: Exercise): void {
   if (awaiting) return
+  if (!previewMode && isReminderDeferred() && (reason === 'timer' || reason === 'idle' || reason === 'manual')) {
+    if (reason === 'timer' || reason === 'idle') deferredTimerDue = true
+    return
+  }
 
   const sessionId = randomUUID()
   const triggeredAt = nowDate().toISOString()
@@ -339,6 +372,7 @@ export function triggerNow(reason: SessionTriggerReason = 'manual'): void {
     getPopupWindow()?.focus()
     return
   }
+  if (isReminderDeferred()) return
   trigger(reason)
 }
 
@@ -349,6 +383,20 @@ export function triggerLaboratoryExercise(exerciseId: string, durationSec?: numb
   const exercise = getAvailableCatalog().find(candidate => candidate.id === exerciseId)
   if (!exercise) throw new Error('Unknown laboratory exercise')
   if (durationSec !== undefined && (!Number.isFinite(durationSec) || durationSec < 0 || durationSec > 86400)) throw new Error('Invalid laboratory exercise duration')
+  trigger('event', durationSec === undefined ? exercise : { ...exercise, durationSec })
+  return getActivePopup()!
+}
+
+/** Chronicle preview: same native popup path, no durable write (previewMode). */
+export function triggerPreviewExercise(exerciseId: string, durationSec?: number): SessionPopupPayload {
+  if (isLabProcess()) throw new Error('Preview playback belongs to the main profile')
+  if (awaiting || getPopupWindow()) throw new Error('Another popup is still open')
+  const exercise = getAvailableCatalog().find(candidate => candidate.id === exerciseId)
+  if (!exercise) throw new Error('Unknown chronicle exercise')
+  if (durationSec !== undefined && (!Number.isFinite(durationSec) || durationSec < 0 || durationSec > 86400)) {
+    throw new Error('Invalid chronicle exercise duration')
+  }
+  previewMode = true
   trigger('event', durationSec === undefined ? exercise : { ...exercise, durationSec })
   return getActivePopup()!
 }
@@ -374,12 +422,26 @@ function tick(): void {
       return
     }
     if (nextTriggerAt <= now) {
+      if (isReminderDeferred()) {
+        deferredTimerDue = true
+        nextTriggerAt = null
+        publishLoopState()
+        return
+      }
       trigger('idle')
       return
     }
   }
 
-  if (nextTriggerAt <= now) trigger('timer')
+  if (nextTriggerAt <= now) {
+    if (isReminderDeferred()) {
+      deferredTimerDue = true
+      nextTriggerAt = null
+      publishLoopState()
+      return
+    }
+    trigger('timer')
+  }
 }
 
 export function tickTriggerLoop(): void { tick() }

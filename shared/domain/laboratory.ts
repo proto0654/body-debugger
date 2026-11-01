@@ -84,7 +84,7 @@ export type LabCommand =
   | { action: 'seek'; cursor: number }
   | { action: 'step'; direction: -1 | 1; unit: 'event' | 'day' | 'milestone' }
   | { action: 'date'; date: string }
-  | { action: 'play'; delayMs: number }
+  | { action: 'play' }
   | { action: 'mode'; mode: LabPlaybackMode }
   | { action: 'phase-step' | 'restart' | 'original' | 'restore-preferences' | 'reset-history' }
   | { action: 'popup'; preset: 'normal' | 'stage-up' | 'soft' | 'medium' | 'hardcore' | 'details'; exerciseId?: string }

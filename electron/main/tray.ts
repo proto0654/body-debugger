@@ -1,7 +1,8 @@
-import { app, Menu, Tray } from 'electron'
+import { app, Menu, nativeImage, Tray } from 'electron'
+import type { NativeImage } from 'electron'
 import type { TrayState } from '../../shared/types/events'
+import { composeTrayIcon } from '../../shared/domain/tray-icon-bitmap'
 import { APP_CHANNEL } from './app-identity'
-import { trayFrameSpec, trayFrames } from './tray-icons'
 import { isLabProcess } from './lab-environment'
 
 /** Main-process actions the tray menu can invoke; wired in `electron/main/index.ts`. */
@@ -21,14 +22,12 @@ let tray: Tray | null = null
 let trayState: TrayState = 'idle'
 let paused = false
 let handlers: TrayHandlers | null = null
-let frameTimer: NodeJS.Timeout | null = null
+/** Countdown fragment such as «через 12 мин». State labels override it. */
+let trayDetail: string | null = null
 
-const TRAY_LABELS: Record<TrayState, string> = {
-  idle: 'Body Debugger',
-  soon: 'Body Debugger — скоро',
-  standup: 'Body Debugger — пора встать!',
-  success: 'Body Debugger — отлично',
-  streak: 'Body Debugger — стрик!'
+function placeholderImage(): NativeImage {
+  const pixels = composeTrayIcon({ size: 16, face: null, progress: 0, color: 'green' })
+  return nativeImage.createFromBitmap(Buffer.from(pixels), { width: 16, height: 16, scaleFactor: 1 })
 }
 
 function buildContextMenu(): Menu {
@@ -81,51 +80,23 @@ function buildContextMenu(): Menu {
   return Menu.buildFromTemplate(template)
 }
 
+function tooltipSuffix(): string | null {
+  if (paused) return 'пауза'
+  if (trayState === 'success') return 'отлично'
+  if (trayState === 'standup') return 'пора встать!'
+  return trayDetail
+}
+
 function updateTooltip(): void {
   if (!tray) return
   const ready = handlers?.getUpdateReadyVersion() ?? null
   const channel = APP_CHANNEL === 'dev' ? 'Dev · ' : ''
   const laboratory = isLabProcess() ? 'Лаборатория · ' : ''
-  const base = `${channel}${laboratory}${paused ? 'Body Debugger — пауза' : TRAY_LABELS[trayState]}`
+  const suffix = tooltipSuffix()
+  const base = suffix
+    ? `${channel}${laboratory}Body Debugger — ${suffix}`
+    : `${channel}${laboratory}Body Debugger`
   tray.setToolTip(ready ? `${base} · обновление готово` : base)
-}
-
-function stopFrameTimer(): void {
-  if (frameTimer) clearInterval(frameTimer)
-  frameTimer = null
-}
-
-/** Show the current state as a static frame or an animation (CONCEPT.md §13). */
-function playTrayState(): void {
-  stopFrameTimer()
-  if (!tray) return
-
-  const spec = trayFrameSpec(trayState)
-  const frames = trayFrames(trayState)
-  if (frames.length === 0) return
-
-  let index = 0
-  tray.setImage(frames[0])
-
-  const animate = spec.intervalMs > 0 && frames.length > 1 && !handlers?.isReducedMotion()
-  if (!animate) return
-
-  frameTimer = setInterval(() => {
-    if (!tray) {
-      stopFrameTimer()
-      return
-    }
-    index += 1
-    if (index >= frames.length) {
-      if (!spec.loop) {
-        stopFrameTimer()
-        tray.setImage(frames[frames.length - 1])
-        return
-      }
-      index = 0
-    }
-    tray.setImage(frames[index])
-  }, spec.intervalMs)
 }
 
 export function createAppTray(nextHandlers: TrayHandlers): Tray {
@@ -133,20 +104,39 @@ export function createAppTray(nextHandlers: TrayHandlers): Tray {
 
   if (tray) {
     refreshTrayMenu()
-    playTrayState()
+    updateTooltip()
     return tray
   }
 
-  const idle = trayFrames('idle')
-  tray = new Tray(idle[0])
+  tray = new Tray(placeholderImage())
   refreshTrayMenu()
   tray.on('double-click', () => {
     handlers?.openDashboard()
   })
   updateTooltip()
-  playTrayState()
-
   return tray
+}
+
+/** Drop the icon and add it again so Windows re-reads the notification setting. */
+export function recreateAppTray(): void {
+  if (!handlers) return
+  const saved = handlers
+  tray?.destroy()
+  tray = null
+  createAppTray(saved)
+}
+
+export function hasTray(): boolean {
+  return tray !== null
+}
+
+export function setTrayImage(image: NativeImage): void {
+  tray?.setImage(image)
+}
+
+export function setTrayDetail(detail: string | null): void {
+  trayDetail = detail
+  updateTooltip()
 }
 
 /** Rebuild the menu after pause state changes. */
@@ -163,12 +153,11 @@ export function setTrayPaused(next: boolean): void {
 export function setTrayState(state: TrayState): void {
   trayState = state
   updateTooltip()
-  playTrayState()
 }
 
-/** Re-apply motion settings (e.g. «Уменьшить анимации» toggled on the dashboard). */
+/** Motion changes are applied by the next portrait paint. */
 export function refreshTrayAnimation(): void {
-  playTrayState()
+  updateTooltip()
 }
 
 export function getTrayState(): TrayState {

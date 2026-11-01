@@ -4,10 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import PopupView from '@/views/PopupView.vue'
 import { REACTION_TIMING_MS } from '@shared/domain/reaction-timing'
-import {
-  POPUP_EXTRAS_COLLAPSED_HEIGHT,
-  POPUP_EXTRAS_HEIGHT
-} from '@shared/constants/popup'
+import { POPUP_BASE_HEIGHT } from '@shared/constants/popup'
 import { useRuntimeStore } from '@/stores/runtime'
 import { nowMs, setLaboratoryClock } from '@shared/domain/clock'
 import type { LabDriverCommand } from '@shared/domain/laboratory-playback'
@@ -15,13 +12,15 @@ import { useCharacterStore } from '@/stores/character'
 import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsStore } from '@/stores/settings'
 import type { SeverityLevel } from '@shared/types/settings'
-import type { SessionResultPayload } from '@shared/types/events'
+import type { SessionPopupPayload, SessionResultPayload } from '@shared/types/events'
 import { makeExercise, makeSession, makeSettings } from '../fixtures'
 
 const soundPlayer = vi.hoisted(() => ({
   play: vi.fn(),
   playVoice: vi.fn(() => true),
   playVoiceEvent: vi.fn(() => true),
+  waitForPlayback: vi.fn(async () => undefined),
+  stop: vi.fn(),
   preload: vi.fn()
 }))
 
@@ -45,7 +44,7 @@ const api = {
   addPhoto: vi.fn(async () => photoEntry),
   removePhoto: vi.fn(async () => ({ removed: true, photos: [] })),
   listPhotos: vi.fn(async () => [photoEntry]),
-  getCurrentPopup: vi.fn(async () => ({
+  getCurrentPopup: vi.fn(async (): Promise<SessionPopupPayload> => ({
     sessionId: 'session-1',
     exercise: makeExercise({ id: 'neck-circles', durationSec: 30 }),
     preview: false
@@ -72,6 +71,7 @@ async function mountPopup(
     extras?: boolean
     photos?: boolean
     laboratory?: boolean
+    preview?: boolean
   } = {}
 ) {
   const pinia = createPinia()
@@ -89,7 +89,23 @@ async function mountPopup(
     'session-1'
   )
   if (options.laboratory) useRuntimeStore().apply({ at: new Date().toISOString(), running: false, silent: false })
+  if (options.preview) {
+    api.getCurrentPopup.mockResolvedValue({
+      sessionId: 'session-1',
+      exercise: makeExercise({ id: 'neck-circles', durationSec: 30 }),
+      preview: true,
+      character: {
+        packId: 'desk-hulk',
+        build: 'average',
+        stage: 1,
+        branch: 'posture',
+        condition: 0,
+        emotion: 'happy'
+      }
+    })
+  }
   const popup = mount(PopupView, { global: { plugins: [pinia] } })
+  await flushMicrotasks()
   if (options.start !== false) await popup.get('[data-testid="start-exercise"]').trigger('click')
   return popup
 }
@@ -112,6 +128,9 @@ beforeEach(() => {
   soundPlayer.play.mockClear()
   soundPlayer.playVoice.mockClear()
   soundPlayer.playVoiceEvent.mockClear()
+  soundPlayer.waitForPlayback.mockClear()
+  soundPlayer.waitForPlayback.mockResolvedValue(undefined)
+  soundPlayer.stop.mockClear()
   soundPlayer.preload.mockClear()
   Object.defineProperty(window, 'api', { configurable: true, value: api })
   vi.useFakeTimers()
@@ -412,104 +431,25 @@ describe('PopupView — skip flow', () => {
   })
 })
 
-describe('PopupView — optional details', () => {
-  it('shows no details row while the optional layer is off', async () => {
-    wrapper = await mountPopup()
+describe('PopupView — no session details', () => {
+  it('never shows the old details block, even when the legacy setting is on', async () => {
+    wrapper = await mountPopup({ extras: true, photos: true })
+    expect(wrapper.find('[data-testid="extras"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="extras-toggle"]').exists()).toBe(false)
+    expect(api.resizePopup).toHaveBeenCalledWith(POPUP_BASE_HEIGHT)
   })
 
-  it('keeps details collapsed by default and grows the window only when opened', async () => {
-    wrapper = await mountPopup({ extras: true })
-    const toggle = wrapper.find('[data-testid="extras-toggle"]')
-    expect(toggle.exists()).toBe(true)
-    expect(wrapper.find('[data-testid="extras-panel"]').exists()).toBe(false)
-
-    await toggle.trigger('click')
-    expect(wrapper.find('[data-testid="extras-panel"]').exists()).toBe(true)
-    expect(api.resizePopup).toHaveBeenLastCalledWith(POPUP_EXTRAS_HEIGHT)
-
-    await toggle.trigger('click')
-    expect(wrapper.find('[data-testid="extras-panel"]').exists()).toBe(false)
-    expect(api.resizePopup).toHaveBeenLastCalledWith(POPUP_EXTRAS_COLLAPSED_HEIGHT)
-  })
-
-  it('submits reps, feeling and weight with the result', async () => {
-    wrapper = await mountPopup({ extras: true })
-
-    await wrapper.find('[data-testid="extras-toggle"]').trigger('click')
-    await wrapper.find('[data-testid="reps-input"]').setValue('12')
-    await wrapper.find('[data-testid="weight-input"]').setValue('72.55')
-    await wrapper.find('[data-feeling="4"]').trigger('click')
-    await findButton(wrapper, 'Готово').trigger('click')
-    await flushMicrotasks()
-
-    expect(api.sessionResult).toHaveBeenCalledWith(
-      expect.objectContaining({ reps: 12, feeling: 4, weightKg: 72.6 })
-    )
-  })
-
-  it('drops blank and out-of-range details instead of sending them', async () => {
-    wrapper = await mountPopup({ extras: true })
-
-    await wrapper.find('[data-testid="extras-toggle"]').trigger('click')
-    await wrapper.find('[data-testid="reps-input"]').setValue('0')
-    await wrapper.find('[data-testid="weight-input"]').setValue('5')
+  it('submits a done result without reps, feeling, weight or photos', async () => {
+    wrapper = await mountPopup({ extras: true, photos: true })
     await findButton(wrapper, 'Готово').trigger('click')
     await flushMicrotasks()
 
     const payload = api.sessionResult.mock.calls[0]?.[0]
+    expect(payload).toMatchObject({ status: 'done', sessionId: 'session-1' })
     expect(payload?.reps).toBeUndefined()
-    expect(payload?.weightKg).toBeUndefined()
     expect(payload?.feeling).toBeUndefined()
-  })
-
-  it('attaches a photo and sends its id with the result', async () => {
-    wrapper = await mountPopup({ photos: true })
-    await wrapper.get('[data-testid="extras-toggle"]').trigger('click')
-
-    const input = wrapper.get('[data-testid="photo-input"]')
-    const file = new File([new Uint8Array([1, 2])], 'photo.png', { type: 'image/png' })
-    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
-    await input.trigger('change')
-    await flushMicrotasks()
-
-    expect(api.addPhoto).toHaveBeenCalledTimes(1)
-    expect(wrapper.find('img[src="photo://photo-1"]').exists()).toBe(true)
-
-    await findButton(wrapper, 'Готово').trigger('click')
-    await flushMicrotasks()
-
-    expect(api.sessionResult).toHaveBeenCalledWith(
-      expect.objectContaining({ photoIds: ['photo-1'] })
-    )
-  })
-
-  it('removes an attached photo before submitting', async () => {
-    wrapper = await mountPopup({ photos: true })
-    await wrapper.get('[data-testid="extras-toggle"]').trigger('click')
-
-    const input = wrapper.get('[data-testid="photo-input"]')
-    const file = new File([new Uint8Array([1, 2])], 'photo.png', { type: 'image/png' })
-    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
-    await input.trigger('change')
-    await flushMicrotasks()
-
-    await wrapper.get('[data-testid="photo-remove"]').trigger('click')
-    await flushMicrotasks()
-
-    expect(api.removePhoto).toHaveBeenCalledWith({ id: 'photo-1' })
-    expect(wrapper.find('img[src="photo://photo-1"]').exists()).toBe(false)
-  })
-
-  it('never attaches details to a skip', async () => {
-    wrapper = await mountPopup({ extras: true })
-
-    await wrapper.find('[data-testid="extras-toggle"]').trigger('click')
-    await wrapper.find('[data-testid="reps-input"]').setValue('12')
-    await findButton(wrapper, 'Пропустить').trigger('click')
-    await flushMicrotasks()
-
-    expect(api.sessionResult.mock.calls[0]?.[0]?.reps).toBeUndefined()
+    expect(payload?.weightKg).toBeUndefined()
+    expect(payload?.photoIds).toBeUndefined()
   })
 })
 
@@ -537,7 +477,7 @@ describe('PopupView — isolated semantic driver', () => {
     expect(acknowledge).toHaveBeenCalledWith({ sessionId: 'session-1', kind: 'feedback-complete' })
     expect(api.closePopup).toHaveBeenCalledOnce()
   })
-  it('waits for readiness, highlights the real control and rejects done before its severity gate', async () => {
+  it('waits for readiness, highlights controls, and unlocks done for arcade without a lab clock', async () => {
     wrapper = await mountPopup({ start: false, severity: 'medium', laboratory: true })
     await flushMicrotasks()
     expect(acknowledge).toHaveBeenCalledWith({ kind: 'ready', sessionId: 'session-1' })
@@ -546,8 +486,45 @@ describe('PopupView — isolated semantic driver', () => {
     action(2, 'start'); await flushMicrotasks()
     expect(wrapper.find('[data-testid="start-exercise"]').exists()).toBe(false)
     action(3, 'done'); await flushMicrotasks()
-    expect(api.sessionResult).not.toHaveBeenCalled()
-    expect(acknowledge).toHaveBeenCalledWith(expect.objectContaining({ kind: 'failed', sequence: 3 }))
+    expect(api.sessionResult).toHaveBeenCalledOnce()
+  })
+  it('acks ready only after the entry line and applied only after active finishes', async () => {
+    let release!: () => void
+    soundPlayer.waitForPlayback.mockImplementation(
+      () => new Promise<undefined>((resolve) => { release = () => resolve(undefined) })
+    )
+    wrapper = await mountPopup({ start: false, laboratory: true })
+    await flushMicrotasks()
+    expect(acknowledge).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'ready' }))
+    release()
+    await flushMicrotasks()
+    expect(acknowledge).toHaveBeenCalledWith({ kind: 'ready', sessionId: 'session-1' })
+    action(1, 'start'); await flushMicrotasks()
+    expect(soundPlayer.playVoiceEvent).toHaveBeenCalledWith('active')
+    expect(acknowledge).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'applied' }))
+    release()
+    await flushMicrotasks()
+    expect(acknowledge).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'applied', sessionId: 'session-1', action: 'start'
+    }))
+  })
+  it('subscribes to the driver for chronicle preview without a laboratory clock', async () => {
+    wrapper = await mountPopup({ start: false, preview: true })
+    await flushMicrotasks()
+    expect(acknowledge).toHaveBeenCalledWith({ kind: 'ready', sessionId: 'session-1' })
+    action(1, 'start'); await flushMicrotasks()
+    action(2, 'done'); await flushMicrotasks()
+    expect(api.sessionResult).toHaveBeenCalledOnce()
+  })
+  it('locks controls during chronicle arcade and aborts on a shell click', async () => {
+    wrapper = await mountPopup({ start: false, preview: true })
+    await flushMicrotasks()
+    expect(wrapper.find('[data-arcade-locked="true"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="start-exercise"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-arcade-locked="true"]').trigger('click')
+    await flushMicrotasks()
+    expect(soundPlayer.stop).toHaveBeenCalled()
+    expect(acknowledge).toHaveBeenCalledWith({ sessionId: 'session-1', kind: 'manual' })
   })
   it('shows an error before any success and retries the same session through the ordinary submit path', async () => {
     wrapper = await mountPopup({ start: false, severity: 'medium', laboratory: true })
@@ -583,11 +560,27 @@ describe('PopupView — isolated semantic driver', () => {
     vi.advanceTimersByTime(1); await flushMicrotasks()
     expect(api.sessionResult).toHaveBeenCalledOnce()
   })
-  it('does not subscribe to the driver outside the isolated runtime', async () => {
+  it('does not subscribe to the driver outside laboratory and preview', async () => {
     const spy = vi.fn()
     Object.defineProperty(window, 'api', { configurable: true, value: { ...api, onLabDriver: spy } })
     wrapper = await mountPopup({ start: false })
     await flushMicrotasks()
     expect(spy).not.toHaveBeenCalled()
+  })
+  it('waits for the voice line before feedback-complete on automatic close', async () => {
+    let endVoice!: () => void
+    soundPlayer.waitForPlayback.mockImplementation(() => new Promise<undefined>((resolve) => { endVoice = () => resolve(undefined) }))
+    wrapper = await mountPopup({ laboratory: true })
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+    expect(acknowledge).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'feedback-complete' }))
+    vi.advanceTimersByTime(REACTION_TIMING_MS.done + REACTION_TIMING_MS.exit + 1000)
+    await flushMicrotasks()
+    expect(acknowledge).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'feedback-complete' }))
+    endVoice()
+    await flushMicrotasks()
+    vi.advanceTimersByTime(REACTION_TIMING_MS.done + REACTION_TIMING_MS.exit)
+    await flushMicrotasks()
+    expect(acknowledge).toHaveBeenCalledWith({ sessionId: 'session-1', kind: 'feedback-complete' })
   })
 })

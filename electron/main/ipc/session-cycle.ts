@@ -11,6 +11,7 @@ import {
   getActivePopup,
   getLoopState,
   handleSessionResult,
+  refreshTrayPortrait,
   triggerNow
 } from '../trigger-loop'
 import { acknowledgeChronicleDriver } from '../chronicle-playback'
@@ -57,5 +58,6 @@ export function registerSessionCycleIpc(): void {
 
   ipcMain.on(IpcChannels.TraySetState, (_event, payload: TraySetStatePayload) => {
     setTrayState(payload.state)
+    refreshTrayPortrait()
   })
 }

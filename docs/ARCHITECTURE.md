@@ -12,8 +12,9 @@ popup geometry and character condition, is described below.
 ```
 electron/main/              # Tray, windows, IPC, app wiring
 electron/main/trigger-loop.ts # Reminder schedule + active session (main SoT)
-electron/main/tray.ts       # Tray icon animation + menu
-electron/main/tray-icons.ts # Frame sets per TrayState
+electron/main/tray.ts       # Tray menu and image slot
+electron/main/tray-portrait.ts # Character face + countdown ring for the tray and taskbar
+electron/main/tray-icons.ts # Legacy glyph frames; not the live icon
 electron/resources/tray/    # Generated tray frames (idle / soon / standup / success / streak)
 electron/main/broadcast.ts  # Window broadcast helpers
 electron/main/persistence/  # JSON SoT (settings / progress / sessions / weights)
@@ -134,9 +135,9 @@ Skipped / snoozed / missed sessions never count as training. Difficulty and
 
 `#/dashboard?tab=settings` opens the tab directly. The tray «Настройки» item opens it in a new dashboard or sends `window:navigate-dashboard` with `{ tab }` to an existing window without reloading the renderer.
 
-The dashboard has five primary sections: «Сегодня», «Персонаж», «Лаборатория», «Прогресс» and «Настройки». Today contains the hero, day counts, streak, a compact journey and optional quick weight entry. «Персонаж» uses `SectionTabs.vue`: «Профиль» groups identity/build with a preview (`CharacterSettingsPanel.vue`) and the full evolution (`CharacterJourney.vue`); «Хроника» is the real-history timeline with temporary manual controls and shared NativePlayback. «Лаборатория» mounts the sandbox UI natively via `LaboratoryHost.vue`. `ProgressPanel.vue` groups calendar, statistics, full weight history and photos using the same keyboard-accessible tabs. Legacy `tab=calendar` / `tab=stats` links select the matching progress subsection; `tab=playground` aliases to laboratory.
+The dashboard has five primary sections: «Сегодня», «Персонаж», «Лаборатория», «Прогресс» and «Настройки». Today contains the hero, day counts, streak, a compact journey and optional quick weight entry. «Персонаж» uses `SectionTabs.vue`: «Профиль» groups identity/build with a preview (`CharacterSettingsPanel.vue`) and the full evolution (`CharacterJourney.vue`); «Хроника» is the real-history timeline with temporary manual controls and the shared arcade `NativePlayback` engine. «Лаборатория» mounts the sandbox UI natively via `LaboratoryHost.vue`. `ProgressPanel.vue` groups calendar, statistics, full weight history and photos using the same keyboard-accessible tabs. Legacy `tab=calendar` / `tab=stats` links select the matching progress subsection; `tab=playground` aliases to laboratory.
 
-`PreferencesPanel.vue` groups interval/strictness and picker/Focus. Its selection group reuses `ComfortSettingsPanel.vue` for inventory and AI approval. The presentation group owns sound with volume/previews, details, weight/photo switches, themes and reduced motion; each layer's controls stay beside its switch. Character identity/build remain on «Персонаж». Stage changes and completed breaks trigger a brief non-blocking banner. The Electron application menu is hidden by default. The dashboard height is capped at 900 px and the available work area minus 80 px; shorter screens keep normal scrolling.
+`PreferencesPanel.vue` groups interval/strictness and picker/Focus. Its selection group reuses `ComfortSettingsPanel.vue` for inventory and AI approval. The presentation group owns sound with volume/previews, weight/photo switches, themes and reduced motion; each layer's controls stay beside its switch. Character identity/build remain on «Персонаж». Stage changes and completed breaks trigger a brief non-blocking banner. The Electron application menu is hidden by default. The dashboard height is capped at 900 px and the available work area minus 80 px; shorter screens keep normal scrolling.
 
 ### Popup severity
 
@@ -154,15 +155,15 @@ Extra hardcore checks (CONCEPT §3) are not implemented yet.
 
 ### Optional session details
 
-`shared/domain/session-extras.ts` — pure validation; the popup collects the values, main normalizes them before writing. This is the first slice of ROADMAP #8.
+`shared/domain/session-extras.ts` — pure validation for historical / future payloads. ROADMAP #8 shipped the fields; the popup UI no longer collects them.
 
-| Field | Range | Input |
+| Field | Range | Notes |
 |-------|-------|-------|
-| `reps` | 1–999, integer | number |
-| `feeling` | 1–5 | five chips |
-| `weightKg` | 20–300, one decimal | number (step 0.1) |
+| `reps` | 1–999, integer | Kept on stored `done` sessions when present |
+| `feeling` | 1–5 | Same |
+| `weightKg` | 20–300, one decimal | Prefer the dashboard weight card for new entries |
 
-The block is **off by default**. «Детали в попапе» on «Настройки» sets `settings.sessionExtras.enabled`; the popup then shows a collapsed «Детали (необязательно)» row. Values outside the ranges are dropped, never clamped, and a result still resolves without details. Details are stored only for `done` sessions — snooze / skip / miss never carry them. Expanding the block grows the popup via `window:resize-popup` (heights in `shared/constants/popup.ts`) while the window stays anchored to the bottom-right corner. Values remain in session history; weight measurements also feed the optional weight card.
+«Детали в попапе» was removed from «Настройки». Weight and photos are dashboard layers. Main still normalizes extras if a client sends them; values outside the ranges are dropped, never clamped.
 
 ### Weight history
 
@@ -171,7 +172,7 @@ The block is **off by default**. «Детали в попапе» on «Наст�
 | Rule | Behaviour |
 |------|-----------|
 | Range | 20–300 kg, one decimal (shared with the popup `weightKg` detail) |
-| Sources | A `done` session carrying `weightKg` (popup details), or a manual entry on the dashboard |
+| Sources | Historical `done` sessions carrying `weightKg`, or a manual entry on the dashboard |
 | Idempotency | Session measurements get a deterministic id `weight:session:<sessionId>` and are skipped when present |
 | Backfill | On load, `done` sessions from before this layer are merged once into `weights.json` |
 | Chart window | Last 90 days (`WEIGHT_HISTORY_DAYS`); points are sorted oldest → newest |
@@ -228,7 +229,7 @@ Stage-up is automatic; `streak` has a generated effect and a debug preview but n
 | Storage | Main writes `.userdata/photos/<uuid>.<ext>` + `data/photos.json`; renderer only sees metadata |
 | Serving | `photo://<id>` resolves only ids present in metadata; unknown → 404 |
 | Session | At most 6 `photoIds`; main drops ids that do not exist before writing the session |
-| UI | Popup attaches/removes photos inside the optional details block; «Прогресс» → «Фотографии» shows a gallery with delete |
+| UI | «Прогресс» → «Фотографии» shows a gallery with add/delete; the popup no longer attaches photos |
 
 The layer is off by default (`settings.photos.enabled`). `photoIds` are only carried by `done` sessions.
 
@@ -256,7 +257,7 @@ The layer is off by default (`settings.photos.enabled`). `photoIds` are only car
 
 ### Chronicle, laboratory and shared playback
 
-«Персонаж → Хроника» is the read-only view of the real profile: timeline, calendar and statistics wrapped in a `CharacterContext` object, plus `ManualCharacterControls` that change only the preview (form, condition, build, branch, emotion). The manual override is component state; it is never persisted. Play uses the shared `NativePlayback` engine in preview mode (popups without writes). «Лаборатория» mounts the full laboratory natively in the same dashboard window.
+«Персонаж → Хроника» is the read-only view of the real profile: timeline, calendar and statistics wrapped in a `CharacterContext` object, plus `ManualCharacterControls` that change only the preview (form, condition, build, branch, emotion). The manual override is component state; it is never persisted. Play uses the shared arcade `NativePlayback` engine in preview mode (popups without writes, LabDriver on `active.preview`). «Лаборатория» mounts the full laboratory natively in the same dashboard window.
 
 The laboratory is no longer a separate window or a `dev:lab` entry. Main spawns a headless Electron child with `--body-debugger-lab --body-debugger-lab-headless` and an isolated profile: `.userdata/laboratory/` when unpackaged, `<userData>/laboratory` when packaged. The child runs the reminder loop, owns the laboratory plan, native popup/preview windows and settings/data; it opens no tray or dashboard. The normal dashboard stays open the whole time.
 
@@ -278,7 +279,7 @@ The embedded lab is a native Vue host (`LaboratoryHost`) with a nested Pinia and
 | Renderer runtime projection | `src/stores/runtime.ts`; applied before hydrating domain stores |
 | Laboratory UI sections | `src/debug/LaboratoryPanel.vue`, `src/debug/AppearancePanel.vue`, `src/debug/SoundAuditionPanel.vue` |
 
-Silent date viewing reconstructs only the selected prefix. Native replay moves through reminder readiness, visible start/choice, exercise, durable save, reaction and close/repeat phases. Reading time comes from `shared/domain/reaction-timing.ts`, never from replay speed. The active popup sends `feedback-complete` before closing; main also waits for its actual window to disappear and reports a retryable error if closing stalls, rather than forcing it closed. A paused/stepped run cannot bypass an open result scene. The semantic driver calls the same popup actions as real input, including the normal severity gate and real-time Hardcore hold. It cannot append a final history snapshot as a playback result. Main checks generation, command sequence and session identity; driver acknowledgements are accepted only from the active popup WebContents in the laboratory child. Late popup close/resize requests also require the currently active WebContents.
+Silent date viewing reconstructs only the selected prefix. Arcade replay is a non-overlapping chain: cursor jump and scene beat, popup ready, semantic start/choice (no exercise wall-clock), durable save, voice-gated reaction, close, next event. There is no user tempo control; fixed `ARCADE_SCENE_MS` beats separate links. Reading time is at least `reactionDuration` and never shorter than the spoken line plus a 1 s tail (`waitForPlayback`); arcade advances only after `feedback-complete`, not merely because the window closed. The active popup sends that ack before closing; main also waits for the window to disappear and reports a retryable error if closing stalls. A paused/stepped run cannot bypass an open result scene. The semantic driver runs for laboratory clock **or** chronicle `preview`, unlocks the severity gate for arcade, and keeps a real-time Hardcore hold. Main checks generation, command sequence and session identity; driver acknowledgements are accepted from the active popup WebContents (lab child or main preview). Late popup close/resize requests also require the currently active WebContents.
 
 Controller-owned popup openings do not interrupt replay. Actual user actions cancel automatic dispatch and form a manual branch; the original resolved future is retained separately. A durable outcome publishes its cursor and snapshot together to the laboratory. Normal dashboard hydration uses the same canonical result. Pause freezes application time and result deadlines, cancels a partial hold and rearms remaining work on resume. Leaving the laboratory tab pauses the driver without losing the run; the headless engine stays alive for the app session. Seeking/reset/mode changes invalidate the generation and cancel the discarded native session before closing its window.
 
@@ -290,7 +291,7 @@ Saved plans use laboratory format 2 with semantic actions, character/build, sett
 
 `shared/domain/chronicle.ts` builds a read-only timeline over the real session history. It normalizes timestamps, sorts and de-duplicates identities, then precomputes an entry per session: `start`, each resolved session and a final `now` entry when it is later than the last result. Stage is computed incrementally from the done count, branch from the last 30 done sessions, condition from the shared transition rules; streak changes and gaps become milestone markers. `chronicleSummary` reuses `shared/domain/character-summary.ts`, the same helper behind `labSummary`; `describeSummaryChange` is shared by the laboratory explanation and the chronicle. `chronicleDateIndex` maps a local date to the last entry before its end.
 
-`CharacterChronicle.vue` receives `now` and a `CharacterContext` (`shared/domain/character-context.ts`: sessions, pack, build, `allowStart`, optional `manual`) under «Персонаж → Хроника» (with the start action and temporary manual controls). Transport play/pause/seek/step/date goes through `chronicleCommand` IPC into `electron/main/chronicle-playback.ts`, which feeds `NativePlayback` from `chronicleToLabPlan` in preview mode (popups open; `commit` does not write the real profile). The character portrait uses the cursor's stage/branch/condition with the current build and identity; a manual state replaces only those scene values, while calendar, statistics and metrics continue to follow the cursor. `CalendarHeatmap`, `ProgressDynamics` and `StatsPanel` receive only the prefix up to the cursor. Playback stops on pause, unmount, hidden window and the end of history. Real timer/manual reminders stay deferred while chronicle or laboratory playback is busy and for 30 s after `endPlayback`. `ProgressDynamics.vue` and `buildProgressDynamics` are shared by the laboratory and the chronicle.
+`CharacterChronicle.vue` receives `now` and a `CharacterContext` (`shared/domain/character-context.ts`: sessions, pack, build, `allowStart`, optional `manual`) under «Персонаж → Хроника» (with the start action and temporary manual controls). Transport play/pause/seek/step/date goes through `chronicleCommand` IPC into `electron/main/chronicle-playback.ts`, which feeds the shared arcade `NativePlayback` from `chronicleToLabPlan` in preview mode (popups open with `playbackCharacterAt` overlay; `commit` does not write the real profile). The scene portrait follows the cursor's stage/branch/condition/emotion; preview popups use the overlay instead of live progress; a manual state replaces only those scene values, while calendar, statistics and metrics continue to follow the cursor. `CalendarHeatmap`, `ProgressDynamics` and `StatsPanel` receive only the prefix up to the cursor. Playback stops on pause, unmount, hidden window and the end of history. Real timer/manual reminders stay deferred while chronicle or laboratory playback is busy and for 30 s after `endPlayback`. `ProgressDynamics.vue` and `buildProgressDynamics` are shared by the laboratory and the chronicle.
 
 ### Character progress
 
@@ -354,7 +355,7 @@ The runtime glob bundles Desk Hulk and all nine supplied characters (432 additio
 
 `ComicBubble.vue` renders text safely as text, with a heading variant for the hero and a compact variant for the popup. Speech clouds, SVG bursts, achievement ribbons and soft clouds share CSS paper, ink and milestone tokens across all themes. Cheer/milestone captions pop briefly; calm invitations, pause and skips do not. Global reduced-motion rules suppress those animations.
 
-The dashboard restores the current body (including temporary neglect) after a reaction and keeps skip/snooze captions calm. The popup changes ready → focused on explicit start, then chooses first-done/done/stage-up only after durable acknowledgement. No caption is treated as proof of physical activity. Geometry reserves a 40 px dialogue row: 260 px base, 290 px collapsed details, 380 px expanded, plus 36 px for errors (max 420).
+The dashboard restores the current body (including temporary neglect) after a reaction and keeps skip/snooze captions calm. The popup changes ready → focused on explicit start, then chooses first-done/done/stage-up only after durable acknowledgement. No caption is treated as proof of physical activity. Corner HUD geometry is a normal bottom-packed flex column (full-width title/instruction, then timer/actions + portrait): 360 px base, plus 36 px for errors (max 460) in `shared/constants/popup.ts`.
 
 ### Motion
 
@@ -362,14 +363,14 @@ CONCEPT §13 micro-animations. Each surface owns its own effect:
 
 | Surface | Motion |
 |---------|--------|
-| Tray | `electron/main/tray-icons.ts` maps every `TrayState` to frames + interval; `tray.ts` swaps them on a timer. `success` plays once (jump + flash), `soon` / `standup` / `streak` loop |
+| Tray | The live icon is the current character's head plus a green countdown ring (`shared/domain/tray-countdown.ts`, `electron/main/tray-portrait.ts`). The last 20 seconds blink yellow; reduced motion keeps that arc solid yellow. The same image is the dashboard taskbar icon |
 | Popup | `.popup-in` entrance, `.timer-urgent` pulse in the last 10 s, then on `done`: flash + happy crossfade + `.popup-out-done`; skip / snooze use `.popup-out-quiet`. Reading time and the 180 ms exit are separate; `shared/domain/reaction-timing.ts` owns the durations |
 | Character | `CharacterPortrait` crossfades sprite frames (`<Transition name="frame-fade">`), bounces on happy/surprised reactions, and fades in on the dashboard |
 | Dashboard | Large reaction portrait, then restoration of the stage body; selection feedback and brief panel entrances; a one-second environmental accent every ten seconds while idle |
 
-Reduced motion: `src/motion.ts` combines `settings.reduceMotion` with the OS `prefers-reduced-motion`. `App.vue` mirrors it into `data-reduce-motion` on `<html>` and tracks window visibility; idle accents stop in hidden windows and during reactions; `src/styles/index.css` then collapses animation/transition durations. Timed effects check the preference in code — the tray uses the app setting only, because the main process cannot read the media query.
+Reduced motion: `src/motion.ts` combines `settings.reduceMotion` with the OS `prefers-reduced-motion`. `App.vue` mirrors it into `data-reduce-motion` on `<html>` and tracks window visibility; idle accents stop in hidden windows and during reactions; `src/styles/index.css` then collapses animation/transition durations. Timed effects check the preference in code — the tray warning blink uses the app setting only, because the main process cannot read the media query.
 
-Tray frames are generated by `scripts/build-tray-icons.py` (a placeholder stretching-figure glyph); see [DEVELOPMENT.md](DEVELOPMENT.md). The `streak` frame set exists, but no event sets the `streak` tray state yet — it waits for streak milestones.
+The stretching-figure glyph in `electron/resources/tray/` is no longer the live icon. `success` still swaps the face to happy for 1.5 seconds. The `streak` frame set is unused until a milestone drives it.
 
 ### Data channels
 
@@ -387,6 +388,7 @@ Tray frames are generated by `scripts/build-tray-icons.py` (a placeholder stretc
 | `exercise:updated` | main → renderers | Approved list after add/remove |
 | `app:get-info` / `app:open-logs` | invoke | Build identity (version, commit, date, packaged, channel, profile, log dir) and opening the log folder |
 | `app:get-launch-at-login` / `app:set-launch-at-login` | invoke | Read/write the OS login item; installed Windows builds only, always with `--hidden` |
+| `app:get-tray-pin` / `app:set-tray-pin` | invoke | Read/write Windows 11 `NotifyIconSettings` `IsPromoted` for this executable; installed builds only |
 | `app:update-state` / `app:update-check` / `app:update-install` | invoke | Current update state, manual check, restart into a downloaded version; a refusal reports `popup-open` / `not-ready` |
 | `app:update-dismiss` | invoke | Hide the update prompt for the current version until the next run |
 | `app:update-changed` | main → renderers | Update state after every check, download progress, ready and error |
@@ -395,7 +397,7 @@ Tray frames are generated by `scripts/build-tray-icons.py` (a placeholder stretc
 | `lab:get-state` / `lab:command` / `lab:changed` | invoke / main → renderers | Laboratory-child popup/preview and lab service timeline/native phases; durable outcomes include a coherent snapshot |
 | `lab:driver` / `lab:driver-ack` | main → popup / invoke | Semantic popup actions and correlated acknowledgements; active lab/chronicle popup only |
 | `playback:get-state` / `playback:begin` / `playback:end` / `playback:changed` | invoke / main → renderers | Shared playback mutex (`chronicle` \| `laboratory`) and post-run reminder grace |
-| `chronicle:get-state` / `chronicle:command` / `chronicle:changed` | invoke / main → renderers | Real-history NativePlayback transport (preview, no profile writes) |
+| `chronicle:get-state` / `chronicle:command` / `chronicle:changed` | invoke / main → renderers | Real-history arcade playback transport (preview, no profile writes) |
 | `window:open-dashboard` | invoke | Open / focus the dashboard |
 | `session:get-current-popup` | invoke | Active popup payload (`{ sessionId, exercise }` or `null`) |
 | `session:get-loop-state` | invoke | `{ paused, nextTriggerAt, intervalMinutes }` |
@@ -404,7 +406,7 @@ Tray frames are generated by `scripts/build-tray-icons.py` (a placeholder stretc
 | `window:navigate-dashboard` | main → renderer | Open «Настройки» in an existing dashboard |
 | `session:updated` | main → renderers | Resolved session + tray state |
 | `window:open-popup` / `window:close-popup` | invoke | Open / close the popup window |
-| `window:resize-popup` | invoke | Grow / shrink the popup for the optional details block |
+| `window:resize-popup` | invoke | Grow / shrink the popup (base height; +36 px when a save error is shown) |
 
 Channels: `shared/types/events.ts` (`IpcChannels`).
 Registration: `electron/main/ipc/session-cycle.ts`, `electron/main/ipc/persistence.ts`, `electron/main/ipc/updates.ts`, `electron/main/ipc/app.ts`, `electron/main/lab-engine.ts`, `electron/main/playback-coordinator.ts`, `electron/main/chronicle-playback.ts`.
@@ -431,19 +433,19 @@ Gotcha: sandbox `DataUpdated` is **not** forwarded to the dashboard host — onl
 | Exercise catalog (34 exercises, zones, equipment, focus tags) | Yes |
 | Weighted picker (penalties, neglect, Focus, modes) | Yes — [ROADMAP.md](ROADMAP.md) #3 |
 | Tray + menu (Dashboard / Trigger now / Pause / Quit) | Yes |
-| Popup (320×260, 380 with details, up to 420 for errors) + Dashboard windows | Yes |
+| Popup (320×360 corner HUD, up to 460 for errors) + Dashboard windows | Yes |
 | IPC cycle + persistence wiring | Yes |
 | Trigger loop (interval, idle, snooze, missed, pause) | Yes — [ROADMAP.md](ROADMAP.md) #2 |
 | Popup shows the triggered exercise (pulled from main) | Yes |
 | Popup severity (timer gate, hold to confirm) | Yes — [ROADMAP.md](ROADMAP.md) #5 |
 | Dashboard: character hero + day counts + next form; grouped settings, separate character profile and progress sections | Yes |
 | Core preferences (interval, picker mode, Focus, build) + «Настройки» tab | Yes — dashboard tab and tray deep link |
-| Optional session details (reps / feeling / weight) | Yes — popup block + dashboard switch; ROADMAP #8 (partial) |
+| Optional session details (reps / feeling / weight) | Domain + history yes; popup UI removed — weight/photos on dashboard; ROADMAP #8 |
 | Weight history (sparkline, manual entries, goal) | Yes — dashboard card; sessions backfilled once; ROADMAP #8 (partial) |
 | Tailwind + routed dashboard / popup views | Yes |
 | Desk Hulk source sheets + 42 cut frames under `src/assets/character/desk-hulk/` | Yes — includes nine temporary neglect bodies |
 | CharacterPortrait (body / face frames + emoji fallback) | Yes |
-| Tray frame animation (pulse / sway / jump per state) | Yes — [ROADMAP.md](ROADMAP.md) #7 |
+| Tray portrait + countdown ring (taskbar shares the image) | Yes — [ROADMAP.md](ROADMAP.md) #7 |
 | Motion preference (popup, character, tray) | Yes — dashboard switch + OS setting |
 | Default sound pack + gated playback + mute/volume | Yes — [SOUNDS.md](SOUNDS.md) |
 | Progress photos (main files, popup attach, dashboard gallery) | Yes — ROADMAP #8 |
@@ -470,7 +472,7 @@ Gotcha: sandbox `DataUpdated` is **not** forwarded to the dashboard host — onl
 | Character frame keys + fallbacks | [shared/domain/character-visual.ts](../shared/domain/character-visual.ts) |
 | Motion keyframes + reduced-motion CSS | [src/styles/index.css](../src/styles/index.css) |
 | Motion preference + popup exit timings | [src/motion.ts](../src/motion.ts) |
-| Tray frames per state | [electron/main/tray-icons.ts](../electron/main/tray-icons.ts) |
+| Tray portrait + ring | [electron/main/tray-portrait.ts](../electron/main/tray-portrait.ts) |
 | Character presentation | `src/components/character/` + `src/assets/character/` |
 | Sound cues / packs | [SOUNDS.md](SOUNDS.md) + `src/assets/sounds/` |
 | Sound settings + playback gate | `shared/domain/sounds.ts` + `src/sounds.ts` |

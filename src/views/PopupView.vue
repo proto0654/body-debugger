@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nowDate, nowMs } from '@shared/domain/clock'
 import { useRuntimeStore } from '@/stores/runtime'
-import type { LabDriverCommand } from '@shared/domain/laboratory-playback'
+import type { LabDriverCommand, LabPlaybackMode } from '@shared/domain/laboratory-playback'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import CharacterPortrait from '@/components/character/CharacterPortrait.vue'
 import ComicBubble from '@/components/character/ComicBubble.vue'
@@ -10,23 +10,12 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useCharacterStore } from '@/stores/character'
 import { useProgressStore } from '@/stores/progress'
 import { useSettingsStore } from '@/stores/settings'
-import { usePhotosStore } from '@/stores/photos'
-import { photoUrl } from '@/photos'
 import {
   HOLD_CONFIRM_MS,
   canFinish,
   formatCountdown
 } from '@shared/domain/severity'
-import {
-  FEELING_LABELS,
-  FEELING_VALUES,
-  normalizeSessionExtras
-} from '@shared/domain/session-extras'
-import {
-  POPUP_BASE_HEIGHT,
-  POPUP_EXTRAS_COLLAPSED_HEIGHT,
-  POPUP_EXTRAS_HEIGHT
-} from '@shared/constants/popup'
+import { POPUP_BASE_HEIGHT } from '@shared/constants/popup'
 import { useMotionPreference } from '@/motion'
 import { reactionDuration, REACTION_TIMING_MS } from '@shared/domain/reaction-timing'
 import type { CharacterReactionEvent } from '@shared/domain/character-reaction'
@@ -35,18 +24,39 @@ import { computeCharacterProgress } from '@shared/domain/character-progress'
 import { CHARACTER_STAGE_LABELS } from '@shared/constants/character'
 import { localDateKey } from '@shared/domain/stats'
 import { useSoundPlayer, type SoundPlayer } from '@/sounds'
-import type { Feeling, SessionExtras, SessionStatus } from '@shared/types/session'
-import type { PhotoEntry } from '@shared/types/photo'
+import type { SessionStatus } from '@shared/types/session'
+import type { SessionPopupCharacter } from '@shared/types/events'
 
 const sessions = useSessionsStore()
 const character = useCharacterStore()
 const progress = useProgressStore()
 const settings = useSettingsStore()
-const photos = usePhotosStore()
 const runtime = useRuntimeStore()
 const { reduced } = useMotionPreference()
 /** Scope is finalized on mount from `getCurrentPopup().preview` (chronicle vs live). */
 let sounds: SoundPlayer = useSoundPlayer('live')
+const previewMode = ref(false)
+const previewCharacter = ref<SessionPopupCharacter | null>(null)
+const playbackMode = ref<LabPlaybackMode>('automatic')
+const labPlaying = ref(false)
+const arcadeAborted = ref(false)
+/** Laboratory clock or chronicle preview — both accept LabDriver commands. */
+const drivenPlayback = computed(() => !!runtime.laboratory || previewMode.value)
+/**
+ * Automatic arcade locks controls while a scenario is actually playing.
+ * Standalone lab popups (manual checks) stay clickable.
+ */
+const arcadeLocked = computed(() =>
+  drivenPlayback.value
+  && playbackMode.value === 'automatic'
+  && !arcadeAborted.value
+  && (previewMode.value || labPlaying.value)
+)
+const portraitPackId = computed(() => previewCharacter.value?.packId ?? settings.characterPackId)
+const portraitStage = computed(() => previewCharacter.value?.stage ?? character.state.stage)
+const portraitBranch = computed(() => previewCharacter.value?.branch ?? character.state.branch)
+const portraitBuild = computed(() => previewCharacter.value?.build ?? character.state.build)
+const portraitEmotion = computed(() => previewCharacter.value?.emotion ?? character.emotion)
 
 // Entrance/exit animations translate and scale the shell; without this the
 // popup window flashes classic scrollbars for the duration of the animation.
@@ -74,18 +84,6 @@ const exitKind = ref<'done' | 'quiet' | null>(null)
 let feedbackTimer: ReturnType<typeof setTimeout> | undefined
 let closeRequested = false
 
-// Optional details (CONCEPT §4, §10): hidden unless the user turned them on,
-// and collapsed by default so the core cycle stays one exercise + one timer.
-const extrasEnabled = computed(() => settings.sessionExtras.enabled)
-const photosEnabled = computed(() => settings.photos.enabled)
-const detailsEnabled = computed(() => extrasEnabled.value || photosEnabled.value)
-const extrasOpen = ref(false)
-const repsInput = ref('')
-const weightInput = ref('')
-const feeling = ref<Feeling | null>(null)
-const attachedPhotos = ref<PhotoEntry[]>([])
-const photoInput = ref<HTMLInputElement | null>(null)
-
 let timer: ReturnType<typeof setInterval> | null = null
 let holdTimer: ReturnType<typeof setInterval> | null = null
 let unsubscribeDriver: (() => void) | undefined
@@ -100,9 +98,9 @@ function driverAck(kind: 'applied' | 'failed'): void {
   void window.api.labDriverAck({ ...driverCommand, kind }).catch(cause => console.warn('[laboratory] acknowledgement failed', cause))
 }
 
-/** The laboratory invokes these same actions; it cannot bypass severity or persistence. */
+/** Arcade driver (lab + chronicle preview): same actions as a real click, with timer unlock. */
 async function applyDriver(command: LabDriverCommand): Promise<void> {
-  if (!runtime.laboratory || command.sessionId !== popupSessionId || resolved.value
+  if (!drivenPlayback.value || command.sessionId !== popupSessionId || resolved.value
     || (driverCommand && (command.generation < driverCommand.generation
       || (command.generation === driverCommand.generation && command.sequence <= driverCommand.sequence)))) return
   driverCommand = command
@@ -111,30 +109,52 @@ async function applyDriver(command: LabDriverCommand): Promise<void> {
   if (command.action.startsWith('highlight-')) { driverAck('applied'); return }
   if (command.action === 'start') {
     startExercise()
-    driverAck(started.value ? 'applied' : 'failed')
+    if (!started.value) { driverAck('failed'); return }
+    // Full `active` line before arcade continues to the outcome click.
+    await sounds.waitForPlayback()
+    if (arcadeAborted.value || resolved.value) return
+    driverAck('applied')
   } else if (command.action === 'hold') {
+    // Arcade never waits out the real exercise clock — unlock, then hold.
+    remainingMs.value = 0
     if (canFinishNow.value && severity.value === 'hardcore') { startHold(); driverAck('applied') }
     else driverAck('failed')
   } else if (command.action === 'done' || command.action === 'skipped' || command.action === 'snoozed') {
-    // Give the countdown's ordinary 250 ms update a chance to observe a clock revision.
-    if (command.action === 'done' && started.value && timerStartedAt !== null) {
-      remainingMs.value = Math.max(0, durationMs.value - (nowMs() - timerStartedAt))
-    }
+    if (command.action === 'done') remainingMs.value = 0
     if (command.action === 'done' && !canFinishNow.value) { driverAck('failed'); return }
     await submit(command.action)
   }
 }
 
 function reportManualAction(): Promise<void> {
-  if (!runtime.laboratory || !popupSessionId) return Promise.resolve()
+  if (!drivenPlayback.value || !popupSessionId) return Promise.resolve()
   labHighlight.value = ''
   driverCommand = null
   return window.api.labDriverAck?.({ sessionId: popupSessionId, kind: 'manual' })
     .catch(cause => console.warn('[laboratory] manual action report failed', cause))
 }
 
-function userStart(): void { void reportManualAction(); startExercise() }
-function userSubmit(status: SessionStatus): void { void reportManualAction(); void submit(status) }
+/** Click-anywhere abort for automatic arcade — never leaves the popup waiting for a human. */
+function abortArcade(): void {
+  if (!arcadeLocked.value || !popupSessionId) return
+  arcadeAborted.value = true
+  labHighlight.value = ''
+  driverCommand = null
+  clearTimeout(feedbackTimer)
+  stopHold()
+  sounds.stop()
+  void window.api.labDriverAck?.({ sessionId: popupSessionId, kind: 'manual' })
+    .catch(cause => console.warn('[laboratory] abort failed', cause))
+}
+
+function userStart(): void {
+  if (arcadeLocked.value) { abortArcade(); return }
+  void reportManualAction(); startExercise()
+}
+function userSubmit(status: SessionStatus): void {
+  if (arcadeLocked.value) { abortArcade(); return }
+  void reportManualAction(); void submit(status)
+}
 
 const severity = computed(() => settings.severity)
 const canFinishNow = computed(() =>
@@ -153,15 +173,6 @@ const progressPercent = computed(() => {
   if (durationMs.value <= 0) return 100
   const done = (durationMs.value - remainingMs.value) / durationMs.value
   return Math.min(100, Math.max(0, Math.round(done * 100)))
-})
-
-const severityHint = computed(() => {
-  if (!sessions.current) return 'Готовим упражнение…'
-  if (!started.value) return 'Таймер начнётся, когда будешь готов'
-  if (severity.value === 'soft') return 'Мягкая строгость — можно завершить сразу'
-  if (!canFinishNow.value) return '«Готово» откроется ближе к концу'
-  if (severity.value === 'hardcore') return 'Удерживайте «Готово» до заполнения'
-  return 'Можно завершать'
 })
 
 function startExercise(): void {
@@ -188,70 +199,18 @@ function startTimer(): void {
   }, 250)
 }
 
-/** Window height follows the details block: base → collapsed row → expanded panel. */
+/** Base height, plus a little room when a save error needs to be readable. */
 function requestedPopupHeight(): number {
-  const height = !detailsEnabled.value ? POPUP_BASE_HEIGHT
-    : extrasOpen.value ? POPUP_EXTRAS_HEIGHT : POPUP_EXTRAS_COLLAPSED_HEIGHT
-  return height + (errorMessage.value ? 36 : 0)
+  return POPUP_BASE_HEIGHT + (errorMessage.value ? 36 : 0)
 }
 
 watch(
-  [detailsEnabled, extrasOpen, errorMessage],
+  errorMessage,
   () => {
     void window.api?.resizePopup?.(requestedPopupHeight())
   },
   { immediate: true }
 )
-
-function toggleExtras(): void {
-  extrasOpen.value = !extrasOpen.value
-}
-
-function toggleFeeling(value: Feeling): void {
-  feeling.value = feeling.value === value ? null : value
-}
-
-function collectExtras(): SessionExtras {
-  if (!detailsEnabled.value || !extrasOpen.value) return {}
-
-  const extras: SessionExtras = extrasEnabled.value
-    ? normalizeSessionExtras({
-        reps: repsInput.value,
-        feeling: feeling.value,
-        weightKg: weightInput.value
-      })
-    : {}
-
-  if (photosEnabled.value && attachedPhotos.value.length > 0) {
-    extras.photoIds = attachedPhotos.value.map((photo) => photo.id)
-  }
-  return extras
-}
-
-async function onPhotoPicked(event: Event): Promise<void> {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file) return
-
-  try {
-    const entry = await photos.add(file, sessions.current?.id)
-    if (entry) attachedPhotos.value = [...attachedPhotos.value, entry]
-    else errorMessage.value = 'Фото не добавлено. Разминку можно завершить без него.'
-  } catch (cause) {
-    console.error('[popup] optional photo upload failed', cause)
-    errorMessage.value = 'Фото не добавлено. Разминку можно завершить без него.'
-  }
-}
-
-async function detachPhoto(id: string): Promise<void> {
-  await photos.remove(id)
-  attachedPhotos.value = attachedPhotos.value.filter((photo) => photo.id !== id)
-}
-
-function openPhotoPicker(): void {
-  photoInput.value?.click()
-}
 
 function stopTimer(): void {
   if (timer) clearInterval(timer)
@@ -281,8 +240,9 @@ function stopHold(): void {
 }
 
 function onDoneDown(): void {
+  if (arcadeLocked.value) { abortArcade(); return }
   if (severity.value !== 'hardcore') return
-  if (!runtime.laboratory) { startHold(); return }
+  if (!drivenPlayback.value) { startHold(); return }
   userHolding = true
   void reportManualAction().then(() => { if (userHolding) startHold() })
 }
@@ -294,6 +254,7 @@ function onDoneUp(): void {
 }
 
 function onDoneClick(): void {
+  if (arcadeLocked.value) { abortArcade(); return }
   // Hardcore confirms via hold only; the click fires right after pointerup.
   if (severity.value === 'hardcore') return
   void reportManualAction()
@@ -301,6 +262,7 @@ function onDoneClick(): void {
 }
 
 function onHoldKeyDown(event: KeyboardEvent): void {
+  if (arcadeLocked.value) { abortArcade(); return }
   if (severity.value !== 'hardcore') return
   event.preventDefault()
   if (!event.repeat) onDoneDown()
@@ -312,6 +274,8 @@ onMounted(async () => {
     const active = await window.api?.getCurrentPopup?.()
     if (active) {
       // Chronicle preview reuses this engine but keeps voice rotation off the live profile.
+      previewMode.value = !!active.preview
+      previewCharacter.value = active.character ?? null
       sounds = useSoundPlayer(active.preview ? 'preview' : 'live')
       if (!sessions.current) sessions.beginSession(active.exercise, active.sessionId)
     }
@@ -324,24 +288,36 @@ onMounted(async () => {
   }
   character.react('ready', sessions.history.length)
   popupSessionId = sessions.current?.id ?? ''
-  if (runtime.laboratory && popupSessionId && window.api.onLabDriver) {
-    unsubscribeDriver = window.api.onLabDriver(command => { void applyDriver(command) })
-    unsubscribeLab = window.api.onLabChanged(state => {
-      if (state.playback?.paused && !labPaused.value) stopHold()
-      labPaused.value = state.playback?.paused ?? false
-    })
-    void window.api.labDriverAck({ sessionId: popupSessionId, kind: 'ready' })
-      .catch(cause => console.warn('[laboratory] readiness failed', cause))
-  }
   sounds.preload()
   // One sound per event: the character line replaces the short signal, and the
   // shipped effect stays as the fallback when the layer is off or has no take
   // (docs/SOUNDS.md).
   if (!sounds.playVoice('popup')) sounds.play('popup')
+  if (drivenPlayback.value && popupSessionId && window.api.onLabDriver) {
+    unsubscribeDriver = window.api.onLabDriver(command => {
+      // A driver command means an automatic/interactive run owns this popup.
+      if (!previewMode.value) labPlaying.value = true
+      void applyDriver(command)
+    })
+    unsubscribeLab = window.api.onLabChanged?.(state => {
+      if (state.playback?.mode === 'automatic' || state.playback?.mode === 'interactive') {
+        playbackMode.value = state.playback.mode
+      }
+      labPlaying.value = !!state.playing
+      if (state.playback?.paused && !labPaused.value) stopHold()
+      labPaused.value = state.playback?.paused ?? false
+    })
+    // Arcade must hear the full entry line before it starts clicking.
+    await sounds.waitForPlayback()
+    if (arcadeAborted.value) return
+    void window.api.labDriverAck({ sessionId: popupSessionId, kind: 'ready' })
+      .catch(cause => console.warn('[laboratory] readiness failed', cause))
+  }
 })
 
 onBeforeUnmount(() => {
   clearTimeout(feedbackTimer)
+  sounds.stop()
   unsubscribeDriver?.()
   unsubscribeLab?.()
   stopTimer()
@@ -354,11 +330,11 @@ async function submit(status: SessionStatus): Promise<void> {
   busy.value = true
   errorMessage.value = ''
   stopHold()
-  const extras = status === 'done' ? collectExtras() : {}
   const nextStage = computeCharacterProgress([
     ...sessions.history.filter(session => session.id !== current.id), { ...current, status }
   ]).stage
-  const stageUp = status === 'done' && nextStage > progress.characterStage
+  const baselineStage = previewCharacter.value?.stage ?? progress.characterStage
+  const stageUp = status === 'done' && nextStage > baselineStage
   const today = localDateKey(nowDate())
   const firstDoneToday = !sessions.history.some(session => session.status === 'done' &&
     localDateKey(new Date(session.completedAt ?? session.triggeredAt)) === today)
@@ -373,8 +349,7 @@ async function submit(status: SessionStatus): Promise<void> {
       sessionId: current.id,
       exerciseId: current.exerciseId,
       status,
-      durationSec: current.durationSec,
-      ...extras
+      durationSec: current.durationSec
     })
     if (!response?.saved) throw new Error('Session was not saved')
     resolved.value = true
@@ -395,7 +370,8 @@ async function submit(status: SessionStatus): Promise<void> {
     exitKind.value = status === 'done' ? 'done' : 'quiet'
     const event: CharacterReactionEvent = status === 'done' ? stageUp ? 'stage-up' : 'done'
       : status === 'snoozed' ? 'snoozed' : 'skipped'
-    feedbackTimer = setTimeout(finishFeedback, reactionDuration(event))
+    // Floor reading time + full voice line — never cut the replica short.
+    void armFeedback(event)
   } catch (cause) {
     console.error('[popup] failed to save result', cause)
     errorMessage.value = 'Не удалось сохранить. Попробуйте ещё раз.'
@@ -408,12 +384,13 @@ async function submit(status: SessionStatus): Promise<void> {
   }
 }
 
-async function closeResolved(): Promise<void> {
-  if (closeRequested) return
+async function closeResolved(fromUser = false): Promise<void> {
+  if (fromUser && arcadeLocked.value) { abortArcade(); return }
+  if (closeRequested || arcadeAborted.value) return
   closeRequested = true
   clearTimeout(feedbackTimer)
   try {
-    if (runtime.laboratory && resolved.value) {
+    if (drivenPlayback.value && resolved.value) {
       await window.api.labDriverAck({ sessionId: popupSessionId, kind: 'feedback-complete' })
         .catch(cause => console.warn('[laboratory] feedback acknowledgement failed', cause))
     }
@@ -427,6 +404,20 @@ async function closeResolved(): Promise<void> {
   }
 }
 
+/**
+ * Wait for the spoken line (player already adds a 1 s tail after `ended`/duration),
+ * and never shorter than the reading floor. Manual close can still abort.
+ */
+async function armFeedback(event: CharacterReactionEvent): Promise<void> {
+  const floor = reactionDuration(event)
+  const startedAt = Date.now()
+  await sounds.waitForPlayback()
+  if (closeRequested || !resolved.value) return
+  const left = Math.max(0, floor - (Date.now() - startedAt))
+  clearTimeout(feedbackTimer)
+  feedbackTimer = setTimeout(finishFeedback, left)
+}
+
 /** Reading and exit are separate phases; reducing motion never shortens the reading time. */
 function finishFeedback(): void {
   leaving.value = true
@@ -435,214 +426,106 @@ function finishFeedback(): void {
 </script>
 
 <template>
-  <div class="relative flex h-full flex-col gap-2 overflow-hidden rounded-xl p-3" :class="shellClass" :style="{ '--popup-exit-duration': `${REACTION_TIMING_MS.exit}ms` }">
+  <div
+    class="popup-hud relative flex h-full flex-col overflow-hidden"
+    :class="[shellClass, arcadeLocked ? 'cursor-pointer' : '']"
+    :style="{ '--popup-exit-duration': `${REACTION_TIMING_MS.exit}ms` }"
+    :data-arcade-locked="arcadeLocked ? 'true' : undefined"
+    :title="arcadeLocked ? 'Клик — прервать сценарий' : undefined"
+    @click="arcadeLocked ? abortArcade() : undefined"
+  >
     <div
       v-if="resolved && exitKind === 'done' && !reduced"
       class="popup-flash pointer-events-none absolute inset-0 z-20"
     />
     <PopupFeedback v-if="resolved" :character="character.state" :reaction="character.reaction" :quiet="exitKind === 'quiet'"
-      :label="successLabel" :detail="successDetail" :error="errorMessage" @close="closeResolved" />
+      :label="successLabel" :detail="successDetail" :error="errorMessage"
+      :hide-close="arcadeLocked"
+      @close="closeResolved(true)" />
     <template v-if="!resolved">
-    <p v-if="runtime.laboratory && labPaused" class="text-[10px] text-amber-300">Сценарий на паузе</p>
-    <ComicBubble v-if="!resolved" compact :variant="character.reaction.variant" :animation-id="character.reaction.animationId"
-      :caption="character.reaction.caption" :tone="character.reaction.tone" class="popup-speech" />
-    <header class="flex items-start justify-between gap-2">
-      <div class="min-w-0 flex-1">
-        <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/90">
-          Body Debugger
-        </p>
-        <h1 class="line-clamp-2 text-sm font-semibold leading-snug text-slate-50">
-          {{ sessions.currentExercise?.title ?? 'Упражнение' }}
-        </h1>
-        <p class="mt-1 line-clamp-3 text-xs text-slate-400">
-          {{ sessions.currentExercise?.description ?? 'Один попап — одно упражнение.' }}
-        </p>
-      </div>
-      <CharacterPortrait :pack-id="settings.characterPackId"
-        variant="face"
-        size="sm"
-        :stage="character.state.stage"
-        :branch="character.state.branch"
-        :build="character.state.build"
-        :emotion="character.emotion"
-      />
+    <header class="popup-head">
+      <p v-if="arcadeLocked" class="popup-hud-note pointer-events-none">Автопроигрыш · клик — прервать</p>
+      <p v-else-if="runtime.laboratory && labPaused" class="popup-hud-note">Сценарий на паузе</p>
+      <h1 class="popup-hud-title">
+        {{ sessions.currentExercise?.title ?? 'Упражнение' }}
+      </h1>
+      <p class="popup-hud-copy">
+        {{ sessions.currentExercise?.description ?? 'Один попап — одно упражнение.' }}
+      </p>
+      <p v-if="errorMessage" role="alert" class="popup-hud-alert">{{ errorMessage }}</p>
     </header>
-
-    <div class="flex items-center gap-3">
-      <span
-        class="w-14 text-2xl font-semibold tabular-nums"
-        :class="isUrgent ? 'timer-urgent text-amber-300' : 'text-slate-100'"
-      >
-        {{ timeLabel }}
-      </span>
-      <div class="min-w-0 flex-1">
-        <div class="h-1.5 overflow-hidden rounded-full bg-slate-800">
-          <div
-            class="h-full rounded-full bg-emerald-500 transition-[width] duration-150"
-            :style="{ width: `${progressPercent}%` }"
-          ></div>
-        </div>
-        <p class="mt-1 truncate text-[10px] text-slate-500">{{ severityHint }}</p>
-      </div>
-    </div>
-
-    <p v-if="errorMessage" role="alert" class="text-[11px] text-red-300">{{ errorMessage }}</p>
-
-    <section
-      v-if="detailsEnabled"
-      class="min-h-0 overflow-y-auto rounded-lg border border-slate-800 bg-slate-900/70"
-      data-testid="extras"
-    >
-      <button
-        type="button"
-        class="flex w-full items-center justify-between px-2 py-1 text-[11px] text-slate-400 hover:text-slate-200"
-        :aria-expanded="extrasOpen"
-        data-testid="extras-toggle"
-        @click="toggleExtras"
-      >
-        <span>{{ photosEnabled ? 'Детали и фото (необязательно)' : 'Детали (необязательно)' }}</span>
-        <span aria-hidden="true">{{ extrasOpen ? '▴' : '▾' }}</span>
-      </button>
-
-      <div v-if="extrasOpen" class="grid gap-2 px-2 pb-2" data-testid="extras-panel">
-        <div v-if="extrasEnabled" class="grid grid-cols-2 gap-2">
-          <label class="flex flex-col gap-1 text-[10px] text-slate-500">
-            Повторы
-            <input
-              v-model="repsInput"
-              data-testid="reps-input"
-              type="number"
-              min="1"
-              max="999"
-              inputmode="numeric"
-              placeholder="—"
-              class="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-emerald-500"
-            />
-          </label>
-          <label class="flex flex-col gap-1 text-[10px] text-slate-500">
-            Вес, кг
-            <input
-              v-model="weightInput"
-              data-testid="weight-input"
-              type="number"
-              min="20"
-              max="300"
-              step="0.1"
-              placeholder="—"
-              class="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-emerald-500"
-            />
-          </label>
-        </div>
-
-        <div v-if="extrasEnabled" class="flex items-center justify-between gap-2">
-          <span class="text-[10px] text-slate-500">Ощущения</span>
-          <div class="flex gap-1">
-            <button
-              v-for="value in FEELING_VALUES"
-              :key="value"
-              type="button"
-              class="h-6 w-6 rounded-md text-[11px] transition"
-              :class="
-                feeling === value
-                  ? 'bg-emerald-500 font-semibold text-slate-950'
-                  : 'bg-slate-800 text-slate-400 hover:text-slate-200'
-              "
-              :title="FEELING_LABELS[value]"
-              :aria-label="FEELING_LABELS[value]"
-              :aria-pressed="feeling === value"
-              :data-feeling="value"
-              @click="toggleFeeling(value)"
-            >
-              {{ value }}
-            </button>
+    <div class="popup-body">
+      <div class="popup-side">
+        <div class="popup-cast">
+          <div class="popup-cast-track">
+            <div class="popup-cast-fill" :style="{ width: `${progressPercent}%` }"></div>
           </div>
+          <span class="popup-cast-time" :class="isUrgent ? 'timer-urgent is-urgent' : ''">{{ timeLabel }}</span>
         </div>
-
-        <div v-if="photosEnabled" class="flex flex-wrap items-center gap-2" data-testid="photo-attach">
+        <div class="popup-actions" :class="arcadeLocked ? 'pointer-events-none is-locked' : ''">
+          <button v-if="!sessions.current && !resolved" type="button" class="popup-action" :disabled="arcadeLocked" @click.stop="closeResolved(true)">Закрыть</button>
           <button
             type="button"
-            data-testid="photo-add"
-            class="rounded-md border border-slate-700 px-2 py-1 text-[10px] text-slate-300 hover:bg-slate-800"
-            @click="openPhotoPicker"
+            class="popup-action"
+            :disabled="arcadeLocked || busy || !sessions.current"
+            :data-lab-highlight="labHighlight === 'snoozed'"
+            @click.stop="userSubmit('snoozed')"
           >
-            Добавить фото
+            Отложить
           </button>
-          <input
-            ref="photoInput"
-            data-testid="photo-input"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            class="hidden"
-            @change="onPhotoPicked"
-          />
-          <ul v-if="attachedPhotos.length" class="flex gap-1">
-            <li v-for="photo in attachedPhotos" :key="photo.id" class="relative">
-              <img
-                :src="photoUrl(photo.id)"
-                alt="Фото прогресса"
-                class="h-8 w-8 rounded object-cover"
-              />
-              <button
-                type="button"
-                data-testid="photo-remove"
-                class="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-slate-950 text-[10px] text-slate-300"
-                aria-label="Удалить фото"
-                @click="detachPhoto(photo.id)"
-              >
-                ×
-              </button>
-            </li>
-          </ul>
+          <button
+            type="button"
+            class="popup-action"
+            :disabled="arcadeLocked || busy || !sessions.current"
+            :data-lab-highlight="labHighlight === 'skipped'"
+            @click.stop="userSubmit('skipped')"
+          >
+            Пропустить
+          </button>
+          <button v-if="!started"
+            type="button" class="popup-action-primary"
+            :disabled="arcadeLocked || busy || !sessions.current" data-testid="start-exercise" :data-lab-highlight="labHighlight === 'start'" @click.stop="userStart">Начать</button>
+          <button v-else
+            type="button"
+            class="popup-action-primary relative overflow-hidden disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+            :disabled="arcadeLocked || busy || !sessions.current || !canFinishNow"
+            :data-lab-highlight="labHighlight === 'done' || labHighlight === 'hold'"
+            @click.stop="onDoneClick"
+            @pointerdown.stop="onDoneDown"
+            @pointerup.stop="onDoneUp"
+            @pointerleave="onDoneUp"
+            @pointercancel="onDoneUp"
+            @blur="onDoneUp"
+            @keydown.space="onHoldKeyDown"
+            @keydown.enter="onHoldKeyDown"
+            @keyup.space="onDoneUp"
+            @keyup.enter="onDoneUp"
+          >
+            <span
+              v-if="holdProgress > 0"
+              class="absolute inset-y-0 left-0 bg-emerald-300/60"
+              :style="{ width: `${holdProgress * 100}%` }"
+            ></span>
+            <span class="relative">Готово</span>
+          </button>
         </div>
       </div>
-    </section>
-
-    <div class="mt-auto flex items-center gap-2">
-      <button v-if="!sessions.current && !resolved" type="button" class="setting-chip" @click="closeResolved">Закрыть</button>
-      <button
-        type="button"
-        class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-        :disabled="busy || !sessions.current"
-        :data-lab-highlight="labHighlight === 'snoozed'"
-        @click="userSubmit('snoozed')"
-      >
-        Отложить
-      </button>
-      <button
-        type="button"
-        class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-        :disabled="busy || !sessions.current"
-        :data-lab-highlight="labHighlight === 'skipped'"
-        @click="userSubmit('skipped')"
-      >
-        Пропустить
-      </button>
-      <button v-if="!started"
-        type="button" class="ml-auto rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-slate-950 disabled:opacity-40"
-        :disabled="busy || !sessions.current" data-testid="start-exercise" :data-lab-highlight="labHighlight === 'start'" @click="userStart">Начать</button>
-      <button v-else
-        type="button"
-        class="relative ml-auto overflow-hidden rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400 disabled:hover:bg-slate-700"
-        :disabled="busy || !sessions.current || !canFinishNow"
-        :data-lab-highlight="labHighlight === 'done' || labHighlight === 'hold'"
-        @click="onDoneClick"
-        @pointerdown="onDoneDown"
-        @pointerup="onDoneUp"
-        @pointerleave="onDoneUp"
-        @pointercancel="onDoneUp"
-        @blur="onDoneUp"
-        @keydown.space="onHoldKeyDown"
-        @keydown.enter="onHoldKeyDown"
-        @keyup.space="onDoneUp"
-        @keyup.enter="onDoneUp"
-      >
-        <span
-          v-if="holdProgress > 0"
-          class="absolute inset-y-0 left-0 bg-emerald-300/60"
-          :style="{ width: `${holdProgress * 100}%` }"
-        ></span>
-        <span class="relative">Готово</span>
-      </button>
+      <div class="popup-face">
+        <div class="reaction-portrait relative" :data-tone="character.reaction.tone">
+          <CharacterPortrait :pack-id="portraitPackId"
+            variant="face"
+            size="popup"
+            :stage="portraitStage"
+            :branch="portraitBranch"
+            :build="portraitBuild"
+            :emotion="portraitEmotion"
+          />
+          <span class="reaction-accent" aria-hidden="true">{{ character.reaction.decoration }}</span>
+          <ComicBubble compact tail="top" :variant="character.reaction.variant" :animation-id="character.reaction.animationId"
+            :caption="character.reaction.caption" :tone="character.reaction.tone" :decoration="character.reaction.decoration"
+            class="popup-speech" />
+        </div>
+      </div>
     </div>
     </template>
   </div>

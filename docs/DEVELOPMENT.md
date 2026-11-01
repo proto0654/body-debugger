@@ -26,7 +26,7 @@ npm install
 npm run dev
 ```
 
-`npm run dev` builds main / preload, starts the renderer dev server (port 5173, or the next free one) and launches Electron. Expected: an emerald tray icon, the dashboard window, and a popup after **Размяться сейчас** (dashboard) or **Напоминание сейчас** (tray). Data is written to `.userdata/data/*.json`, photos to `.userdata/photos/`; delete `.userdata/` to reset progress.
+`npm run dev` builds main / preload, starts the renderer dev server (port 5173, or the next free one) and launches Electron. Expected: a tray icon with the current character's face and a green countdown ring, the dashboard window, and a popup after **Размяться сейчас** (dashboard) or **Напоминание сейчас** (tray). Data is written to `.userdata/data/*.json`, photos to `.userdata/photos/`; delete `.userdata/` to reset progress.
 
 If Electron boots as plain Node and crashes on `electron.app`, the shell exports `ELECTRON_RUN_AS_NODE=1`. The `npm run dev` wrapper ([scripts/run-electron-vite.cjs](../scripts/run-electron-vite.cjs)) removes it before starting Electron; a direct `electron.exe .` or packaged launch still needs it cleared (see Windows notes).
 
@@ -120,20 +120,29 @@ Rules live in [shared/domain/severity.ts](../shared/domain/severity.ts); switch 
 | Средняя (default) | Unlocks at 80% of the exercise timer |
 | Жёсткая | Same unlock + hold the button for 1.5 s |
 
-The popup window is transparent and frameless: the card paints its own rounded
-surface (`html.window-popup` in `src/styles/index.css`), so the corners let the
-desktop through. Transparent pixels still belong to the window rectangle and
-capture clicks — a click-through margin would need `setIgnoreMouseEvents`.
+The popup window is transparent and frameless: the corner comic HUD paints
+opaque controls and plates (`html.window-popup` / `.popup-hud` in
+`src/styles/index.css`), so the desktop shows through empty pixels. Those pixels
+still belong to the window rectangle and capture clicks — a click-through margin
+would need `setIgnoreMouseEvents`. Opaque fills matter on Windows DWM: avoid
+group `opacity` or punch-through on buttons and the portrait.
 
-The 320×260 popup includes a compact comic caption; expanded details use 380 px (plus 36 px for errors, capped at 420). The timer waits for «Начать». A saved result shows feedback for 4.5 seconds (6 for a new form, 2.5 for skip/snooze) and then a 180 ms exit; an always-available close button skips the remaining reading time; a failed write leaves the popup retryable. Duplicate results do not count twice. Closing the popup without an answer is recorded as `skipped` at every level.
+The 320×360 popup keeps a full-width title/instruction band above an in-flow
+row of timer/actions and portrait, packed to the bottom
+(`shared/constants/popup.ts`). Errors add 36 px (capped at 460). The timer waits
+for «Начать». A saved result shows feedback for 4.5 seconds (6 for a new form,
+2.5 for skip/snooze) and then a 180 ms exit; an always-available close button
+skips the remaining reading time; a failed write leaves the popup retryable.
+Duplicate results do not count twice. Closing the popup without an answer is
+recorded as `skipped` at every level.
 
 ## Session details
 
-Optional, off by default. «Детали в попапе» on «Настройки» adds a collapsible
-row to the popup (reps / feeling / weight). Ranges and normalization live in
-`shared/domain/session-extras.ts`; the popup grows through `window:resize-popup`
-with heights in `shared/constants/popup.ts`. Out-of-range values are dropped,
-never clamped, and the core cycle resolves without any details.
+Validation for reps / feeling / weight remains in
+`shared/domain/session-extras.ts` and historical session payloads. The popup no
+longer collects that block: «Детали в попапе» is gone from «Настройки», and
+weight / photos are entered on the dashboard. Extra height constants in
+`shared/constants/popup.ts` stay for compatibility with older resize callers.
 
 ## Character sprites
 
@@ -155,13 +164,11 @@ The OS `prefers-reduced-motion` setting is honoured in the renderer only; the ma
 
 ## Tray icons
 
-Frames in `electron/resources/tray/` are generated, not hand-drawn:
+The live tray and taskbar icon is drawn in `electron/main/tray-portrait.ts` from the selected character's emotion bust, with a green countdown ring. The stretching-figure PNGs in `electron/resources/tray/` are leftover glyph art. Regenerate them only if that art is brought back:
 
 ```bash
 python scripts/build-tray-icons.py   # needs Pillow
 ```
-
-The glyph is a placeholder "person stretching" mark. Replace the drawing in the script and re-run to change the tray identity; adding a state means new frames plus a `TRAY_FRAME_SPECS` entry in `electron/main/tray-icons.ts`. Frames are 32×32 PNGs — Windows scales them down for the 16 px notification area.
 
 ## Sounds
 

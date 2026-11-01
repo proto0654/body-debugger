@@ -8,6 +8,7 @@ import { startHeadlessLabBridge } from './lab-headless'
 import { registerPlaybackCoordinatorIpc } from './playback-coordinator'
 import { registerChroniclePlaybackIpc } from './chronicle-playback'
 import { createAppTray } from './tray'
+import { repaintTrayPortrait } from './tray-portrait'
 import { createDashboardWindow } from './windows/dashboard'
 import { registerSessionCycleIpc } from './ipc/session-cycle'
 import { registerPersistenceIpc } from './ipc/persistence'
@@ -106,6 +107,7 @@ app.whenReady().then(() => {
       },
       onInstallUpdate: () => { installUpdate() }
     })
+    repaintTrayPortrait()
 
     // The sandbox never participates in the update feed; only the real app updates.
     initUpdater()

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { LabCommand, LabState } from '../../shared/domain/laboratory'
 import type { LabDriverAck, LabDriverCommand } from '../../shared/domain/laboratory-playback'
 import type { LaunchAtLoginState } from '../../shared/domain/launch-at-login'
+import type { TrayPinState } from '../../shared/domain/tray-pin'
 import type { ChronicleCommand, ChroniclePlaybackState } from '../../shared/domain/chronicle-playback'
 import type { PlaybackCoordinatorState, PlaybackOwner } from '../../shared/domain/playback-coordinator'
 import type { LabBridgeMethod } from '../../shared/types/lab-bridge'
@@ -47,6 +48,8 @@ const api = {
   getLaunchAtLogin: (): Promise<LaunchAtLoginState> => ipcRenderer.invoke(IpcChannels.AppGetLaunchAtLogin),
   setLaunchAtLogin: (enabled: boolean): Promise<LaunchAtLoginState> =>
     ipcRenderer.invoke(IpcChannels.AppSetLaunchAtLogin, enabled),
+  getTrayPin: (): Promise<TrayPinState> => ipcRenderer.invoke(IpcChannels.AppGetTrayPin),
+  setTrayPin: (enabled: boolean): Promise<TrayPinState> => ipcRenderer.invoke(IpcChannels.AppSetTrayPin, enabled),
   onUpdateState: (handler: (state: UpdateStatePayload) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, state: UpdateStatePayload): void => handler(state)
     ipcRenderer.on(IpcChannels.AppUpdateChanged, listener)

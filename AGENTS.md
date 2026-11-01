@@ -68,8 +68,7 @@ Project docs and this file override global agent rules when they conflict.
 | Sprite cutting script | `scripts/cut-character-sprites.py` |
 | Motion preference / feedback timings | `src/motion.ts`, `shared/domain/reaction-timing.ts` |
 | Keyframes + reduced-motion CSS | `src/styles/index.css` |
-| Tray frames + animation specs | `electron/resources/tray/`, `electron/main/tray-icons.ts` |
-| Tray icon script | `scripts/build-tray-icons.py` |
+| Tray portrait, menu, countdown ring | `electron/main/tray.ts`, `electron/main/tray-portrait.ts`, `shared/domain/tray-countdown.ts` |
 | Installer config + icons | `electron-builder.yml`, `electron-builder.dev.yml`, `electron/resources/icon.ico`, `electron/resources/icon-dev.ico`, `scripts/build-app-icon.py` |
 | Dev launcher (strips `ELECTRON_RUN_AS_NODE`) | `scripts/run-electron-vite.cjs` |
 | Release script + CI | `scripts/publish-build.mjs`, `.github/workflows/release.yml` |

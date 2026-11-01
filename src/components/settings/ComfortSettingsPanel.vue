@@ -16,16 +16,15 @@ const layers = [
   { key: 'inventory', id: 'inventory-controls', title: 'Инвентарь', hint: 'Подбор учитывает оборудование, которое есть под рукой.' },
   { key: 'ai', id: 'ai-controls', title: 'Импорт из AI', hint: 'Проверить и лично утвердить новое упражнение.' },
   { key: 'sound', id: 'sound-controls', title: 'Звуки', hint: 'Короткие сигналы о разминке и достижениях.' },
-  { key: 'sessionExtras', id: 'extras-controls', title: 'Детали в попапе', hint: 'Повторы, ощущения и вес к выполненной разминке.' },
   { key: 'weight', id: 'weight-controls', title: 'История веса', hint: 'Быстрая запись на «Сегодня», история и цель — в «Прогрессе».' },
-  { key: 'photos', id: 'photo-controls', title: 'Фото прогресса', hint: 'Локальная галерея и фото к выполненной разминке.' }
+  { key: 'photos', id: 'photo-controls', title: 'Фото прогресса', hint: 'Локальная галерея на дашборде.' }
 ] as const
 const visibleLayers = computed(() => layers.filter(layer => props.group === 'all'
   || (props.group === 'selection' ? ['inventory', 'ai'].includes(layer.key)
     : props.group === 'data' ? ['weight', 'photos', 'ai'].includes(layer.key)
       : !['inventory', 'ai'].includes(layer.key))))
 const setters = {
-  sessionExtras: settings.setSessionExtrasEnabled, sound: settings.setSoundEnabled,
+  sound: settings.setSoundEnabled,
   weight: settings.setWeightEnabled, photos: settings.setPhotosEnabled,
   inventory: settings.setInventoryEnabled, ai: settings.setAiEnabled
 }

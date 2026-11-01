@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { getLaboratoryClock, nowDate, nowMs } from '../../shared/domain/clock'
+import { computeCharacterCondition } from '../../shared/domain/character-condition'
+import { ringProgress } from '../../shared/domain/tray-countdown'
+import { paintTrayPortrait, setTrayPortraitRepaint, stopTrayPortrait } from './tray-portrait'
 import { powerMonitor } from 'electron'
 import { getAvailableCatalog } from './custom-exercises'
 import { pickNextExercise } from '../../shared/domain/exercise-picker'
@@ -9,6 +12,7 @@ import { getPhoto } from './photos'
 import {
   IpcChannels,
   type SessionLoopStatePayload,
+  type SessionPopupCharacter,
   type SessionPopupPayload,
   type SessionResultPayload,
   type SessionResultResponse,
@@ -88,11 +92,17 @@ let paused = false
 let lastIntervalMinutes: number | null = null
 let ticker: NodeJS.Timeout | null = null
 let nextTriggerAt: number | null = null
+/** When the current wait started. Together with `nextTriggerAt` this is the ring. */
+let countdownAnchorAt: number | null = null
+/** Ring fill frozen at the moment reminders were paused. */
+let heldProgress: number | null = null
 let awayStartedAt: number | null = null
 let awaiting: AwaitingResult | null = null
 let successTimer: NodeJS.Timeout | null = null
 /** Preview popups (chronicle) resolve without writing real history. */
 let previewMode = false
+/** Isolated portrait for chronicle/arcade preview; cleared with preview mode. */
+let previewCharacter: SessionPopupCharacter | null = null
 /** At most one deferred real timer reminder while playback/grace is active. */
 let deferredTimerDue = false
 
@@ -114,6 +124,11 @@ export function configureLoopSimulation(next: Partial<LoopSimulation>): void {
 
 export function setSessionPreviewMode(next: boolean): void {
   previewMode = next
+  if (!next) previewCharacter = null
+}
+
+export function setPreviewCharacter(next: SessionPopupCharacter | null): void {
+  previewCharacter = next
 }
 
 /** After playback grace ends, fire at most one deferred timer reminder. */
@@ -148,9 +163,11 @@ export function cancelLoopForLaboratory(): void {
   simulation.failNextWrite = false
   previewMode = false
   awayStartedAt = null
-  nextTriggerAt = null
+  clearCountdown()
+  heldProgress = null
   closePopupWindow()
   setTrayState('idle')
+  refreshTrayPortrait()
 }
 
 function intervalMs(): number {
@@ -180,20 +197,75 @@ function trayStateFor(status: SessionStatus): TrayState {
 
 function publishLoopState(): void {
   broadcastToWindows(IpcChannels.SessionLoopChanged, getLoopState())
+  refreshTrayPortrait()
 }
 
 export function getLoopState(): SessionLoopStatePayload {
   return {
     paused,
     nextTriggerAt: nextTriggerAt === null ? null : new Date(nextTriggerAt).toISOString(),
+    countdownAnchorAt: countdownAnchorAt === null ? null : new Date(countdownAnchorAt).toISOString(),
+    heldProgress,
     intervalMinutes: getSettings().intervalMinutes
+  }
+}
+
+function assignCountdown(dueAt: number, anchorAt: number): void {
+  nextTriggerAt = dueAt
+  countdownAnchorAt = anchorAt < dueAt ? anchorAt : dueAt - 1
+  heldProgress = null
+}
+
+function clearCountdown(): void {
+  nextTriggerAt = null
+  countdownAnchorAt = null
+}
+
+/** The wait that follows the last resolved session, including a short startup grace. */
+function assignCountdownFromLastSession(now: number, dueAt: number): void {
+  const last = lastResolvedAt()
+  assignCountdown(dueAt, Math.min(last ?? now, now))
+}
+
+function holdCountdown(now: number): void {
+  if (nextTriggerAt !== null && countdownAnchorAt !== null) {
+    heldProgress = ringProgress(now, countdownAnchorAt, nextTriggerAt)
+  }
+  clearCountdown()
+}
+
+/** Redraw the tray and taskbar portrait from the current schedule and character. */
+export function refreshTrayPortrait(): void {
+  try {
+    const settings = getSettings()
+    const snapshot = getSnapshot()
+    paintTrayPortrait({
+      paused,
+      popupOpen: Boolean(awaiting || getPopupWindow()),
+      anchorAt: countdownAnchorAt,
+      dueAt: nextTriggerAt,
+      heldProgress,
+      now: nowMs(),
+      reduceMotion: settings.reduceMotion,
+      trayState: getTrayState(),
+      packId: settings.characterPackId,
+      build: snapshot.progress.characterBuild,
+      conditionLevel: computeCharacterCondition(snapshot.sessions).level
+    })
+  } catch (cause) {
+    console.error('[tray] portrait failed', cause)
   }
 }
 
 /** The popup currently asking for a result, if any. */
 export function getActivePopup(): SessionPopupPayload | null {
   return awaiting
-    ? { sessionId: awaiting.sessionId, exercise: awaiting.exercise, preview: previewMode }
+    ? {
+        sessionId: awaiting.sessionId,
+        exercise: awaiting.exercise,
+        preview: previewMode,
+        ...(previewMode && previewCharacter ? { character: previewCharacter } : {})
+      }
     : null
 }
 
@@ -262,14 +334,17 @@ function completeSession(
     successTimer = setTimeout(() => {
       if (getTrayState() === 'success') setTrayState('idle')
       successTimer = null
+      refreshTrayPortrait()
     }, 1500)
   }
 
   const now = nowMs()
   awayStartedAt = null
-  if (paused) nextTriggerAt = null
-  else if (status === 'snoozed') nextTriggerAt = now + SNOOZE_MINUTES * 60_000
-  else nextTriggerAt = now + intervalMs()
+  if (paused) {
+    clearCountdown()
+    heldProgress = null
+  } else if (status === 'snoozed') assignCountdown(now + SNOOZE_MINUTES * 60_000, now)
+  else assignCountdown(now + intervalMs(), now)
 
   publishLoopState()
   simulation.onResolved?.(session)
@@ -326,6 +401,15 @@ function handleMissed(sessionId: string): void {
   closePopupWindow()
 }
 
+/**
+ * Arcade playback: resolve the open popup as missed immediately.
+ * Chronicle has no laboratory clock, so deadline ticks never fire there.
+ */
+export function missActivePopup(): void {
+  if (!awaiting) return
+  handleMissed(awaiting.sessionId)
+}
+
 /** Pick the next exercise from stored history + settings (CONCEPT §7). */
 function pickForCycle(): Exercise {
   return pickNextExercise({
@@ -354,7 +438,7 @@ function trigger(reason: SessionTriggerReason, exercise?: Exercise): void {
     deadline: nowMs() + MISSED_AFTER_MS,
     timeout: undefined
   }
-  nextTriggerAt = null
+  clearCountdown()
   awayStartedAt = null
   setTrayState('standup')
 
@@ -404,45 +488,49 @@ export function triggerPreviewExercise(exerciseId: string, durationSec?: number)
 }
 
 function tick(): void {
-  if (awaiting && !simulation.freezeDeadline && nowMs() >= awaiting.deadline) handleMissed(awaiting.sessionId)
-  if (!started || simulation.hold || paused || awaiting || getPopupWindow() || nextTriggerAt === null) return
+  try {
+    if (awaiting && !simulation.freezeDeadline && nowMs() >= awaiting.deadline) handleMissed(awaiting.sessionId)
+    if (!started || simulation.hold || paused || awaiting || getPopupWindow() || nextTriggerAt === null) return
 
-  const now = nowMs()
-  const idleSec = simulation.idleSeconds ?? powerMonitor.getSystemIdleTime()
+    const now = nowMs()
+    const idleSec = simulation.idleSeconds ?? powerMonitor.getSystemIdleTime()
 
-  if (idleSec >= AWAY_IDLE_SEC) {
-    awayStartedAt ??= now - idleSec * 1000
-    return
-  }
-
-  if (awayStartedAt !== null) {
-    const awayMs = now - awayStartedAt
-    awayStartedAt = null
-    if (awayMs >= REST_IDLE_SEC * 1000) {
-      nextTriggerAt = now + intervalMs()
-      publishLoopState()
+    if (idleSec >= AWAY_IDLE_SEC) {
+      awayStartedAt ??= now - idleSec * 1000
       return
     }
-    if (nextTriggerAt <= now) {
-      if (isReminderDeferred()) {
-        deferredTimerDue = true
-        nextTriggerAt = null
+
+    if (awayStartedAt !== null) {
+      const awayMs = now - awayStartedAt
+      awayStartedAt = null
+      if (awayMs >= REST_IDLE_SEC * 1000) {
+        assignCountdown(now + intervalMs(), now)
         publishLoopState()
         return
       }
-      trigger('idle')
-      return
+      if (nextTriggerAt !== null && nextTriggerAt <= now) {
+        if (isReminderDeferred()) {
+          deferredTimerDue = true
+          clearCountdown()
+          publishLoopState()
+          return
+        }
+        trigger('idle')
+        return
+      }
     }
-  }
 
-  if (nextTriggerAt <= now) {
-    if (isReminderDeferred()) {
-      deferredTimerDue = true
-      nextTriggerAt = null
-      publishLoopState()
-      return
+    if (nextTriggerAt !== null && nextTriggerAt <= now) {
+      if (isReminderDeferred()) {
+        deferredTimerDue = true
+        clearCountdown()
+        publishLoopState()
+        return
+      }
+      trigger('timer')
     }
-    trigger('timer')
+  } finally {
+    if (started) refreshTrayPortrait()
   }
 }
 
@@ -459,7 +547,7 @@ export function startTriggerLoop(): void {
   refreshTrayMenu()
 
   if (!paused) {
-    nextTriggerAt = Math.max(dueFrom(nowMs()), nowMs() + STARTUP_GRACE_MS)
+    assignCountdownFromLastSession(nowMs(), Math.max(dueFrom(nowMs()), nowMs() + STARTUP_GRACE_MS))
   }
 
   ticker = setInterval(tick, TICK_MS)
@@ -474,6 +562,7 @@ export function stopTriggerLoop(): void {
   if (successTimer) clearTimeout(successTimer)
   successTimer = null
   started = false
+  stopTrayPortrait()
 }
 
 /** Persist pause and let the schedule follow it. */
@@ -502,12 +591,14 @@ export function syncLoopFromSettings(): void {
   if (awaiting) {
     // The open popup resolves first; its completion schedules the next trigger.
   } else if (paused) {
-    nextTriggerAt = null
+    if (nextTriggerAt !== null) holdCountdown(now)
   } else if (wasPaused) {
-    nextTriggerAt = now + RESCHEDULE_GRACE_MS
+    assignCountdown(now + RESCHEDULE_GRACE_MS, now)
   } else if (intervalChanged || nextTriggerAt === null) {
-    nextTriggerAt = Math.max(now + RESCHEDULE_GRACE_MS, dueFrom(now))
+    assignCountdownFromLastSession(now, Math.max(now + RESCHEDULE_GRACE_MS, dueFrom(now)))
   }
 
   publishLoopState()
 }
+
+setTrayPortraitRepaint(() => { refreshTrayPortrait() })

@@ -5,11 +5,12 @@
  */
 
 export const POPUP_WIDTH = 320
-export const POPUP_BASE_HEIGHT = 260
+/** Spare room for a 2-line title + long instruction above the columns. */
+export const POPUP_BASE_HEIGHT = 360
 /** Height with the details row visible but collapsed. */
-export const POPUP_EXTRAS_COLLAPSED_HEIGHT = 290
+export const POPUP_EXTRAS_COLLAPSED_HEIGHT = 390
 /** Height with the optional details block expanded. */
-export const POPUP_EXTRAS_HEIGHT = 380
-export const POPUP_MAX_HEIGHT = 420
+export const POPUP_EXTRAS_HEIGHT = 420
+export const POPUP_MAX_HEIGHT = 460
 /** Gap between the popup and the screen edge. */
 export const POPUP_SCREEN_MARGIN = 16

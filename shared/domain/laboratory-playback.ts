@@ -2,6 +2,9 @@ import type { Session } from '../types/session'
 
 export { buildProgressDynamics as labDynamics } from './progress-dynamics'
 
+/** Fixed beat between arcade links (scene / highlight). Not a user tempo control. */
+export const ARCADE_SCENE_MS = 700
+
 export type LabPlaybackMode = 'automatic' | 'interactive'
 export type LabOutcome = Session['status'] | 'closed'
 export type LabAction = 'reminder' | 'start' | 'exercise' | 'done' | 'skipped' | 'snoozed' | 'close' | 'timeout' | 'repeat'

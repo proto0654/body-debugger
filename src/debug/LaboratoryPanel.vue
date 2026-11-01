@@ -53,7 +53,6 @@ const exerciseId = ref('')
 const catalog = computed(() => mergeCatalogs(EXERCISE_CATALOG, customExercises.entries))
 const busy = ref(false)
 const error = ref('')
-const speed = ref(1500)
 const stepUnit = ref<'event' | 'day' | 'milestone'>('event')
 const jumpSeconds = ref(60)
 const tick = ref(0)
@@ -188,10 +187,9 @@ onBeforeUnmount(() => { unsubscribe?.(); clearInterval(clock); clearTimeout(reac
         <div class="lab-controls">
           <label class="min-w-0 flex-1">Сценарий<select aria-label="Сценарий" class="!max-w-none" :value="plan?.id ?? ''" :disabled="busy" @change="command({ action: 'scenario', id: ($event.target as HTMLSelectElement).value as typeof LAB_SCENARIOS[number]['id'] })"><option disabled value="">Выберите историю</option><option v-for="scenario in LAB_SCENARIOS" :key="scenario.id" :value="scenario.id">{{ scenario.title }}</option><option v-if="plan?.generator" :value="plan.id">{{ plan.title }}</option></select></label>
           <label>Режим<select aria-label="Режим проигрывания" :value="state?.playback?.mode ?? 'automatic'" :disabled="busy || !plan" @change="command({ action: 'mode', mode: ($event.target as HTMLSelectElement).value as 'automatic' | 'interactive' })"><option value="automatic">Автоматически</option><option value="interactive">Выбираю сам</option></select></label>
-          <label>Темп<select v-model="speed"><option :value="3500">Медленно</option><option :value="1500">Обычно</option><option :value="500">Быстро</option></select></label>
         </div>
         <div class="flex flex-wrap gap-2">
-          <button type="button" class="primary-action !px-3 !py-2 !text-xs" data-testid="lab-play" :disabled="busy || !plan" @click="command(state?.playing ? { action: 'pause' } : { action: 'play', delayMs: speed })">{{ state?.playing ? 'Пауза' : state?.playback?.phase === 'error' ? 'Повторить действие' : '▶ Проиграть сценарий' }}</button>
+          <button type="button" class="primary-action !px-3 !py-2 !text-xs" data-testid="lab-play" :disabled="busy || !plan" @click="command(state?.playing ? { action: 'pause' } : { action: 'play' })">{{ state?.playing ? 'Пауза' : state?.playback?.phase === 'error' ? 'Повторить действие' : '▶ Проиграть сценарий' }}</button>
           <button type="button" class="setting-chip" :disabled="busy || !plan" @click="command({ action: 'phase-step' })">Следующий шаг</button>
           <button type="button" class="setting-chip" :disabled="busy || !plan" @click="command({ action: 'restart' })">Сначала</button>
         </div>
@@ -257,7 +255,6 @@ onBeforeUnmount(() => { unsubscribe?.(); clearInterval(clock); clearTimeout(reac
         <div class="lab-controls">
           <div class="flex items-center gap-1"><button type="button" class="setting-chip" :disabled="busy" @click="seek(0)">В начало</button><button type="button" aria-label="Шаг назад" class="setting-chip" :disabled="busy" @click="command({ action: 'step', direction: -1, unit: stepUnit })">←</button><button type="button" aria-label="Шаг вперёд" class="setting-chip" :disabled="busy" @click="command({ action: 'step', direction: 1, unit: stepUnit })">→</button><button type="button" class="setting-chip" :disabled="busy" @click="seek(plan.events.length - 1)">В конец</button></div>
           <label>Шаг<select v-model="stepUnit"><option value="event">Событие</option><option value="day">День</option><option value="milestone">Изменение формы / серии</option></select></label>
-          <label>Темп<select v-model="speed"><option :value="3500">Медленно · 3,5 с</option><option :value="1500">Обычно · 1,5 с</option><option :value="500">Быстро · 0,5 с</option></select></label>
           <label>Перейти к дате<input type="date" :value="positionDate" :disabled="busy" @change="command({ action: 'date', date: ($event.target as HTMLInputElement).value })"></label>
         </div>
         <p class="text-xs text-slate-500">Просмотр даты восстанавливает историю без попапов и звуков. «Проиграть сценарий» выполняет события в настоящем окне.</p><p class="text-sm text-amber-200">{{ current?.label }}</p>

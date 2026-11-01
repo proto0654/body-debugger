@@ -2,6 +2,7 @@
 import type { LabCommand, LabState } from '@shared/domain/laboratory'
 import type { LabDriverAck, LabDriverCommand } from '@shared/domain/laboratory-playback'
 import type { LaunchAtLoginState } from '@shared/domain/launch-at-login'
+import type { TrayPinState } from '@shared/domain/tray-pin'
 import type { ChronicleCommand, ChroniclePlaybackState } from '@shared/domain/chronicle-playback'
 import type { PlaybackCoordinatorState, PlaybackOwner } from '@shared/domain/playback-coordinator'
 import type { LabBridgeMethod } from '@shared/types/lab-bridge'
@@ -49,6 +50,8 @@ export interface BodyDebuggerApi {
   dismissUpdatePrompt: () => Promise<void>
   getLaunchAtLogin: () => Promise<LaunchAtLoginState>
   setLaunchAtLogin: (enabled: boolean) => Promise<LaunchAtLoginState>
+  getTrayPin: () => Promise<TrayPinState>
+  setTrayPin: (enabled: boolean) => Promise<TrayPinState>
   onUpdateState: (handler: (state: UpdateStatePayload) => void) => () => void
   labDriverAck: (ack: LabDriverAck) => Promise<void>
   onLabDriver: (handler: (command: LabDriverCommand) => void) => () => void

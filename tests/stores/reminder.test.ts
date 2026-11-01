@@ -11,7 +11,7 @@ beforeEach(() => {
 describe('reminder store', () => {
   it('mirrors the main-process loop state', () => {
     const store = useReminderStore()
-    store.apply({ paused: true, nextTriggerAt: at, intervalMinutes: 30 })
+    store.apply({ paused: true, nextTriggerAt: at, countdownAnchorAt: null, heldProgress: null, intervalMinutes: 30 })
 
     expect(store.paused).toBe(true)
     expect(store.nextTriggerAt).toBe(at)
@@ -20,25 +20,25 @@ describe('reminder store', () => {
 
   it('labels a paused schedule', () => {
     const store = useReminderStore()
-    store.apply({ paused: true, nextTriggerAt: at, intervalMinutes: 45 })
+    store.apply({ paused: true, nextTriggerAt: at, countdownAnchorAt: null, heldProgress: 0.4, intervalMinutes: 45 })
     expect(store.nextTriggerLabel).toBe('Напоминания на паузе')
   })
 
   it('labels a schedule without a next trigger', () => {
     const store = useReminderStore()
-    store.apply({ paused: false, nextTriggerAt: null, intervalMinutes: 45 })
+    store.apply({ paused: false, nextTriggerAt: null, countdownAnchorAt: null, heldProgress: null, intervalMinutes: 45 })
     expect(store.nextTriggerLabel).toBe('Следующее напоминание — после сессии')
   })
 
   it('labels an upcoming trigger with its local time', () => {
     const store = useReminderStore()
-    store.apply({ paused: false, nextTriggerAt: at, intervalMinutes: 45 })
+    store.apply({ paused: false, nextTriggerAt: at, countdownAnchorAt: at, heldProgress: null, intervalMinutes: 45 })
     expect(store.nextTriggerLabel).toMatch(/^Следующее напоминание в \d{2}:\d{2}$/)
   })
 
   it('falls back for an unparsable timestamp', () => {
     const store = useReminderStore()
-    store.apply({ paused: false, nextTriggerAt: 'not-a-date', intervalMinutes: 45 })
+    store.apply({ paused: false, nextTriggerAt: 'not-a-date', countdownAnchorAt: null, heldProgress: null, intervalMinutes: 45 })
     expect(store.nextTriggerLabel).toBe('Следующее напоминание — после сессии')
   })
 })

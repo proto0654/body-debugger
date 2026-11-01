@@ -14,7 +14,7 @@ import {
   updateSettings
 } from '../persistence'
 import { broadcastToWindows } from '../broadcast'
-import { syncLoopFromSettings } from '../trigger-loop'
+import { refreshTrayPortrait, syncLoopFromSettings } from '../trigger-loop'
 import { rememberLabPreferences } from '../laboratory'
 
 export async function getSnapshotRequest(): Promise<ReturnType<typeof getSnapshot>> {
@@ -34,6 +34,7 @@ export async function saveProgressRequest(payload: DataSaveProgressPayload): Pro
   const snapshot = updateProgress(payload)
   rememberLabPreferences()
   broadcastToWindows(IpcChannels.DataUpdated, snapshot)
+  refreshTrayPortrait()
   return snapshot
 }
 

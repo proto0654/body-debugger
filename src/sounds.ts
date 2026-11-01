@@ -53,9 +53,31 @@ export interface SoundAudio {
   src?: string
   volume: number
   preload: string
+  paused?: boolean
+  currentTime?: number
+  duration?: number
+  pause?: () => void
   play: () => Promise<void>
   load: () => void
+  addEventListener?: (
+    type: 'ended' | 'error' | 'loadedmetadata',
+    listener: () => void
+  ) => void
+  removeEventListener?: (
+    type: 'ended' | 'error' | 'loadedmetadata',
+    listener: () => void
+  ) => void
 }
+
+/** Extra silence after a line so arcade never stacks the next popup on top of it. */
+export const VOICE_TAIL_MS = 1000
+/**
+ * Safety release when `ended` never fires and duration is unknown.
+ * Must exceed the longest catalogued take; never used to cut a known clip short.
+ */
+export const VOICE_WAIT_FALLBACK_MS = 45_000
+/** Slack past known duration if `ended` is missing (decode quirks). */
+const VOICE_DURATION_SLACK_MS = 2_000
 
 export interface SoundPlayerDeps {
   createAudio: (src: string) => SoundAudio
@@ -127,6 +149,13 @@ export interface SoundPlayer {
   playVoice: (cue: SoundCue | null | undefined, options?: VoicePlaybackOptions) => boolean
   /** Speak a catalogued event directly, e.g. `active` on the start of the timer. */
   playVoiceEvent: (event: VoiceEvent, options?: VoicePlaybackOptions) => boolean
+  /**
+   * Resolves when the queued line (and any still-playing predecessors) finishes,
+   * including the arcade tail. Resolves immediately when nothing is playing.
+   */
+  waitForPlayback: () => Promise<void>
+  /** Hard-stop the current take and drop the queue (abort / unmount). */
+  stop: () => void
   /** Warm the pack so the first cue is not delayed by decoding. */
   preload: () => void
 }
@@ -138,6 +167,12 @@ export interface SoundPlayer {
  */
 export function createSoundPlayer(deps: SoundPlayerDeps): SoundPlayer {
   const lastVariant = new Map<string, string>()
+  let currentAudio: SoundAudio | null = null
+  let currentDone: Promise<void> = Promise.resolve()
+  /** True while a take is audibly playing (not merely queued). */
+  let playing = false
+  /** Bumped by `stop()` so queued takes abandoned after an abort never start. */
+  let epoch = 0
 
   function audibleSettings(): SoundSettings | null {
     const settings = deps.getSettings()
@@ -149,12 +184,95 @@ export function createSoundPlayer(deps: SoundPlayerDeps): SoundPlayer {
       : null
   }
 
+  function stopCurrent(): void {
+    if (!currentAudio) return
+    try {
+      currentAudio.pause?.()
+      if (typeof currentAudio.currentTime === 'number') currentAudio.currentTime = 0
+    } catch {
+      // Stopping must never break the popup cycle.
+    }
+    currentAudio = null
+  }
+
+  /**
+   * Wait until the clip truly ends (`ended` / `error`), then the arcade tail.
+   * Duration only arms a late safety net — never finishes early ahead of `ended`.
+   */
+  function watchEnd(audio: SoundAudio): Promise<void> {
+    return new Promise((resolve) => {
+      let settled = false
+      let fallbackTimer: ReturnType<typeof setTimeout> | undefined
+      const finish = (): void => {
+        if (settled) return
+        settled = true
+        if (fallbackTimer) clearTimeout(fallbackTimer)
+        audio.removeEventListener?.('ended', onEnded)
+        audio.removeEventListener?.('error', onError)
+        audio.removeEventListener?.('loadedmetadata', onMeta)
+        // Tail after the line so the next arcade popup never stacks on the same take.
+        setTimeout(resolve, VOICE_TAIL_MS)
+      }
+      const onEnded = (): void => { finish() }
+      const onError = (): void => { finish() }
+      const armSafety = (): void => {
+        const seconds = Number(audio.duration)
+        const ms = Number.isFinite(seconds) && seconds > 0
+          ? Math.ceil(seconds * 1000) + VOICE_DURATION_SLACK_MS
+          : VOICE_WAIT_FALLBACK_MS
+        if (fallbackTimer) clearTimeout(fallbackTimer)
+        fallbackTimer = setTimeout(finish, ms)
+      }
+      const onMeta = (): void => { armSafety() }
+      if (typeof audio.addEventListener === 'function') {
+        audio.addEventListener('ended', onEnded)
+        audio.addEventListener('error', onError)
+        audio.addEventListener('loadedmetadata', onMeta)
+        armSafety()
+      } else {
+        queueMicrotask(finish)
+      }
+      void audio.play().then(undefined, (error: unknown) => {
+        console.warn('[sounds] cue could not start', error)
+        finish()
+      })
+    })
+  }
+
+  async function runTake(audio: SoundAudio, label: string, startedIn: number): Promise<void> {
+    if (startedIn !== epoch) return
+    playing = true
+    currentAudio = audio
+    try {
+      await watchEnd(audio)
+    } catch (error: unknown) {
+      console.warn('[sounds] cue wait failed', label, error)
+    } finally {
+      if (currentAudio === audio) currentAudio = null
+      if (startedIn === epoch) playing = false
+    }
+  }
+
+  /** Enqueue a take; previous lines finish before this one starts (never cut short). */
   function start(settings: SoundSettings, url: string, label: string): void {
     const audio = deps.createAudio(url)
     audio.volume = settings.volume
-    void audio.play().catch((error: unknown) => {
-      console.warn('[sounds] cue could not start', label, error)
-    })
+    const startedIn = epoch
+    if (!playing) {
+      // First / idle: start immediately so the entry line is not deferred a tick.
+      currentDone = runTake(audio, label, startedIn)
+      return
+    }
+    currentDone = currentDone
+      .catch(() => undefined)
+      .then(() => runTake(audio, label, startedIn))
+  }
+
+  function stop(): void {
+    epoch += 1
+    playing = false
+    stopCurrent()
+    currentDone = Promise.resolve()
   }
 
   function play(cue: SoundCue | null | undefined): boolean {
@@ -194,6 +312,10 @@ export function createSoundPlayer(deps: SoundPlayerDeps): SoundPlayer {
     return true
   }
 
+  function waitForPlayback(): Promise<void> {
+    return currentDone
+  }
+
   function preload(): void {
     if (!deps.getSettings().enabled) return
 
@@ -204,7 +326,7 @@ export function createSoundPlayer(deps: SoundPlayerDeps): SoundPlayer {
     }
   }
 
-  return { play, playVoice, playVoiceEvent, preload }
+  return { play, playVoice, playVoiceEvent, waitForPlayback, stop, preload }
 }
 
 /** Renderer-side player bound to the settings store. */

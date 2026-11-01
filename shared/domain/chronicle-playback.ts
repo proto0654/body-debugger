@@ -1,7 +1,7 @@
 import type { LabPlaybackState } from './laboratory-playback'
 
 export type ChronicleCommand =
-  | { action: 'play'; delayMs: number }
+  | { action: 'play' }
   | { action: 'pause' }
   | { action: 'seek'; cursor: number }
   | { action: 'step'; direction: -1 | 1; unit: 'event' | 'day' | 'milestone' }

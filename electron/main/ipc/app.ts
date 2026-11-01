@@ -1,10 +1,12 @@
 import { app, ipcMain, shell } from 'electron'
 import { IpcChannels, type AppInfoPayload } from '../../../shared/types/events'
 import type { LaunchAtLoginState } from '../../../shared/domain/launch-at-login'
+import type { TrayPinState } from '../../../shared/domain/tray-pin'
 import { APP_IDENTITY } from '../app-identity'
 import { BUILD_COMMIT, BUILD_DATE } from '../build-info'
 import { getUserDataPath } from '../lab-environment'
 import { getLaunchAtLoginState, setLaunchAtLogin } from '../launch-at-login'
+import { getTrayPinState, setTrayPinState } from '../tray-pin'
 import { getLogDir, logError } from '../logger'
 
 export function registerAppIpc(): void {
@@ -41,4 +43,14 @@ export function registerAppIpc(): void {
       return setLaunchAtLogin(enabled)
     }
   )
+
+  ipcMain.handle(IpcChannels.AppGetTrayPin, async (): Promise<TrayPinState> => getTrayPinState())
+
+  ipcMain.handle(IpcChannels.AppSetTrayPin, async (_event, enabled: unknown): Promise<TrayPinState> => {
+    if (typeof enabled !== 'boolean') {
+      logError('app', 'tray pin received a non-boolean value')
+      return getTrayPinState()
+    }
+    return setTrayPinState(enabled)
+  })
 }

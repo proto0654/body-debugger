@@ -88,6 +88,13 @@ vi.mock('../../electron/main/tray', () => ({
   getTrayState: mocks.getTrayState
 }))
 
+vi.mock('../../electron/main/tray-portrait', () => ({
+  paintTrayPortrait: vi.fn(),
+  stopTrayPortrait: vi.fn(),
+  repaintTrayPortrait: vi.fn(),
+  setTrayPortraitRepaint: vi.fn()
+}))
+
 type Loop = typeof import('../../electron/main/trigger-loop')
 
 /** Fresh module instance: trigger-loop keeps its schedule in module state. */
@@ -193,6 +200,7 @@ describe('trigger loop — manual trigger', () => {
     expect(mocks.setTrayState).toHaveBeenLastCalledWith('standup')
     expect(loop.getActivePopup()?.exercise.id).toBeTruthy()
     expect(loop.getLoopState().nextTriggerAt).toBeNull()
+    expect(loop.getLoopState().countdownAnchorAt).toBeNull()
   })
 
   it('focuses the open popup instead of opening a second one', async () => {
@@ -227,6 +235,7 @@ describe('trigger loop — session results', () => {
 
     const next = Date.parse(loop.getLoopState().nextTriggerAt ?? '')
     expect(next - Date.now()).toBe(45 * 60_000)
+    expect(Date.parse(loop.getLoopState().countdownAnchorAt ?? '')).toBe(Date.now())
   })
 
   it('stores optional details, normalized, with the resolved session', async () => {
@@ -335,6 +344,7 @@ describe('trigger loop — session results', () => {
     expect(mocks.setTrayState).toHaveBeenLastCalledWith('soon')
     const next = Date.parse(loop.getLoopState().nextTriggerAt ?? '')
     expect(next - Date.now()).toBe(5 * 60_000)
+    expect(Date.parse(loop.getLoopState().countdownAnchorAt ?? '')).toBe(Date.now())
   })
 
   it('records a missed session when the popup is left unanswered', async () => {
@@ -396,6 +406,28 @@ describe('trigger loop — schedule', () => {
     expect(next).toBeGreaterThan(Date.now())
   })
 
+  it('anchors startup progress at the last session and freezes that fill on pause', async () => {
+    const completedAt = new Date(Date.now() - 10 * 60_000).toISOString()
+    mocks.sessions.current = [{
+      id: 'session-1',
+      exerciseId: 'neck',
+      status: 'done',
+      durationSec: 30,
+      triggeredAt: completedAt,
+      completedAt
+    }]
+    loop = await loadLoop()
+    loop.startTriggerLoop()
+
+    const state = loop.getLoopState()
+    expect(Date.parse(state.countdownAnchorAt ?? '')).toBe(Date.parse(completedAt))
+    expect(Date.parse(state.nextTriggerAt ?? '') - Date.parse(completedAt)).toBe(45 * 60_000)
+
+    loop.setPaused(true)
+    expect(loop.getLoopState().heldProgress).toBeCloseTo(10 / 45, 5)
+    expect(loop.getLoopState().nextTriggerAt).toBeNull()
+  })
+
   it('triggers on the timer once the interval is due', async () => {
     loop = await loadLoop()
     loop.startTriggerLoop()
@@ -411,7 +443,7 @@ describe('trigger loop — schedule', () => {
     loop.startTriggerLoop()
 
     loop.setPaused(true)
-    expect(loop.getLoopState()).toMatchObject({ paused: true, nextTriggerAt: null })
+    expect(loop.getLoopState()).toMatchObject({ paused: true, nextTriggerAt: null, heldProgress: 0 })
 
     vi.advanceTimersByTime(2 * 60 * 60_000)
     expect(mocks.createPopupWindow).not.toHaveBeenCalled()

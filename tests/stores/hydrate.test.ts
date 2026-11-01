@@ -17,7 +17,9 @@ describe('core hydration', () => {
         progress: { streak: { current: 0, max: 0 }, characterStage: 0, characterBranch: 'neutral',
           characterBuild: 'average', exerciseLevels: {}, focus: { primary: null, accents: [] } }
       }),
-      getLoopState: async () => ({ paused: false, intervalMinutes: 30, nextTriggerAt: null }),
+      getLoopState: async () => ({
+        paused: false, intervalMinutes: 30, nextTriggerAt: null, countdownAnchorAt: null, heldProgress: null
+      }),
       listPhotos: async () => { throw new Error('optional photos unavailable') },
       listCustomExercises: () => new Promise(() => undefined),
       onDataUpdated, onLoopStateChanged: () => unsubscribe

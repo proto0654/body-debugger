@@ -17,6 +17,10 @@ describe('character reactions', () => {
     expect(characterReaction('done', 1).variant).toBe('speech')
     expect(characterReaction('stage-up', 0).variant).toBe('ribbon')
     expect(characterReaction('snoozed', 0).variant).toBe('cloud')
+    expect(characterReaction('ready', 0).variant).toBe('speech')
+    expect(characterReaction('ready', 1).variant).toBe('cloud')
+    expect(characterReaction('ready', 2).variant).toBe('burst')
+    expect(characterReaction('ready', 3).variant).toBe('ribbon')
     expect(characterReaction('stage-up', 3)).toEqual(characterReaction('stage-up', 3))
   })
   it('varies a recurring event across session histories and avoids an immediate repeat', () => {

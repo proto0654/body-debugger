@@ -1,9 +1,19 @@
 import type { LabEvent, LabPlan } from '../../shared/domain/laboratory'
-import { labActions, type LabDriverAck, type LabDriverAction, type LabDriverCommand,
+import { ARCADE_SCENE_MS, labActions, type LabDriverAck, type LabDriverAction, type LabDriverCommand,
   type LabPlaybackMode, type LabPlaybackState, type LabPhase } from '../../shared/domain/laboratory-playback'
 import type { Session } from '../../shared/types/session'
 import type { SeverityLevel } from '../../shared/types/settings'
 import { REACTION_TIMING_MS } from '../../shared/domain/reaction-timing'
+
+export { ARCADE_SCENE_MS }
+
+/** Wait for popup ready / save / hold without tying to exercise wall-clock. */
+const ARCADE_ACTION_MS = 15_000
+/**
+ * Voice lines can outlast the reading floor; keep the window open until
+ * feedback-complete or this generous ceiling while the popup is still alive.
+ */
+const ARCADE_FEEDBACK_MS = REACTION_TIMING_MS.milestone + REACTION_TIMING_MS.exit + 120_000
 
 export interface NativePlaybackPort {
   plan(): LabPlan | null
@@ -11,6 +21,7 @@ export interface NativePlaybackPort {
   now(): number
   severity(): SeverityLevel
   move(index: number): void
+  /** Optional sandbox/app clock; arcade play does not accelerate exercise timers. */
   clock(at: number, running: boolean, rate: number): void
   open(event: LabEvent, generation: number): string
   active(): boolean
@@ -22,7 +33,10 @@ export interface NativePlaybackPort {
   intervention(): void
 }
 
-/** Main-owned semantic replay. All results still come from the real session loop. */
+/**
+ * Shared arcade replay for laboratory + chronicle: one non-overlapping link at a
+ * time (cursor jump → scene beat → popup → semantic driver → voice feedback → close).
+ */
 export class NativePlayback {
   state: LabPlaybackState = { generation: 0, mode: 'automatic', phase: 'idle', eventIndex: null,
     sessionId: null, action: '', waiting: false, paused: true, error: '' }
@@ -30,12 +44,9 @@ export class NativePlayback {
   private timer?: ReturnType<typeof setTimeout>
   private due = 0
   private remaining = 0
-  private delay = 1500
   private sequence = 0
   private ready = false
   private manual = false
-  private targetTime = 0
-  private exerciseEnd = 0
   private failedPhase: LabPhase | null = null
   private feedbackComplete = false
   private feedbackDeadline = 0
@@ -61,7 +72,7 @@ export class NativePlayback {
     this.timer = undefined
   }
 
-  private schedule(delay = this.delay): void {
+  private schedule(delay: number): void {
     this.clearTimer()
     if (!this.playing) return
     const generation = this.state.generation
@@ -71,7 +82,7 @@ export class NativePlayback {
       if (generation !== this.state.generation || !this.playing) return
       try { this.advance() }
       catch (error) {
-        console.error('[laboratory] native phase failed', error)
+        console.error('[playback] arcade phase failed', error)
         this.fail('Не удалось выполнить фазу. Повторите действие или перейдите к дате.')
       }
     }, delay)
@@ -106,14 +117,14 @@ export class NativePlayback {
     this.update()
   }
 
-  play(delay: number): void {
-    if (![500, 1500, 3500].includes(delay) || !this.port.plan()) throw new Error('Invalid playback speed or scenario')
-    this.delay = delay
+  /** Start or resume arcade play. Tempo controls are gone — beats are fixed. */
+  play(): void {
+    if (!this.port.plan()) throw new Error('Invalid playback scenario')
     if (this.state.phase === 'finished') return
     const wasPaused = this.state.paused
     this.state.paused = false
     if (this.state.phase === 'error') {
-      this.feedbackDeadline = Date.now() + REACTION_TIMING_MS.milestone + REACTION_TIMING_MS.exit + 5000
+      this.feedbackDeadline = Date.now() + ARCADE_FEEDBACK_MS
       this.state.error = ''
       this.state.waiting = false
       this.state.phase = this.failedPhase ?? 'idle'
@@ -122,14 +133,16 @@ export class NativePlayback {
         return
       }
       if (this.state.phase === 'reminder' && !this.ready) {
-        this.schedule(15000)
+        this.schedule(ARCADE_ACTION_MS)
         this.update()
         return
       }
     }
-    if (wasPaused && this.state.phase === 'exercise') this.runExercise(this.remaining || delay)
-    else if (this.state.phase === 'saving') this.choose()
-    else this.schedule(this.remaining || Math.min(delay, 500))
+    if (wasPaused && this.state.phase === 'exercise') {
+      // Arcade skips wall-clock exercise — jump straight to the choice.
+      this.highlightChoice()
+    } else if (this.state.phase === 'saving') this.choose()
+    else this.schedule(this.remaining || ARCADE_SCENE_MS)
     this.remaining = 0
     this.update()
   }
@@ -166,25 +179,33 @@ export class NativePlayback {
     this.state.sessionId = null
     this.state.waiting = false
     this.state.action = event.label
+    this.port.move(index)
+    this.port.clock(Math.max(this.port.now(), Date.parse(event.at)), false, 1)
     if (!event.session) {
-      this.port.clock(Math.max(this.port.now(), Date.parse(event.at)), false, 1)
-      this.port.move(index)
       this.update('gap')
-      this.schedule(Math.min(this.delay, 500))
+      this.schedule(ARCADE_SCENE_MS)
       return
     }
     this.ready = false
     this.manual = false
-    this.targetTime = Date.parse(event.at)
-    const duration = event.session.status === 'missed' ? 300000 : event.session.status === 'done' ? event.session.durationSec * 1000 : 0
-    const start = Math.max(this.port.now(), this.targetTime - duration)
-    this.targetTime = Math.max(this.targetTime, start + duration)
-    this.exerciseEnd = this.targetTime
-    this.port.clock(start, false, 1)
+    this.feedbackComplete = false
+    // Scene beat first so calendar/portrait jump before the popup opens.
+    this.update('gap')
+    this.schedule(ARCADE_SCENE_MS)
+  }
+
+  private openCurrent(): void {
+    const event = this.event()
+    if (!event?.session) {
+      this.nextEvent()
+      return
+    }
+    this.ready = false
+    this.manual = false
     this.state.sessionId = this.port.open(event, this.state.generation)
     this.state.waiting = true
     this.update('reminder')
-    this.schedule(15000)
+    this.schedule(ARCADE_ACTION_MS)
   }
 
   acknowledge(ack: LabDriverAck): void {
@@ -203,11 +224,14 @@ export class NativePlayback {
       this.state.waiting = false
       this.clearTimer()
       this.update()
-      this.schedule(Math.min(this.delay, 700))
+      this.schedule(ARCADE_SCENE_MS)
       return
     }
     if (ack.kind === 'manual') {
-      this.intervene()
+      // Automatic arcade: a click aborts the whole run. Interactive lab keeps
+      // the popup open for a real choice.
+      if (this.state.mode === 'automatic') this.abortFromUser()
+      else this.intervene()
       return
     }
     const last = this.lastCommand
@@ -219,8 +243,9 @@ export class NativePlayback {
     }
     if (ack.kind === 'applied' && last.action === 'start') {
       this.state.waiting = false
+      // No exercise clock — go to the outcome highlight immediately.
       this.update('exercise')
-      this.runExercise(Math.max(700, this.delay))
+      this.schedule(ARCADE_SCENE_MS)
     }
   }
 
@@ -237,6 +262,21 @@ export class NativePlayback {
     this.update()
   }
 
+  /** Stop automatic arcade immediately — used when the user clicks the driven popup. */
+  private abortFromUser(): void {
+    this.clearTimer()
+    this.remaining = 0
+    this.send('cancel')
+    this.port.close()
+    this.port.intervention()
+    this.state.paused = true
+    this.state.waiting = false
+    this.state.sessionId = null
+    this.state.action = 'Сценарий прерван'
+    this.state.error = ''
+    this.update('finished')
+  }
+
   resolved(session: Session): boolean {
     if (session.id !== this.state.sessionId || this.state.eventIndex === null
       || ['saved', 'reaction', 'closing', 'repeat', 'finished', 'idle'].includes(this.state.phase)) return false
@@ -246,19 +286,12 @@ export class NativePlayback {
       || (session.skipReason === 'popup-closed' && !event?.actions?.includes('close'))
     this.freeze()
     this.feedbackComplete = session.status === 'missed' || session.skipReason === 'popup-closed'
-    this.feedbackDeadline = Date.now() + REACTION_TIMING_MS.milestone + REACTION_TIMING_MS.exit + 5000
+    this.feedbackDeadline = Date.now() + ARCADE_FEEDBACK_MS
     this.state.waiting = false
     this.port.commit(this.state.eventIndex, session, manual)
     this.update('saved')
-    this.schedule(Math.max(700, this.delay))
+    this.schedule(ARCADE_SCENE_MS)
     return true
-  }
-
-  private runExercise(delay: number): void {
-    const duration = Math.max(0, this.exerciseEnd - this.port.now())
-    const rate = Math.min(1000, Math.max(1, duration / delay))
-    this.port.clock(this.port.now(), this.playing && duration > 0, rate)
-    this.schedule(Math.max(delay, duration / rate))
   }
 
   private highlightChoice(): void {
@@ -272,7 +305,7 @@ export class NativePlayback {
     }
     this.state.waiting = this.state.mode === 'interactive'
     this.update('choice')
-    if (!this.state.waiting) this.schedule(Math.max(700, this.delay))
+    if (!this.state.waiting) this.schedule(ARCADE_SCENE_MS)
   }
 
   private choose(): void {
@@ -281,18 +314,34 @@ export class NativePlayback {
     this.state.waiting = true
     this.update('saving')
     if (event.session.status === 'missed') {
+      // Arcade never waits out the real miss timer (chronicle has no lab clock).
       this.port.timeout()
     } else if (event.actions?.includes('close')) {
       this.port.close()
     } else {
-      this.send(event.session.status === 'done' && this.port.severity() === 'hardcore' ? 'hold' : event.session.status as LabDriverAction)
+      // Automatic arcade emulates Hardcore — no real hold gesture. Interactive
+      // lab still uses the genuine hold path.
+      const status = event.session.status
+      if (status === 'done' && this.port.severity() === 'hardcore' && this.state.mode === 'interactive') {
+        this.send('hold')
+      } else {
+        this.send(status as LabDriverAction)
+      }
     }
-    if (this.state.phase === 'saving') this.schedule(15000)
+    if (this.state.phase === 'saving') this.schedule(ARCADE_ACTION_MS)
   }
 
   private advance(): void {
     switch (this.state.phase) {
-      case 'idle': case 'gap': case 'repeat': this.nextEvent(); break
+      case 'idle': case 'repeat':
+        this.nextEvent()
+        break
+      case 'gap': {
+        const event = this.event()
+        if (event?.session && !this.state.sessionId) this.openCurrent()
+        else this.nextEvent()
+        break
+      }
       case 'reminder':
         if (!this.ready) {
           if (this.playing) this.fail('Попап не подтвердил готовность. Откройте сценарий заново.')
@@ -301,21 +350,20 @@ export class NativePlayback {
         if ((this.event()?.actions ?? labActions(this.event()!.session!)).includes('start')) {
           this.send('highlight-start')
           this.update('start')
-          this.schedule(Math.max(700, this.delay))
+          this.schedule(ARCADE_SCENE_MS)
         } else if (this.event()?.session?.status === 'missed') {
           if (this.state.mode === 'interactive') { this.highlightChoice(); return }
-          this.state.action = 'Ожидаем ответ до таймаута'
+          this.state.action = 'Таймаут без ответа'
           this.update('exercise')
-          this.runExercise(Math.max(1200, this.delay))
+          this.schedule(ARCADE_SCENE_MS)
         } else this.highlightChoice()
         break
       case 'start':
         this.state.waiting = true
-        this.schedule(15000)
+        this.schedule(ARCADE_ACTION_MS)
         this.send('start')
         break
       case 'exercise':
-        this.port.clock(this.exerciseEnd, false, 1)
         this.highlightChoice()
         break
       case 'choice':
@@ -325,22 +373,26 @@ export class NativePlayback {
       case 'saving': this.fail('Ожидаем сохранения. Проверьте попап и повторите действие.'); break
       case 'saved': this.update('reaction'); this.schedule(100); break
       case 'reaction':
-        if (!this.port.active() || this.feedbackComplete) { this.update('closing'); this.schedule(100) }
+        // Arcade must not skip ahead on a closed window alone — wait for the popup
+        // to finish the spoken line (`feedback-complete`) or the safety deadline.
+        if (this.feedbackComplete) { this.update('closing'); this.schedule(100) }
         else if (Date.now() >= this.feedbackDeadline) this.fail('Результат сохранён. Закройте попап, чтобы продолжить сценарий.')
         else this.schedule(100)
         break
       case 'closing':
-        if (this.port.active()) {
+        if (this.port.active() && !this.feedbackComplete) {
           if (Date.now() >= this.feedbackDeadline) this.fail('Результат сохранён. Закройте попап, чтобы продолжить сценарий.')
           else this.schedule(100)
           break
         }
+        if (this.port.active()) {
+          this.port.close()
+          this.schedule(100)
+          break
+        }
         this.state.sessionId = null
-        if (this.event()?.session?.status === 'snoozed') {
-          this.state.action = 'Пять минут до повторного напоминания'
-          this.port.clock(this.port.now() + 300000, false, 1)
-          this.update('repeat'); this.schedule(Math.max(700, this.delay))
-        } else this.nextEvent()
+        // Arcade: no five-minute snooze wait — scene beat happens inside nextEvent.
+        this.nextEvent()
         break
       case 'error': case 'finished': break
     }

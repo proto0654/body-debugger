@@ -82,11 +82,14 @@ export function characterReaction(
   }
   const variants: readonly ComicVariant[] = definition.tone === 'milestone' ? ['ribbon', 'burst']
     : definition.tone === 'cheer' ? ['burst', 'speech']
-      : event === 'snoozed' || event === 'paused' ? ['cloud'] : ['speech', 'cloud']
+      : event === 'snoozed' || event === 'paused' ? ['cloud']
+        // Ready/active keep calm tone but still rotate the comic silhouettes.
+        : event === 'ready' || event === 'active' ? ['speech', 'cloud', 'burst', 'ribbon']
+          : ['speech', 'cloud']
   return {
     caption: definition.captions[index], emotion: definition.emotion, tone: definition.tone,
     variant: variants[safeSequence % variants.length]!,
-    decoration: definition.tone === 'milestone' ? '✦' : definition.tone === 'cheer' ? '!' : '·',
+    decoration: definition.tone === 'milestone' ? '✦' : definition.tone === 'cheer' ? '!' : '…',
     animationId: `${event}-${safeSequence}-${index}`
   }
 }

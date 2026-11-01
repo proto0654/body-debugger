@@ -2,12 +2,10 @@ import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import {
   POPUP_BASE_HEIGHT,
-  POPUP_EXTRAS_COLLAPSED_HEIGHT,
   POPUP_MAX_HEIGHT,
   POPUP_SCREEN_MARGIN,
   POPUP_WIDTH
 } from '../../../shared/constants/popup'
-import { getSettings } from '../persistence'
 
 let popupWindow: BrowserWindow | null = null
 
@@ -52,10 +50,7 @@ export function createPopupWindow(): BrowserWindow {
   const display = screen.getPrimaryDisplay()
   const { width: sw, height: sh } = display.workArea
   const width = POPUP_WIDTH
-  // Reserve room for the collapsed details row so the popup does not jump.
-  const settings = getSettings()
-  const hasDetails = settings.sessionExtras.enabled || settings.photos.enabled
-  const height = hasDetails ? POPUP_EXTRAS_COLLAPSED_HEIGHT : POPUP_BASE_HEIGHT
+  const height = POPUP_BASE_HEIGHT
 
   popupWindow = new BrowserWindow({
     width,

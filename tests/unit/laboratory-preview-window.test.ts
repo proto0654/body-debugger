@@ -22,7 +22,7 @@ describe('independent native preview window', () => {
   it('uses popup geometry inside the display work area, reuses its window and reports closure', () => {
     const closed = vi.fn()
     openLabPreviewWindow(closed)
-    expect(state.options[0]).toMatchObject({ width: 320, height: 260, x: 2864, y: 244, frame: false })
+    expect(state.options[0]).toMatchObject({ width: 320, height: 360, x: 2864, y: 144, frame: false })
     expect(state.loadFile.mock.calls[0]![1]).toEqual({ hash: '/laboratory-preview' })
     state.handlers.get('ready-to-show')?.()
     expect(state.show).toHaveBeenCalledOnce()

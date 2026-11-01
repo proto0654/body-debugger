@@ -11,6 +11,7 @@ import { CHARACTER_BRANCH_LABELS, CHARACTER_STAGE_LABELS } from '@shared/constan
 import { mergeCatalogs } from '@shared/domain/ai-proposal'
 import { characterConditionLabel } from '@shared/domain/character-condition'
 import type { CharacterContext } from '@shared/domain/character-context'
+import { characterReaction } from '@shared/domain/character-reaction'
 import { localDateKey } from '@shared/domain/stats'
 import {
   buildChronicle,
@@ -20,6 +21,7 @@ import {
   chronicleSummary
 } from '@shared/domain/chronicle'
 import type { ChroniclePlaybackState } from '@shared/domain/chronicle-playback'
+import { ARCADE_SCENE_MS } from '@shared/domain/laboratory-playback'
 
 const props = defineProps<{ now: Date; context: CharacterContext }>()
 const emit = defineEmits<{ start: [] }>()
@@ -31,7 +33,6 @@ const chronicle = computed(() => buildChronicle(props.context.sessions, { now: p
 const entries = computed(() => chronicle.value.entries)
 const cursor = ref(0)
 const playing = ref(false)
-const speed = ref(1500)
 const stepUnit = ref<'event' | 'day' | 'milestone'>('event')
 const engineMessage = ref('')
 let unsubscribeChronicle: (() => void) | undefined
@@ -60,7 +61,16 @@ const sceneStage = computed(() => props.context.manual?.stage ?? stage.value)
 const sceneBranch = computed(() => props.context.manual?.branch ?? branch.value)
 const sceneBuild = computed(() => props.context.manual?.build ?? props.context.build)
 const sceneCondition = computed(() => props.context.manual?.condition ?? conditionLevel.value)
-const sceneEmotion = computed(() => props.context.manual?.emotion ?? 'neutral')
+const sceneEmotion = computed(() => {
+  if (props.context.manual?.emotion) return props.context.manual.emotion
+  const session = current.value?.session
+  if (!session) return 'neutral'
+  const event = session.status === 'missed' ? 'skipped'
+    : session.status === 'snoozed' ? 'snoozed'
+      : session.status === 'skipped' ? 'skipped'
+        : 'done'
+  return characterReaction(event).emotion
+})
 const sceneConditionLabel = computed(() => characterConditionLabel(sceneCondition.value, sceneBuild.value))
 const tone = computed(() => (current.value?.milestone ? 'milestone' : current.value?.session?.status === 'done' ? 'cheer' : 'calm'))
 const milestoneHint = computed(() => (journeyNext.value === null
@@ -102,9 +112,9 @@ async function runCommand(
           playing.value = false
           return
         }
-        window.setTimeout(tick, speed.value)
+        window.setTimeout(tick, ARCADE_SCENE_MS)
       }
-      window.setTimeout(tick, speed.value)
+      window.setTimeout(tick, ARCADE_SCENE_MS)
     }
     if (command.action === 'step') {
       let next = cursor.value + command.direction
@@ -159,7 +169,7 @@ async function togglePlay(): Promise<void> {
     return
   }
   if (entries.value.length < 2) return
-  await runCommand({ action: 'play', delayMs: speed.value })
+  await runCommand({ action: 'play' })
 }
 
 function milestoneLabel(index: number): string {
@@ -250,7 +260,6 @@ onBeforeUnmount(() => {
         </div>
         <div class="lab-controls">
           <label>Шаг<select v-model="stepUnit"><option value="event">Событие</option><option value="day">День</option><option value="milestone">Изменение формы / серии</option></select></label>
-          <label>Темп<select v-model.number="speed"><option :value="3500">Медленно · 3,5 с</option><option :value="1500">Обычно · 1,5 с</option><option :value="500">Быстро · 0,5 с</option></select></label>
           <label>Перейти к дате<input type="date" :value="positionDate" @change="jumpToDate(($event.target as HTMLInputElement).value)"></label>
         </div>
         <p class="text-sm text-amber-200" aria-live="polite" data-testid="chronicle-position">{{ current?.label }}</p>

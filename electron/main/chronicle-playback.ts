@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { chronicleToLabPlan } from '../../shared/domain/chronicle'
+import { playbackCharacterAt } from '../../shared/domain/character-context'
 import type { ChronicleCommand, ChroniclePlaybackState } from '../../shared/domain/chronicle-playback'
 import { labMilestones, type LabPlan } from '../../shared/domain/laboratory'
 import type { LabDriverAck } from '../../shared/domain/laboratory-playback'
@@ -18,8 +19,9 @@ import {
 import {
   cancelLoopForLaboratory,
   configureLoopSimulation,
+  missActivePopup,
+  setPreviewCharacter,
   setSessionPreviewMode,
-  tickTriggerLoop,
   triggerPreviewExercise
 } from './trigger-loop'
 import { closePopupWindow, getPopupWindow } from './windows/popup'
@@ -33,7 +35,7 @@ const playback = new NativePlayback({
   plan: () => plan,
   cursor: () => cursor,
   now: nowMs,
-  severity: () => getSnapshot().settings.severity,
+  severity: () => plan?.settings.severity ?? getSnapshot().settings.severity,
   clock: () => undefined,
   move: (index) => {
     cursor = index
@@ -42,6 +44,19 @@ const playback = new NativePlayback({
   open: (event) => {
     openingReplay = true
     try {
+      const sessions = (plan?.events ?? [])
+        .slice(0, Math.max(0, (playback.state.eventIndex ?? 0) + 1))
+        .map((item) => item.session)
+        .filter((session): session is NonNullable<typeof session> => !!session)
+      const identity = plan?.settings.characterPackId ?? getSnapshot().settings.characterPackId
+      const build = plan?.progress.characterBuild ?? getSnapshot().progress.characterBuild
+      setPreviewCharacter(playbackCharacterAt(
+        sessions,
+        new Date(event.at),
+        identity,
+        build,
+        event.session
+      ))
       return triggerPreviewExercise(event.session!.exerciseId, event.session!.durationSec).sessionId
     } finally {
       openingReplay = false
@@ -50,15 +65,14 @@ const playback = new NativePlayback({
   active: () => !!getPopupWindow(),
   close: closePopupWindow,
   timeout: () => {
-    configureLoopSimulation({ freezeDeadline: false })
-    tickTriggerLoop()
+    missActivePopup()
   },
   send: (command) => getPopupWindow()?.webContents?.send(IpcChannels.LabDriver, command),
   commit: () => {
     // Preview only — real history stays untouched.
   },
   intervention: () => {
-    message = 'Вы управляете попапом. Автопроигрывание хроники остановлено.'
+    message = 'Сценарий прерван'
   },
   changed: () => {
     if (playback.state.phase === 'finished') endPlayback('chronicle')
@@ -177,7 +191,6 @@ export function executeChronicleCommand(command: ChronicleCommand): ChroniclePla
       message = 'Воспроизведение остановлено'
       break
     case 'play': {
-      if (![500, 1500, 3500].includes(command.delayMs)) throw new Error('Invalid playback speed')
       beginPlayback('chronicle')
       setSessionPreviewMode(true)
       configureLoopSimulation({
@@ -188,7 +201,7 @@ export function executeChronicleCommand(command: ChronicleCommand): ChroniclePla
         onTriggered: () => undefined
       })
       if (cursor >= plan.events.length - 1) seek(0)
-      playback.play(command.delayMs)
+      playback.play()
       message = 'Проигрывание хроники'
       break
     }

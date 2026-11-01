@@ -6,7 +6,42 @@ import type {
   CharacterStage
 } from '../types/character'
 import type { Session } from '../types/session'
+import { characterReaction } from './character-reaction'
 import { summarizeSessions } from './character-summary'
+
+/** Portrait overlay for arcade/chronicle preview popups — never live Pinia progress. */
+export interface PlaybackCharacterOverlay {
+  packId: string
+  build: CharacterBuild
+  stage: CharacterStage
+  branch: CharacterBranch
+  condition: CharacterConditionLevel
+  emotion: CharacterEmotion
+}
+
+/** Stage/branch/condition from the session prefix; emotion from the planned outcome. */
+export function playbackCharacterAt(
+  sessions: readonly Session[],
+  at: Date,
+  packId: string,
+  build: CharacterBuild,
+  session?: Session | null
+): PlaybackCharacterOverlay {
+  const summary = summarizeSessions(sessions, at)
+  const event = !session ? 'ready'
+    : session.status === 'missed' ? 'skipped'
+      : session.status === 'snoozed' ? 'snoozed'
+        : session.status === 'skipped' ? 'skipped'
+          : 'done'
+  return {
+    packId,
+    build: build === 'neutral' ? 'average' : build,
+    stage: summary.character.stage,
+    branch: summary.character.branch,
+    condition: summary.condition.level,
+    emotion: characterReaction(event).emotion
+  }
+}
 
 /**
  * A read-only character timeline context. The dashboard and chronicle pass

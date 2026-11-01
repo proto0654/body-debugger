@@ -108,8 +108,8 @@ describe('CharacterChronicle', () => {
     await nextTick()
     await wrapper.get('[data-testid="chronicle-play"]').trigger('click')
     expect(wrapper.get('[data-testid="chronicle-position"]').text()).toBe('Начало истории')
-    for (let step = 0; step < 4; step += 1) {
-      vi.advanceTimersByTime(1500)
+    for (let step = 0; step < 6; step += 1) {
+      vi.advanceTimersByTime(700)
       await nextTick()
     }
     expect(wrapper.get('[data-testid="chronicle-position"]').text()).toBe('Сейчас')

@@ -82,7 +82,7 @@ It writes both pairs:
 - `electron/resources/icon.ico` + `icon.png` — prod, emerald ring/glow (16–256 px ICO + 1024 px PNG);
 - `electron/resources/icon-dev.ico` + `icon-dev.png` — dev, amber ring/glow and a `DEV` tag.
 
-Packaged builds embed their icon in the exe and shortcut through `win.icon`. An unpackaged `npm run dev` window uses `icon-dev.png` as its `BrowserWindow` icon. The tray glyph stays the shared animated brand mark; the dev tray tooltip is prefixed with `Dev · `.
+Packaged builds embed their icon in the exe and shortcut through `win.icon`. An unpackaged `npm run dev` window starts from `icon-dev.png`, then the running dashboard button and the tray both switch to the character face with a green countdown ring. The dev tray tooltip is prefixed with `Dev · `.
 
 Change the script and re-run it; do not hand-edit the `.ico` files.
 

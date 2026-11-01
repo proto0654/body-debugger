@@ -3,6 +3,7 @@ import { nextTick } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import SystemPanel from '@/components/settings/SystemPanel.vue'
 import type { LaunchAtLoginState } from '@shared/domain/launch-at-login'
+import type { TrayPinState } from '@shared/domain/tray-pin'
 
 const unsupported: LaunchAtLoginState = { supported: false, enabled: false, willLaunch: false }
 const disabled: LaunchAtLoginState = { supported: true, enabled: false, willLaunch: false }
@@ -10,6 +11,7 @@ const enabled: LaunchAtLoginState = { supported: true, enabled: true, willLaunch
 const disabledByOs: LaunchAtLoginState = { supported: true, enabled: true, willLaunch: false }
 
 let launchState: LaunchAtLoginState = disabled
+let pinState: TrayPinState = { supported: true, enabled: false }
 
 const getLaunchAtLogin = vi.fn(async (): Promise<LaunchAtLoginState> => launchState)
 const setLaunchAtLogin = vi.fn(async (next: boolean): Promise<LaunchAtLoginState> => ({
@@ -17,6 +19,11 @@ const setLaunchAtLogin = vi.fn(async (next: boolean): Promise<LaunchAtLoginState
   enabled: next,
   willLaunch: next
 }))
+const getTrayPin = vi.fn(async (): Promise<TrayPinState> => pinState)
+const setTrayPin = vi.fn(async (next: boolean): Promise<TrayPinState> => {
+  pinState = { supported: true, enabled: next }
+  return pinState
+})
 
 let wrapper: VueWrapper | null = null
 
@@ -27,11 +34,14 @@ async function settle(): Promise<void> {
 
 beforeEach(() => {
   launchState = disabled
+  pinState = { supported: true, enabled: false }
   getLaunchAtLogin.mockClear()
   setLaunchAtLogin.mockClear()
+  getTrayPin.mockClear()
+  setTrayPin.mockClear()
   Object.defineProperty(window, 'api', {
     configurable: true,
-    value: { getLaunchAtLogin, setLaunchAtLogin }
+    value: { getLaunchAtLogin, setLaunchAtLogin, getTrayPin, setTrayPin }
   })
 })
 
@@ -83,5 +93,25 @@ describe('SystemPanel', () => {
     wrapper = mount(SystemPanel)
     await settle()
     expect(wrapper.get('[data-testid="launch-at-login-error"]').text()).toContain('Не удалось прочитать')
+  })
+
+  it('pins the tray icon next to the clock when Windows accepts it', async () => {
+    wrapper = mount(SystemPanel)
+    await settle()
+    expect(wrapper.get('[data-testid="tray-pin-toggle"]').text()).toBe('Выкл')
+
+    await wrapper.get('[data-testid="tray-pin-toggle"]').trigger('click')
+    await settle()
+    expect(setTrayPin).toHaveBeenCalledWith(true)
+    expect(wrapper.get('[data-testid="tray-pin-toggle"]').text()).toBe('Вкл')
+  })
+
+  it('explains that pinning needs an installed Windows 11 build', async () => {
+    pinState = { supported: false, enabled: false }
+    wrapper = mount(SystemPanel)
+    await settle()
+    expect(wrapper.get('[data-testid="tray-pin-toggle"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="tray-pin-toggle"]').text()).toBe('Недоступно')
+    expect(wrapper.find('[data-testid="tray-pin-unsupported"]').exists()).toBe(true)
   })
 })

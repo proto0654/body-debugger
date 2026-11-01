@@ -1,0 +1,230 @@
+import { nativeImage } from 'electron'
+import type { NativeImage } from 'electron'
+import type { CharacterBuild } from '../../shared/types/character'
+import type { TrayState } from '../../shared/types/events'
+import { characterFaceCandidates, CHARACTER_EMOJI_FRAME, frameBuild } from '../../shared/domain/character-visual'
+import { normalizeCharacterPackId } from '../../shared/constants/character-packs'
+import {
+  TRAY_BLINK_MS,
+  TRAY_RING_STEPS,
+  TRAY_WARNING_MS,
+  trayFaceEmotion,
+  trayRingColor,
+  trayRingFill,
+  trayRingPhase,
+  trayRingStep,
+  trayWaitLabel
+} from '../../shared/domain/tray-countdown'
+import { composeTrayIcon, cropHeadSquare, trayIconMetrics, type BgraImage } from '../../shared/domain/tray-icon-bitmap'
+import { getDashboardWindow, onDashboardCreated } from './windows/dashboard'
+import { hasTray, setTrayDetail, setTrayImage } from './tray'
+
+const TRAY_SIZES = [16, 20, 24, 32] as const
+const TASKBAR_SIZE = 64
+
+const faceAssets = {
+  ...import.meta.glob<string>(
+    '../../src/assets/character/*/frames/emotion-neutral-*.png',
+    { eager: true, query: '?asset', import: 'default' }
+  ),
+  ...import.meta.glob<string>(
+    '../../src/assets/character/*/frames/emotion-tired-*.png',
+    { eager: true, query: '?asset', import: 'default' }
+  ),
+  ...import.meta.glob<string>(
+    '../../src/assets/character/*/frames/emotion-happy-*.png',
+    { eager: true, query: '?asset', import: 'default' }
+  )
+}
+
+const facePaths = new Map<string, string>()
+for (const [path, asset] of Object.entries(faceAssets)) {
+  const parts = path.split('/')
+  const pack = parts[parts.length - 3]
+  const fileName = parts[parts.length - 1]
+  const file = fileName ? fileName.replace(/\.png$/, '') : undefined
+  if (!pack || !file || !/^emotion-(neutral|tired|happy)-/.test(file)) continue
+  if (typeof asset === 'string') facePaths.set(`${pack}/${file}`, asset)
+}
+
+export interface TrayPortraitInput {
+  paused: boolean
+  popupOpen: boolean
+  anchorAt: number | null
+  dueAt: number | null
+  heldProgress: number | null
+  now: number
+  reduceMotion: boolean
+  trayState: TrayState
+  packId: string
+  build: CharacterBuild
+  conditionLevel: number
+}
+
+let lastInput: TrayPortraitInput | null = null
+let blinkOn = true
+let blinkTimer: NodeJS.Timeout | null = null
+let warningTimer: NodeJS.Timeout | null = null
+let repaint: (() => void) | null = null
+let taskbarIcon: NativeImage | null = null
+let appliedKey = ''
+const painted = new Map<string, { tray: NativeImage; taskbar: NativeImage }>()
+const scaledFaces = new Map<string, BgraImage | null>()
+
+export function setTrayPortraitRepaint(next: () => void): void {
+  repaint = next
+}
+
+export function stopTrayPortrait(): void {
+  if (blinkTimer) clearInterval(blinkTimer)
+  if (warningTimer) clearTimeout(warningTimer)
+  blinkTimer = null
+  warningTimer = null
+}
+
+export function paintTrayPortrait(input: TrayPortraitInput): void {
+  lastInput = input
+  if (!hasTray()) return
+  render(input)
+}
+
+export function repaintTrayPortrait(): void {
+  appliedKey = ''
+  if (lastInput) paintTrayPortrait(lastInput)
+}
+
+onDashboardCreated(win => {
+  if (taskbarIcon) win.setIcon(taskbarIcon)
+})
+
+function render(input: TrayPortraitInput): void {
+  const phase = trayRingPhase(input)
+  syncBlink(phase === 'blink')
+  armWarning(input)
+
+  const fill = trayRingFill(input)
+  const step = trayRingStep(fill)
+  const color = trayRingColor(phase, blinkOn)
+  const emotion = trayFaceEmotion(input.trayState, input.conditionLevel)
+  const packId = normalizeCharacterPackId(input.packId)
+  const faceKey = resolveFacePath(emotion, input.build, packId) ?? 'none'
+  const cacheKey = `${faceKey}|${step}|${color}|${input.trayState}`
+  const cached = painted.get(cacheKey)
+  const images = cached ?? paintImages(faceKey, step / TRAY_RING_STEPS, color)
+  if (!cached) painted.set(cacheKey, images)
+  taskbarIcon = images.taskbar
+  if (cacheKey !== appliedKey) {
+    appliedKey = cacheKey
+    setTrayImage(images.tray)
+    const dashboard = getDashboardWindow()
+    if (dashboard && !dashboard.isDestroyed()) dashboard.setIcon(images.taskbar)
+  }
+
+  const remaining = input.dueAt === null ? null : input.dueAt - input.now
+  setTrayDetail(trayWaitLabel(remaining, phase))
+}
+
+function syncBlink(active: boolean): void {
+  if (active && !blinkTimer) {
+    blinkTimer = setInterval(() => {
+      blinkOn = !blinkOn
+      repaint?.()
+    }, TRAY_BLINK_MS)
+    return
+  }
+  if (!active && blinkTimer) {
+    clearInterval(blinkTimer)
+    blinkTimer = null
+    blinkOn = true
+  }
+}
+
+function armWarning(input: TrayPortraitInput): void {
+  if (warningTimer) {
+    clearTimeout(warningTimer)
+    warningTimer = null
+  }
+  if (input.paused || input.popupOpen || input.dueAt === null) return
+  const delay = input.dueAt - TRAY_WARNING_MS - input.now
+  if (delay <= 0 || delay > 60_000) return
+  warningTimer = setTimeout(() => {
+    warningTimer = null
+    repaint?.()
+  }, delay)
+}
+
+function paintImages(faceKey: string, progress: number, color: ReturnType<typeof trayRingColor>): {
+  tray: NativeImage
+  taskbar: NativeImage
+} {
+  const trayImage = nativeImage.createFromBitmap(frameBuffer(TRAY_SIZES[0], faceKey, progress, color), {
+    width: TRAY_SIZES[0],
+    height: TRAY_SIZES[0],
+    scaleFactor: 1
+  })
+  const scales: Array<[number, number]> = [[20, 1.25], [24, 1.5], [32, 2]]
+  for (const [size, scale] of scales) {
+    trayImage.addRepresentation({
+      scaleFactor: scale,
+      width: size,
+      height: size,
+      buffer: frameBuffer(size, faceKey, progress, color)
+    })
+  }
+  return {
+    tray: trayImage,
+    taskbar: nativeImage.createFromBitmap(frameBuffer(TASKBAR_SIZE, faceKey, progress, color), {
+      width: TASKBAR_SIZE,
+      height: TASKBAR_SIZE,
+      scaleFactor: 1
+    })
+  }
+}
+
+function frameBuffer(size: number, faceKey: string, progress: number, color: ReturnType<typeof trayRingColor>): Buffer {
+  const { faceSize } = trayIconMetrics(size)
+  const face = faceKey === 'none' ? null : loadFace(faceKey, faceSize)
+  return Buffer.from(composeTrayIcon({ size, face, progress, color }))
+}
+
+function loadFace(path: string, size: number): BgraImage | null {
+  const cacheKey = `${path}|${size}`
+  const cached = scaledFaces.get(cacheKey)
+  if (cached !== undefined) return cached
+  const image = nativeImage.createFromPath(path)
+  if (image.isEmpty()) {
+    scaledFaces.set(cacheKey, null)
+    return null
+  }
+  const { width, height } = image.getSize()
+  const bytes = image.toBitmap()
+  const source = bytes.length === width * height * 4
+    ? cropHeadSquare({ width, height, pixels: new Uint8Array(bytes) })
+    : null
+  const bitmap = (source
+    ? nativeImage.createFromBitmap(Buffer.from(source.pixels), {
+      width: source.width,
+      height: source.height,
+      scaleFactor: 1
+    })
+    : image
+  ).resize({ width: size, height: size, quality: 'best' })
+  const scaledBytes = bitmap.toBitmap()
+  if (scaledBytes.length !== size * size * 4) {
+    scaledFaces.set(cacheKey, null)
+    return null
+  }
+  const face = { width: size, height: size, pixels: new Uint8Array(scaledBytes) }
+  scaledFaces.set(cacheKey, face)
+  return face
+}
+
+function resolveFacePath(emotion: ReturnType<typeof trayFaceEmotion>, build: CharacterBuild, packId: string): string | undefined {
+  for (const key of characterFaceCandidates(emotion, build)) {
+    if (key === CHARACTER_EMOJI_FRAME) break
+    const path = facePaths.get(`${packId}/${key}`)
+    if (path) return path
+  }
+  const average = facePaths.get(`${packId}/emotion-neutral-${frameBuild(build)}`)
+  return average
+}

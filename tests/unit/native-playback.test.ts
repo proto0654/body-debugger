@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NativePlayback, type NativePlaybackPort } from '../../electron/main/laboratory-playback'
+import { ARCADE_SCENE_MS } from '@shared/domain/laboratory-playback'
 import { buildLabScenario } from '@shared/domain/laboratory'
 import { defaultProgress, defaultSettings } from '../../electron/main/persistence/defaults'
 import type { LabDriverCommand } from '@shared/domain/laboratory-playback'
@@ -26,14 +27,21 @@ function setup() {
   return { replay, port, plan, sent, cursor: () => cursor }
 }
 
-describe('native semantic playback', () => {
-  it('never cuts feedback short and waits for the actual window to close after acknowledgement', () => {
+/** Idle → gap (cursor jump) → reminder (popup open). */
+async function openReminder(replay: NativePlayback): Promise<void> {
+  replay.play()
+  await vi.advanceTimersByTimeAsync(ARCADE_SCENE_MS) // idle → nextEvent → gap
+  await vi.advanceTimersByTimeAsync(ARCADE_SCENE_MS) // gap → openCurrent → reminder
+}
+
+describe('native arcade playback', () => {
+  it('never cuts feedback short and waits for the actual window to close after acknowledgement', async () => {
     const { replay, plan, port } = setup()
     const close = vi.spyOn(port, 'close')
-    replay.play(500); vi.advanceTimersByTime(700)
+    await openReminder(replay)
     const sessionId = replay.state.sessionId!
     replay.resolved({ ...plan.events[2]!.session!, id: sessionId })
-    vi.advanceTimersByTime(3500)
+    await vi.advanceTimersByTimeAsync(ARCADE_SCENE_MS)
     expect(replay.state.phase).toBe('reaction')
     expect(replay.state.sessionId).toBe(sessionId)
     expect(close).not.toHaveBeenCalled()
@@ -42,32 +50,35 @@ describe('native semantic playback', () => {
     replay.step()
     expect(replay.state.sessionId).toBe(sessionId)
     port.close()
-    replay.play(500); vi.advanceTimersByTime(500)
+    replay.play()
+    await vi.advanceTimersByTimeAsync(ARCADE_SCENE_MS)
     expect(replay.state.sessionId).not.toBe(sessionId)
     replay.cancel()
   })
 
-  it('waits for the actual popup, then visibly highlights and starts without writing history', () => {
-    const { replay, sent, port } = setup()
-    replay.play(500)
-    vi.advanceTimersByTime(700)
+  it('jumps the cursor, waits for the popup, then starts without writing history', async () => {
+    const { replay, sent, port, cursor } = setup()
+    const before = cursor()
+    await openReminder(replay)
     expect(replay.state.phase).toBe('reminder')
+    expect(cursor()).toBe(before + 1)
     expect(sent).toEqual([])
     replay.acknowledge({ kind: 'ready', sessionId: replay.state.sessionId! })
-    vi.advanceTimersByTime(1500)
+    await vi.advanceTimersByTimeAsync(ARCADE_SCENE_MS * 2)
     expect(sent.map(value => value.action)).toContain('highlight-start')
     expect(sent.map(value => value.action)).toContain('start')
     expect(port.commit).not.toHaveBeenCalled()
     replay.cancel()
   })
-  it('rejects stale acknowledgements after a seek/reset and freezes on pause', () => {
+
+  it('rejects stale acknowledgements after a seek/reset and freezes on pause', async () => {
     const { replay, sent, port } = setup()
-    replay.play(500); vi.advanceTimersByTime(700)
+    await openReminder(replay)
     const generation = replay.state.generation
     const sessionId = replay.state.sessionId!
     replay.pause()
     const count = sent.length
-    vi.advanceTimersByTime(600000)
+    await vi.advanceTimersByTimeAsync(600000)
     expect(sent).toHaveLength(count)
     expect(port.clock).toBeDefined()
     replay.cancel()
@@ -75,22 +86,62 @@ describe('native semantic playback', () => {
     expect(replay.state.phase).toBe('idle')
     expect(port.commit).not.toHaveBeenCalled()
   })
-  it('records only a durable resolution and keeps a failed write retryable with the same identity', () => {
-    const { replay, plan, port } = setup()
-    replay.play(500); vi.advanceTimersByTime(700)
+
+  it('resolves a missed reminder through timeout without a laboratory clock', async () => {
+    const { replay, plan, port, sent } = setup()
+    const missedIndex = 3
+    const session = plan.events[missedIndex]!.session!
+    plan.events[missedIndex] = {
+      ...plan.events[missedIndex]!,
+      session: { ...session, status: 'missed' },
+      actions: undefined
+    }
+    port.clock = () => undefined
+    port.move(missedIndex - 1)
+    await openReminder(replay)
+    expect(replay.state.eventIndex).toBe(missedIndex)
     const sessionId = replay.state.sessionId!
     replay.acknowledge({ kind: 'ready', sessionId })
-    vi.advanceTimersByTime(1500)
-    const request = replay.lastCommand!
-    replay.acknowledge({ ...request, kind: 'applied' })
-    vi.advanceTimersByTime(2000)
+    await vi.advanceTimersByTimeAsync(ARCADE_SCENE_MS * 4)
+    expect(port.timeout).toHaveBeenCalled()
+    expect(sent.map(value => value.action)).not.toContain('start')
+    expect(replay.resolved({ ...session, id: sessionId, status: 'missed' })).toBe(true)
+    expect(port.commit).toHaveBeenCalled()
+    replay.cancel()
+  })
+
+  it('aborts automatic arcade on a manual click instead of waiting for a human', async () => {
+    const { replay, port } = setup()
+    await openReminder(replay)
+    const sessionId = replay.state.sessionId!
+    replay.acknowledge({ kind: 'ready', sessionId })
+    await vi.advanceTimersByTimeAsync(ARCADE_SCENE_MS)
+    replay.acknowledge({ kind: 'manual', sessionId })
+    expect(replay.state.phase).toBe('finished')
+    expect(replay.playing).toBe(false)
+    expect(port.active()).toBe(false)
+    expect(port.intervention).toHaveBeenCalled()
+  })
+
+  it('skips exercise wall-clock and records only a durable resolution', async () => {
+    const { replay, plan, port } = setup()
+    await openReminder(replay)
+    const sessionId = replay.state.sessionId!
+    replay.acknowledge({ kind: 'ready', sessionId })
+    await vi.advanceTimersByTimeAsync(ARCADE_SCENE_MS) // highlight-start
+    expect(replay.lastCommand!.action).toBe('highlight-start')
+    await vi.advanceTimersByTimeAsync(ARCADE_SCENE_MS) // start
+    const start = replay.lastCommand!
+    expect(start.action).toBe('start')
+    replay.acknowledge({ ...start, kind: 'applied' })
+    await vi.advanceTimersByTimeAsync(ARCADE_SCENE_MS * 2)
     const done = replay.lastCommand!
     expect(done.action).toBe('done')
     replay.acknowledge({ ...done, kind: 'failed' })
     expect(replay.state.phase).toBe('error')
     expect(port.commit).not.toHaveBeenCalled()
-    replay.play(500)
-    vi.advanceTimersByTime(2000)
+    replay.play()
+    await vi.advanceTimersByTimeAsync(ARCADE_SCENE_MS)
     expect(replay.state.sessionId).toBe(sessionId)
     expect(replay.resolved({ ...plan.events[2]!.session!, id: sessionId })).toBe(true)
     expect(port.commit).toHaveBeenCalledOnce()

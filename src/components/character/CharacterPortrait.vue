@@ -25,7 +25,7 @@ const props = withDefaults(
     emotion?: CharacterEmotion
     condition?: CharacterConditionLevel
     emojiFallback?: string
-    size?: 'sm' | 'md' | 'lg' | 'xl'
+    size?: 'sm' | 'popup' | 'md' | 'lg' | 'xl'
     showLabel?: boolean
     /** `body` = full sprite for the dashboard, `face` = emotion bust for the popup */
     variant?: 'body' | 'face'
@@ -49,6 +49,7 @@ const emit = defineEmits<{ 'frame-status': [status: { packId: string; fallback: 
 const sizeClass = computed(() => {
   if (props.size === 'xl') return 'h-52 w-44 text-6xl'
   if (props.size === 'sm') return 'h-16 w-16 text-3xl'
+  if (props.size === 'popup') return 'h-36 w-36 text-5xl'
   if (props.size === 'lg') return 'h-40 w-40 text-6xl'
   return 'h-24 w-24 text-5xl'
 })
@@ -117,7 +118,7 @@ onBeforeUnmount(() => {
   <div class="flex flex-col items-center gap-2">
     <div
       class="character-portrait relative overflow-hidden rounded-2xl"
-      :class="[sizeClass, { 'portrait-bounce': bouncing, 'fade-rise': variant === 'body', 'portrait-proud': emotion === 'proud', 'portrait-hero': size === 'xl', 'portrait-expression': variant === 'face' && size === 'xl' }]"
+      :class="[sizeClass, { 'portrait-bounce': bouncing, 'fade-rise': variant === 'body', 'portrait-proud': emotion === 'proud', 'portrait-hero': size === 'xl', 'portrait-expression': variant === 'face' && size === 'xl', 'portrait-hud': variant === 'face' && size === 'popup' }]"
       :data-stage="stage"
       :data-pack="packId"
       :data-frame-fallback="frameFallback"

@@ -4,6 +4,13 @@ import type { AppSettings } from './settings'
 import type { UserProgress } from './progress'
 import type { DataSnapshot } from './persistence'
 import type { PhotoEntry } from './photo'
+import type {
+  CharacterBranch,
+  CharacterBuild,
+  CharacterConditionLevel,
+  CharacterEmotion,
+  CharacterStage
+} from './character'
 import type { AppChannel } from '../domain/app-identity'
 import type { UpdateState } from '../domain/update'
 
@@ -59,6 +66,8 @@ export const IpcChannels = {
   AppOpenLogs: 'app:open-logs',
   AppGetLaunchAtLogin: 'app:get-launch-at-login',
   AppSetLaunchAtLogin: 'app:set-launch-at-login',
+  AppGetTrayPin: 'app:get-tray-pin',
+  AppSetTrayPin: 'app:set-tray-pin',
   AppUpdateState: 'app:update-state',
   AppUpdateCheck: 'app:update-check',
   AppUpdateInstall: 'app:update-install',
@@ -76,6 +85,16 @@ export interface SessionTriggerPayload {
   at: string
 }
 
+/** Character visuals for arcade/chronicle preview — not the live Pinia progress. */
+export interface SessionPopupCharacter {
+  packId: string
+  build: CharacterBuild
+  stage: CharacterStage
+  branch: CharacterBranch
+  condition: CharacterConditionLevel
+  emotion: CharacterEmotion
+}
+
 /** The single exercise the popup must show; main is the source of truth for the active session. */
 export interface SessionPopupPayload {
   exercise: Exercise
@@ -85,6 +104,8 @@ export interface SessionPopupPayload {
    * The renderer scopes durable voice rotation away from the live profile.
    */
   preview: boolean
+  /** Isolated portrait for preview/arcade; omitted for live reminders. */
+  character?: SessionPopupCharacter
 }
 
 /** Runtime reminder schedule — derived state, never persisted */
@@ -92,6 +113,10 @@ export interface SessionLoopStatePayload {
   paused: boolean
   /** ISO timestamp of the next reminder, null while paused or a popup is open */
   nextTriggerAt: string | null
+  /** ISO start of the current wait. Null while paused or a popup is open. */
+  countdownAnchorAt: string | null
+  /** Frozen ring fill, 0..1, while reminders are paused. */
+  heldProgress: number | null
   intervalMinutes: number
 }
 

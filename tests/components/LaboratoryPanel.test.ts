@@ -46,7 +46,7 @@ describe('laboratory controls', () => {
   it('exposes the full preference controls and optional data layers inside the laboratory', async () => {
     const view = await panel()
     await view.findAll('nav button').find(button => button.text() === 'Настройки')!.trigger('click')
-    for (const id of ['interval-control', 'severity-controls', 'picker-mode-controls', 'focus-controls', 'inventory-controls', 'ai-controls', 'sound-controls', 'extras-controls', 'weight-controls', 'photo-controls', 'theme-controls']) {
+    for (const id of ['interval-control', 'severity-controls', 'picker-mode-controls', 'focus-controls', 'inventory-controls', 'ai-controls', 'sound-controls', 'weight-controls', 'photo-controls', 'theme-controls']) {
       expect(view.find(`[data-testid="${id}"]`).exists(), id).toBe(true)
     }
     await view.findAll('nav button').find(button => button.text() === 'Данные')!.trigger('click')

@@ -19,7 +19,7 @@ import { broadcastToWindows, notifyDataUpdated } from './broadcast'
 import { isLabProcess } from './lab-environment'
 import { closeLabPreviewWindow, openLabPreviewWindow } from './windows/laboratory-preview'
 import { validateLabVisualPreview, type LabVisualPreview } from '../../shared/domain/laboratory-preview'
-import { cancelLoopForLaboratory, configureLoopSimulation, getActivePopup, syncLoopFromSettings,
+import { cancelLoopForLaboratory, configureLoopSimulation, getActivePopup, missActivePopup, syncLoopFromSettings,
   tickTriggerLoop, triggerNow, triggerLaboratoryExercise } from './trigger-loop'
 
 let plan: LabPlan | null = null
@@ -48,8 +48,7 @@ const playback = new NativePlayback({
   },
   active: () => !!getPopupWindow(), close: closePopupWindow,
   timeout: () => {
-    configureLoopSimulation({ freezeDeadline: false })
-    tickTriggerLoop()
+    missActivePopup()
   },
   send: command => getPopupWindow()?.webContents?.send(IpcChannels.LabDriver, command),
   commit: (index, session, manual) => {
@@ -79,7 +78,9 @@ const playback = new NativePlayback({
   },
   intervention: () => {
     interrupted = true
-    message = 'Вы управляете попапом. Автоматические действия отменены; исходный сценарий сохранён.'
+    message = playback.state.mode === 'automatic'
+      ? 'Сценарий прерван'
+      : 'Вы управляете попапом. Автоматические действия отменены; исходный сценарий сохранён.'
   },
   changed: () => { publish() }
 })
@@ -283,9 +284,9 @@ export async function executeLabCommand(command: LabCommand): Promise<LabState> 
       break
     }
     case 'play':
-      if (!plan || ![500, 1500, 3500].includes(command.delayMs)) throw new Error('Invalid playback speed or scenario')
+      if (!plan) throw new Error('Invalid playback scenario')
       if (detached) seek(cursor)
-      playback.play(command.delayMs)
+      playback.play()
       break
     case 'phase-step': playback.step(); break
     case 'mode':

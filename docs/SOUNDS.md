@@ -5,6 +5,7 @@ Optional feedback layer. Product rule: sounds must not affect the core cycle (re
 ## Goals
 
 - Short cues that reinforce popup / result / milestone feedback
+- Arcade/lab/chronicle playback queues lines (entry → active → result) so each take finishes in full (`ended`, then a 1 s tail) before the next starts; the popup acks `ready` / `applied` only after the spoken line, and `feedback-complete` after the reaction. `stop()` drops the queue on abort/unmount
 - Never nagging; one master mute, volume control, DND / call-safe silence
 - Theme-swappable packs without code changes
 

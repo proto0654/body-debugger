@@ -11,6 +11,11 @@ export interface DashboardWindowOptions {
 }
 
 let dashboardWindow: BrowserWindow | null = null
+let dashboardCreated: ((win: BrowserWindow) => void) | null = null
+
+export function onDashboardCreated(listener: (win: BrowserWindow) => void): void {
+  dashboardCreated = listener
+}
 
 function preloadPath(): string {
   return join(__dirname, '../preload/index.js')
@@ -54,6 +59,7 @@ export function createDashboardWindow(options: DashboardWindowOptions = {}): Bro
     }
   })
   dashboardWindow = current
+  dashboardCreated?.(current)
   current.setMenuBarVisibility(false)
 
   current.on('ready-to-show', () => {

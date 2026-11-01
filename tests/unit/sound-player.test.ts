@@ -8,6 +8,7 @@ import type { SoundSettings } from '@shared/types/settings'
 import {
   createSoundPlayer,
   SOUND_CUE_URLS,
+  VOICE_TAIL_MS,
   voiceLastStorageKey,
   type SoundAudio
 } from '@/sounds'
@@ -127,6 +128,89 @@ describe('sound player', () => {
     expect(instance.play('done')).toBe(true)
     expect(factory.created[0].play).toHaveBeenCalledTimes(1)
     await Promise.resolve()
+  })
+
+  it('waitForPlayback resolves after the current cue ends plus the arcade tail', async () => {
+    vi.useFakeTimers()
+    const listeners = new Map<string, Array<() => void>>()
+    const createAudio = (src: string): SoundAudio => {
+      const audio: SoundAudio = {
+        src,
+        volume: 1,
+        preload: 'none',
+        duration: 2,
+        play: vi.fn(async () => undefined),
+        load: vi.fn(),
+        pause: vi.fn(),
+        addEventListener: (type, listener) => {
+          const list = listeners.get(type) ?? []
+          list.push(listener)
+          listeners.set(type, list)
+        },
+        removeEventListener: (type, listener) => {
+          listeners.set(type, (listeners.get(type) ?? []).filter((item) => item !== listener))
+        }
+      }
+      return audio
+    }
+    const { instance } = player({ enabled: true }, {}, { created: [], createAudio })
+    expect(instance.play('done')).toBe(true)
+    const finished = instance.waitForPlayback()
+    let done = false
+    void finished.then(() => { done = true })
+    await Promise.resolve()
+    expect(done).toBe(false)
+    expect(listeners.get('ended')?.length).toBeGreaterThan(0)
+    for (const listener of listeners.get('ended') ?? []) listener()
+    await Promise.resolve()
+    expect(done).toBe(false)
+    await vi.advanceTimersByTimeAsync(VOICE_TAIL_MS)
+    await finished
+    expect(done).toBe(true)
+    vi.useRealTimers()
+  })
+
+  it('queues a second cue until the first ends instead of cutting it short', async () => {
+    vi.useFakeTimers()
+    const ended = new Map<SoundAudio, Array<() => void>>()
+    const created: SoundAudio[] = []
+    const createAudio = (src: string): SoundAudio => {
+      const audio: SoundAudio = {
+        src,
+        volume: 1,
+        preload: 'none',
+        duration: 3,
+        play: vi.fn(async () => undefined),
+        load: vi.fn(),
+        pause: vi.fn(),
+        addEventListener: (type, listener) => {
+          if (type !== 'ended') return
+          const list = ended.get(audio) ?? []
+          list.push(listener)
+          ended.set(audio, list)
+        },
+        removeEventListener: (type, listener) => {
+          if (type !== 'ended') return
+          ended.set(audio, (ended.get(audio) ?? []).filter((item) => item !== listener))
+        }
+      }
+      created.push(audio)
+      return audio
+    }
+    const { instance } = player({ enabled: true }, {}, { created, createAudio })
+    expect(instance.play('popup')).toBe(true)
+    expect(instance.play('done')).toBe(true)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(created[0]!.play).toHaveBeenCalled()
+    expect(created[1]!.play).not.toHaveBeenCalled()
+    for (const listener of ended.get(created[0]!) ?? []) listener()
+    await vi.advanceTimersByTimeAsync(VOICE_TAIL_MS)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(created[1]!.play).toHaveBeenCalled()
+    expect(created[0]!.pause).not.toHaveBeenCalled()
+    vi.useRealTimers()
   })
 
   it('preloads the whole pack without playing it', () => {

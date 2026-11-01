@@ -13,7 +13,6 @@ import type {
   DataSaveSettingsPayload,
   DataSnapshotPayload,
   DataUpdatedPayload,
-  DebugApplyScenarioPayload,
   PhotoAddPayload,
   PhotoListPayload,
   PhotoRemovePayload,
@@ -37,6 +36,8 @@ declare module '*.vue' {
 }
 
 export interface BodyDebuggerApi {
+  /** File URL of the dedicated lab preload; the playground uses it for the lab webview. */
+  labViewPreload: string
   getAppInfo: () => Promise<AppInfoPayload>
   openLogs: () => Promise<boolean>
   getUpdateState: () => Promise<UpdateStatePayload>
@@ -48,7 +49,6 @@ export interface BodyDebuggerApi {
   onUpdateState: (handler: (state: UpdateStatePayload) => void) => () => void
   labDriverAck: (ack: LabDriverAck) => Promise<void>
   onLabDriver: (handler: (command: LabDriverCommand) => void) => () => void
-  openLaboratory: () => Promise<void>
   getLabState: () => Promise<LabState>
   labCommand: (command: LabCommand) => Promise<LabState>
   onLabChanged: (handler: (state: LabState) => void) => () => void
@@ -64,7 +64,6 @@ export interface BodyDebuggerApi {
   saveProgress: (payload: DataSaveProgressPayload) => Promise<DataSnapshotPayload>
   addWeight: (payload: DataAddWeightPayload) => Promise<DataSnapshotPayload>
   removeWeight: (payload: DataRemoveWeightPayload) => Promise<DataSnapshotPayload>
-  applyDebugScenario: (payload: DebugApplyScenarioPayload) => Promise<DataSnapshotPayload>
   listPhotos: () => Promise<PhotoListPayload>
   addPhoto: (payload: PhotoAddPayload) => Promise<PhotoListPayload[number] | null>
   removePhoto: (

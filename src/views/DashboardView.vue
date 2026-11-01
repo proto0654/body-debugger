@@ -5,12 +5,10 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import CharacterSettingsPanel from '@/components/character/CharacterSettingsPanel.vue'
 import CharacterJourney from '@/components/character/CharacterJourney.vue'
 import CharacterChronicle from '@/components/character/CharacterChronicle.vue'
+import PlaygroundPanel from '@/components/character/PlaygroundPanel.vue'
 import SectionTabs from '@/components/SectionTabs.vue'
 import ProgressPanel from '@/components/stats/ProgressPanel.vue'
 import { reactionDuration } from '@shared/domain/reaction-timing'
-import DebugPanel from '@/debug/DebugPanel.vue'
-import LaboratoryPanel from '@/debug/LaboratoryPanel.vue'
-import { isDebugEnabled } from '@/debug/is-debug-enabled'
 import CharacterPortrait from '@/components/character/CharacterPortrait.vue'
 import ComicBubble from '@/components/character/ComicBubble.vue'
 import WeightCard from '@/components/weight/WeightCard.vue'
@@ -29,19 +27,20 @@ import { CHARACTER_CONDITION_MAX_POINTS, CHARACTER_CONDITION_RECOVERY_POINTS } f
 import type { CharacterReactionEvent } from '@shared/domain/character-reaction'
 import { computeStreak } from '@shared/domain/streak'
 import { localDateKey } from '@shared/domain/stats'
+import type { CharacterContext } from '@shared/domain/character-context'
 
-type TabId = 'today' | 'character' | 'progress' | 'settings' | 'debug'
+type TabId = 'today' | 'character' | 'playground' | 'progress' | 'settings'
 type ProgressSection = 'calendar' | 'stats' | 'weight' | 'photos'
 type CharacterSection = 'profile' | 'chronicle'
 const requestedTab = () => /[?&]tab=([a-z]+)/.exec(window.location.hash)?.[1]
 const progressSection = ref<ProgressSection>(requestedTab() === 'stats' ? 'stats' : 'calendar')
 const characterSection = ref<CharacterSection>('profile')
-const debugEnabled = isDebugEnabled() || !!useRuntimeStore().laboratory
+const runtime = useRuntimeStore()
 function initialTab(): TabId {
   const requested = requestedTab()
   if (requested === 'calendar' || requested === 'stats') return 'progress'
   if (requested === 'settings' || requested === 'character' || requested === 'progress') return requested
-  if (requested === 'debug' && debugEnabled) return 'debug'
+  if (requested === 'playground') return 'playground'
   return 'today'
 }
 const tab = ref<TabId>(initialTab())
@@ -50,7 +49,15 @@ const character = useCharacterStore()
 const settings = useSettingsStore()
 const reminder = useReminderStore()
 const sessions = useSessionsStore()
-const runtime = useRuntimeStore()
+const chronicleContext = computed<CharacterContext>(() => ({
+  id: 'main',
+  title: 'Основной персонаж',
+  sessions: sessions.history,
+  packId: settings.characterPackId,
+  build: progress.characterBuild,
+  allowStart: true,
+  manual: null
+}))
 const now = ref(nowDate())
 const celebration = ref('')
 const reactionActive = ref(false)
@@ -71,8 +78,8 @@ const todayDone = computed(() => sessions.history.filter(session =>
 ).length)
 const tabs = computed<{ id: TabId; label: string }[]>(() => [
   { id: 'today', label: 'Сегодня' }, { id: 'character', label: 'Персонаж' },
-  { id: 'progress', label: 'Прогресс' }, { id: 'settings', label: 'Настройки' },
-  ...(runtime.laboratory ? [{ id: 'debug' as const, label: 'Лаборатория' }] : [])
+  { id: 'playground', label: 'Плейграунд' },
+  { id: 'progress', label: 'Прогресс' }, { id: 'settings', label: 'Настройки' }
 ])
 const dateLabel = computed(() => now.value.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'long' }))
 
@@ -88,7 +95,6 @@ onMounted(() => {
   document.addEventListener('visibilitychange', refreshClock)
   window.addEventListener('hashchange', navigateFromHash)
   unsubscribeNavigation = window.api?.onNavigateDashboard?.((payload) => {
-    if (payload.tab === 'debug' && !debugEnabled) return
     tab.value = payload.tab
   })
 })
@@ -115,11 +121,6 @@ function showReaction(event: CharacterReactionEvent, message = '', showFace = tr
 
 watch([() => journey.value.stage, todayDone, () => streak.value.current, () => sessions.lastSession?.id],
   ([stage, done, days, lastId], [oldStage, oldDone, oldDays, oldId]) => {
-    if (runtime.laboratory?.silent) {
-      clearTimeout(reactionTimer)
-      resetReaction()
-      return
-    }
     if (stage > oldStage) {
       showReaction('stage-up', `Новая форма: ${CHARACTER_STAGE_LABELS[stage]}`)
     } else if (done > oldDone) {
@@ -147,19 +148,18 @@ async function triggerReminder(): Promise<void> {
 </script>
 
 <template>
-  <div class="dashboard-shell mx-auto flex min-h-full flex-col gap-5 p-6" :class="runtime.laboratory ? 'max-w-6xl' : 'max-w-4xl'">
+  <div class="dashboard-shell mx-auto flex min-h-full flex-col gap-5 p-6" :class="tab === 'playground' ? 'max-w-6xl' : 'max-w-4xl'">
     <header class="flex items-center justify-between gap-4">
       <div>
         <p class="brand-label">BODY DEBUGGER <span class="ml-2 text-slate-500">/ ПЕРЕРЫВ В ПОЛЬЗУ СЕБЯ</span></p>
         <h1 class="mt-2 text-2xl font-semibold tracking-tight text-white">Твой рабочий ритм</h1>
       </div>
-      <div class="flex flex-wrap justify-end gap-2"><button v-if="debugEnabled && !runtime.laboratory" type="button" class="setting-chip lab-entry" @click="tab = 'debug'">Лаборатория ↗</button>
+      <div class="flex flex-wrap justify-end gap-2">
       <button type="button" class="setting-chip" :aria-pressed="settings.paused" @click="settings.togglePause()">
         {{ settings.paused ? 'Продолжить' : 'Пауза' }}
       </button>
       </div>
     </header>
-    <p v-if="runtime.laboratory" class="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-amber-200" data-testid="lab-banner">ЛАБОРАТОРИЯ · Тестовый профиль · {{ dateLabel }}. Обычная история изолирована.</p>
     <nav class="dashboard-tabs" aria-label="Разделы приложения">
       <button v-for="item in tabs" :key="item.id" type="button" :aria-current="tab === item.id ? 'page' : undefined"
         :class="{ 'is-active': tab === item.id }" @click="tab = item.id">{{ item.label }}</button>
@@ -208,14 +208,11 @@ async function triggerReminder(): Promise<void> {
     <div v-else-if="tab === 'character'" class="space-y-4">
       <SectionTabs v-model="characterSection" :items="[{ id: 'profile', label: 'Профиль' }, { id: 'chronicle', label: 'Хроника' }]" label="Персонаж и его история">
         <template v-if="characterSection === 'profile'"><CharacterSettingsPanel /><CharacterJourney /></template>
-        <CharacterChronicle v-else :now="now" @start="triggerReminder" />
+        <CharacterChronicle v-else :now="now" :context="chronicleContext" @start="triggerReminder" />
       </SectionTabs>
     </div>
+    <PlaygroundPanel v-else-if="tab === 'playground'" :now="now" />
     <ProgressPanel v-else-if="tab === 'progress'" :now="now" :initial-section="progressSection" @settings="tab = 'settings'" />
     <template v-else-if="tab === 'settings'"><PreferencesPanel /><ComfortSettingsPanel group="presentation" /><SystemPanel /><AboutPanel /></template>
-    <template v-else>
-      <LaboratoryPanel v-if="runtime.laboratory" />
-      <DebugPanel v-else />
-    </template>
   </div>
 </template>

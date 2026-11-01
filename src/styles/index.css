@@ -644,7 +644,6 @@ button { touch-action: manipulation; }
 .lab-sidebar .lab-live .comic-bubble { font-size: 18px; padding: 12px; }
 .lab-main > .section-tabs > nav { position: sticky; top: 8px; z-index: 35; }
 .lab-main > .section-tabs > nav button { flex: 1 1 90px; font-size: 12px; }
-.lab-entry { border-color: color-mix(in srgb, var(--color-amber-400) 30%, var(--color-slate-800)); color: var(--color-amber-300); }
 
 /* Comic silhouettes keep text inside a generous safe area; decorations never intercept input. */
 .comic-bubble[data-variant='burst'] { border-radius: 7px 20px 8px 22px; border-width: 3px; transform: rotate(-2deg); background-image: repeating-conic-gradient(from 15deg at 50% 50%, transparent 0deg 22deg, rgb(24 34 51 / .05) 22deg 25deg); }

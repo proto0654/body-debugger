@@ -5,14 +5,12 @@ import ComicBubble from './ComicBubble.vue'
 import ProgressDynamics from './ProgressDynamics.vue'
 import CalendarHeatmap from '@/components/stats/CalendarHeatmap.vue'
 import StatsPanel from '@/components/stats/StatsPanel.vue'
-import { useSessionsStore } from '@/stores/sessions'
-import { useSettingsStore } from '@/stores/settings'
-import { useProgressStore } from '@/stores/progress'
 import { useCustomExercisesStore } from '@/stores/custom-exercises'
 import { EXERCISE_CATALOG } from '@shared/constants/exercises'
 import { CHARACTER_BRANCH_LABELS, CHARACTER_STAGE_LABELS } from '@shared/constants/character'
 import { mergeCatalogs } from '@shared/domain/ai-proposal'
 import { characterConditionLabel } from '@shared/domain/character-condition'
+import type { CharacterContext } from '@shared/domain/character-context'
 import { localDateKey } from '@shared/domain/stats'
 import {
   buildChronicle,
@@ -22,16 +20,13 @@ import {
   chronicleSummary
 } from '@shared/domain/chronicle'
 
-const props = defineProps<{ now: Date }>()
+const props = defineProps<{ now: Date; context: CharacterContext }>()
 const emit = defineEmits<{ start: [] }>()
 
-const sessions = useSessionsStore()
-const settings = useSettingsStore()
-const progress = useProgressStore()
 const customExercises = useCustomExercisesStore()
 const catalog = computed(() => mergeCatalogs(EXERCISE_CATALOG, customExercises.entries))
 
-const chronicle = computed(() => buildChronicle(sessions.history, { now: props.now, catalog: catalog.value }))
+const chronicle = computed(() => buildChronicle(props.context.sessions, { now: props.now, catalog: catalog.value }))
 const entries = computed(() => chronicle.value.entries)
 const cursor = ref(0)
 const playing = ref(false)
@@ -59,7 +54,12 @@ const journeyRemaining = computed(() => summary.value?.journey.remaining ?? 0)
 const journeyNext = computed(() => summary.value?.journey.nextStage ?? null)
 const streakCurrent = computed(() => summary.value?.streak.current ?? 0)
 const streakMax = computed(() => summary.value?.streak.max ?? 0)
-const conditionLabel = computed(() => characterConditionLabel(conditionLevel.value, progress.characterBuild))
+const sceneStage = computed(() => props.context.manual?.stage ?? stage.value)
+const sceneBranch = computed(() => props.context.manual?.branch ?? branch.value)
+const sceneBuild = computed(() => props.context.manual?.build ?? props.context.build)
+const sceneCondition = computed(() => props.context.manual?.condition ?? conditionLevel.value)
+const sceneEmotion = computed(() => props.context.manual?.emotion ?? 'neutral')
+const sceneConditionLabel = computed(() => characterConditionLabel(sceneCondition.value, sceneBuild.value))
 const tone = computed(() => (current.value?.milestone ? 'milestone' : current.value?.session?.status === 'done' ? 'cheer' : 'calm'))
 const milestoneHint = computed(() => (journeyNext.value === null
   ? 'Пиковая форма достигнута'
@@ -163,18 +163,20 @@ onBeforeUnmount(() => {
     <p class="brand-label text-amber-300">ХРОНИКА</p>
     <h2 class="text-xl font-semibold text-white">История формы</h2>
     <p class="max-w-xl text-sm leading-relaxed text-slate-400">Пока нет истории. Первая разминка начнёт хронику — здесь можно будет прокрутить прошлое и увидеть, как менялись форма, серия и календарь.</p>
-    <button type="button" class="primary-action" @click="emit('start')">Размяться сейчас ↗</button>
+    <button v-if="context.allowStart" type="button" class="primary-action" @click="emit('start')">Размяться сейчас ↗</button>
+    <p v-else class="text-xs text-slate-500">Выберите другой контекст или сценарий для просмотра.</p>
   </section>
 
   <div v-else class="chronicle lab-workspace" data-testid="chronicle">
     <aside class="space-y-4">
       <section class="settings-card lab-live" data-testid="chronicle-scene">
         <div class="flex flex-col items-center justify-center gap-3">
-          <span class="character-badge">ФОРМА {{ stage + 1 }} / 6</span>
-          <CharacterPortrait :pack-id="settings.characterPackId" :stage="stage" :branch="branch" :build="progress.characterBuild" :condition="conditionLevel" :emotion="'neutral'" size="xl" :show-label="false" />
+          <span v-if="context.manual" class="character-badge" data-testid="chronicle-manual-badge">РУЧНОЙ ВРЕМЕННЫЙ ВИД</span>
+          <span class="character-badge">ФОРМА {{ sceneStage + 1 }} / 6</span>
+          <CharacterPortrait :pack-id="context.packId" :stage="sceneStage" :branch="sceneBranch" :build="sceneBuild" :condition="sceneCondition" :emotion="sceneEmotion" size="xl" :show-label="false" />
           <div class="text-center">
-            <p class="font-semibold text-white">{{ CHARACTER_STAGE_LABELS[stage] }}</p>
-            <p class="mt-1 text-xs text-emerald-400">{{ CHARACTER_BRANCH_LABELS[branch] }}</p>
+            <p class="font-semibold text-white">{{ CHARACTER_STAGE_LABELS[sceneStage] }}</p>
+            <p class="mt-1 text-xs text-emerald-400">{{ CHARACTER_BRANCH_LABELS[sceneBranch] }}</p>
           </div>
         </div>
         <div class="space-y-3">
@@ -184,8 +186,9 @@ onBeforeUnmount(() => {
             <div class="metric-card"><p>Серия</p><strong>{{ streakCurrent }}</strong></div>
             <div class="metric-card"><p>Ухудшение</p><strong>{{ conditionPoints }}<small class="text-sm text-slate-500"> / 10</small></strong></div>
           </div>
-          <p class="text-sm text-slate-300">{{ conditionLabel }} · уровень {{ conditionLevel }}. До восстановления: {{ recovery }} выполнений.</p>
+          <p class="text-sm text-slate-300">{{ sceneConditionLabel }} · уровень {{ sceneCondition }}. До восстановления: {{ recovery }} выполнений.</p>
           <p class="text-xs text-slate-400">{{ milestoneHint }}. Рекорд серии: {{ streakMax }}.</p>
+          <p v-if="context.manual" class="text-[11px] text-amber-300">Ручной вид меняет только картинку; серия, календарь и статистика считаются по позиции таймлайна.</p>
           <p class="text-[11px] text-slate-500">Это просмотр истории. Форма, серия и настройки профиля не меняются.</p>
         </div>
       </section>

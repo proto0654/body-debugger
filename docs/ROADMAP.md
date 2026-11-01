@@ -18,9 +18,11 @@ Post-skeleton milestones. Product detail: [CONCEPT.md](../CONCEPT.md).
 | 12 | Core preferences UI | **Done** — «Настройки» tab: interval (5–240 + presets), picker mode, Focus (primary + accents), character build; normalized on load, interval changes reschedule the loop |
 | 13 | Character selection + synchronized native scenario playback | **Implemented; native acceptance pending** — character picker, semantic native phases, automatic/interactive modes, preserved branches and compact dynamics; remaining Windows checks below |
 | 14 | Distribution + auto-update | **Done** — NSIS per-user prod installer with an emerald icon, side-by-side dev build with an amber `DEV` icon/profile/feed, background updates with a progress prompt and popup-safe restart, autostart in the tray, and data backup on version change — [DELIVERY.md](DELIVERY.md) |
-| 15 | Laboratory single window + dashboard chronicle | **Done** — the isolated process uses one dashboard window with a «Лаборатория» tab; the real dashboard closes around it and returns on exit. «Персонаж → Хроника» scrubs/plays the real history with the calendar and statistics, read-only — [TESTING.md](TESTING.md) |
+| 15 | Laboratory single window + dashboard chronicle | **Done** — the isolated process used one dashboard window with a «Лаборатория» tab (later superseded by 17). «Персонаж → Хроника» scrubs/plays the real history with the calendar and statistics, read-only — [TESTING.md](TESTING.md) |
+| 16 | Laboratory in shipped builds | **Done** — the prod/dev dashboard exposed the sandboxed process; packaged profile lives under `<userData>/laboratory`; only the laboratory process accepts mutations and it skips the updater (later superseded by 17) — [TESTING.md](TESTING.md) |
+| 17 | Playground + headless laboratory | **Done** — «Плейграунд» combines a read-only main-character context with temporary manual controls and embeds the full laboratory in a webview; a headless child owns the sandbox profile, native popups and settings/data behind an IPC bridge; there is no separate lab window or `dev:lab` command — [TESTING.md](TESTING.md) |
 
-Prototype milestones 1–12 are implemented; they do not mean that every long-term idea in the concept is shipped. Milestone 13 is implemented and awaiting the remaining native acceptance checks. Milestone 14 is delivery infrastructure: a tester installs prod once and receives later stable versions automatically, while a separate dev build can test prereleases. Milestone 15 removes the duplicate laboratory window and adds the read-only real-history chronicle. The current dashboard includes the tray settings deep link, a character-led «Сегодня» screen, next-form progress, durable result feedback and the «Персонаж → Хроника» timeline.
+Prototype milestones 1–12 are implemented; they do not mean that every long-term idea in the concept is shipped. Milestone 13 is implemented and awaiting the remaining native acceptance checks. Milestone 14 is delivery infrastructure: a tester installs prod once and receives later stable versions automatically, while a separate dev build can test prereleases. Milestone 15 added the real-history chronicle; milestone 16 shipped the sandbox; milestone 17 consolidates both into «Плейграунд», removes the separate laboratory window and runs the sandbox as a headless engine behind a webview bridge. The current dashboard includes the tray settings deep link, a character-led «Сегодня» screen, next-form progress, durable result feedback, the «Персонаж → Хроника» timeline and the Playground contexts.
 
 Remaining product gaps, not scheduled: six distinct body illustrations for the default Desk Hulk (currently three tiers), custom pack import, personal exercise-level progression and difficulty weighting, automatic AI analysis (currently manual import), external-event triggers, automatic streak audio/tray milestones, theme sound packs, user-data export and Playwright E2E. Runtime selection/resolution of the nine supplied character packs is implemented in milestone 13.
 
@@ -43,7 +45,7 @@ This is a native event replay feature. Existing character rules, severity gates,
 
 The original laboratory baseline was commit `16ac755` (`feat(debug): add isolated native visual laboratory`). Read the current files before editing; later commits may extend this baseline.
 
-- `npm run dev:lab` opens an isolated `.userdata/laboratory/` profile with separate controls and a normal dashboard.
+- `npm run dev:lab` was the old isolated shortcut; it is removed. Use `npm run dev` and open «Плейграунд → Лаборатория».
 - Six histories, seeded 7/30/90-day calendars, main-owned cursor/playback, prefix reconstruction, checkpoint explanations and saved/exported resolved events already exist.
 - The existing **«▶ Играть»** button appears after selecting a history. It advances stored history snapshots; it does not replay the full popup interaction for each result.
 - Real popup presets are currently a separate tab. Opening one interrupts history playback; the user can manually test its result, idle handling and a failed write.
@@ -144,7 +146,7 @@ All series must derive from the same resolved events and current prefix as the l
 
 ### Acceptance and verification
 
-- From a fresh laboratory window, a user can find the character picker, select a history and start playback without inspecting developer-only diagnostics or searching another tab.
+- From a fresh Playground lab context, a user can find the character picker, select a history and start playback without inspecting developer-only diagnostics or searching another tab.
 - Demonstrate at least one complete automatic cycle and one interactive cycle with the real popup, visible action, reaction and simultaneous updates in the open dashboard/laboratory.
 - Replay «Форма → спад → восстановление»: earned stage stays intact, condition reaches all three neglect levels, then recovers through five completions. Charts and portraits agree at every checkpoint.
 - Replay a gap and a direction change: streak expiry, unchanged earned progress during absence, and the real branch-window rule remain intact.
@@ -164,9 +166,9 @@ Read [AGENTS.md](../AGENTS.md), [CONTEXT.md](CONTEXT.md), [TESTING.md](TESTING.m
 | Native phase controller and semantic action contract | [electron/main/laboratory-playback.ts](../electron/main/laboratory-playback.ts), [shared/domain/laboratory-playback.ts](../shared/domain/laboratory-playback.ts) |
 | Loop, active popup and result acknowledgement | [electron/main/trigger-loop.ts](../electron/main/trigger-loop.ts), [electron/main/ipc/session-cycle.ts](../electron/main/ipc/session-cycle.ts) |
 | Popup start/timer/hold/result actions | [src/views/PopupView.vue](../src/views/PopupView.vue) |
-| Laboratory live view and appearance gallery | [src/debug/LaboratoryPanel.vue](../src/debug/LaboratoryPanel.vue), [src/debug/AppearancePanel.vue](../src/debug/AppearancePanel.vue) |
+| Laboratory live view and appearance gallery | [src/debug/LaboratoryPanel.vue](../src/debug/LaboratoryPanel.vue), [src/debug/AppearancePanel.vue](../src/debug/AppearancePanel.vue), [src/components/character/PlaygroundPanel.vue](../src/components/character/PlaygroundPanel.vue) |
 | Normal dashboard reactions | [src/views/DashboardView.vue](../src/views/DashboardView.vue) |
 | Pack manifest, resolver and portrait | [packs.json](../src/assets/character/packs.json), [src/components/character/frames.ts](../src/components/character/frames.ts), [CharacterPortrait.vue](../src/components/character/CharacterPortrait.vue) |
 | Character state and frame rules | [src/stores/character.ts](../src/stores/character.ts), [shared/domain/character-visual.ts](../shared/domain/character-visual.ts) |
 | Clock and cross-window projections | [shared/domain/clock.ts](../shared/domain/clock.ts), [src/stores/runtime.ts](../src/stores/runtime.ts), [src/bootstrap/hydrate.ts](../src/bootstrap/hydrate.ts) |
-| Existing replay tests | [laboratory-controller.test.ts](../tests/unit/laboratory-controller.test.ts), [laboratory-scenarios.test.ts](../tests/unit/laboratory-scenarios.test.ts), [LaboratoryPanel.test.ts](../tests/components/LaboratoryPanel.test.ts) |
+| Existing replay tests | [laboratory-controller.test.ts](../tests/unit/laboratory-controller.test.ts), [laboratory-scenarios.test.ts](../tests/unit/laboratory-scenarios.test.ts), [LaboratoryPanel.test.ts](../tests/components/LaboratoryPanel.test.ts), [lab-engine.test.ts](../tests/unit/lab-engine.test.ts), [PlaygroundPanel.test.ts](../tests/components/PlaygroundPanel.test.ts) |

@@ -7,8 +7,6 @@ import { useSettingsStore } from '@/stores/settings'
 import { useSessionsStore } from '@/stores/sessions'
 import { useCharacterStore } from '@/stores/character'
 import { useProgressStore } from '@/stores/progress'
-import { useRuntimeStore } from '@/stores/runtime'
-import { setLaboratoryClock } from '@shared/domain/clock'
 import { makeSession, makeSettings } from '../fixtures'
 import { REACTION_TIMING_MS } from '@shared/domain/reaction-timing'
 import type { DataSnapshot } from '@shared/types/persistence'
@@ -79,33 +77,26 @@ afterEach(() => {
   wrapper?.unmount()
   wrapper = null
   vi.useRealTimers()
-  setLaboratoryClock()
   window.location.hash = ''
 })
 
 describe('DashboardView — optional layers', () => {
-  it('keeps four primary sections and groups identity and build in the character section', async () => {
+  it('keeps the primary sections and groups identity and build in the character section', async () => {
     wrapper = mountDashboard()
     expect(wrapper.get('nav[aria-label="Разделы приложения"]').findAll('button').map(button => button.text()))
-      .toEqual(['Сегодня', 'Персонаж', 'Прогресс', 'Настройки'])
+      .toEqual(['Сегодня', 'Персонаж', 'Плейграунд', 'Прогресс', 'Настройки'])
     await wrapper.findAll('nav button').find(button => button.text() === 'Персонаж')!.trigger('click')
     expect(wrapper.findAll('[data-character-pack]')).toHaveLength(10)
     expect(wrapper.findAll('[data-build]')).toHaveLength(3)
     expect(wrapper.find('[data-testid="character-journey"] .journey-stages').exists()).toBe(true)
   })
 
-  it('shows the laboratory tab in the isolated laboratory profile', async () => {
-    window.location.hash = '#/dashboard?tab=debug'
-    const pinia = createPinia()
-    setActivePinia(pinia)
-    useRuntimeStore().apply({ at: new Date().toISOString(), running: false, silent: true })
-    useSettingsStore().hydrate(makeSettings())
-    useSessionsStore().hydrate([])
-    wrapper = mount(DashboardView, { global: { plugins: [pinia], stubs: { LaboratoryPanel: true } } })
-    expect(wrapper.get('nav[aria-label="Разделы приложения"]').findAll('button').map(button => button.text()))
-      .toEqual(['Сегодня', 'Персонаж', 'Прогресс', 'Настройки', 'Лаборатория'])
-    expect(wrapper.find('laboratory-panel-stub').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="lab-launch"]').exists()).toBe(false)
+  it('opens the playground with the main-character context and manual controls', async () => {
+    wrapper = mountDashboard([makeSession({ exerciseId: 'neck-tilts' })])
+    await wrapper.findAll('nav button').find(button => button.text() === 'Плейграунд')!.trigger('click')
+    expect(wrapper.find('[data-testid="playground"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="manual-character-controls"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="chronicle"]').exists()).toBe(true)
   })
 
   it('shows the real-history chronicle inside the character section', async () => {

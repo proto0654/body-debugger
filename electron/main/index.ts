@@ -1,8 +1,10 @@
 import { app, BrowserWindow } from 'electron'
 import { shouldStartHidden } from '../../shared/domain/launch-at-login'
 import { APP_IDENTITY } from './app-identity'
-import { getUserDataPath, isLabProcess } from './lab-environment'
-import { initializeLaboratory, openLabDashboard, stopLaboratory, pauseLaboratory } from './laboratory'
+import { getUserDataPath, isLabHeadless, isLabProcess } from './lab-environment'
+import { initializeLaboratory, stopLaboratory } from './laboratory'
+import { registerLabEngineIpc, stopLabEngine } from './lab-engine'
+import { startHeadlessLabBridge } from './lab-headless'
 import { createAppTray } from './tray'
 import { createDashboardWindow } from './windows/dashboard'
 import { registerSessionCycleIpc } from './ipc/session-cycle'
@@ -27,8 +29,8 @@ import { initLogging, logInfo } from './logger'
 registerPhotoScheme()
 
 // Development keeps the profile on the project drive (E:); a packaged application
-// uses the OS profile, because `resources/app.asar` is not writable.
-if (!app.isPackaged) app.setPath('userData', getUserDataPath())
+// uses the OS profile. The laboratory engine is routed into its own profile too.
+if (!app.isPackaged || isLabProcess()) app.setPath('userData', getUserDataPath())
 
 const userDataPath = app.getPath('userData')
 initLogging(userDataPath)
@@ -47,8 +49,8 @@ if (requiresLock && !app.requestSingleInstanceLock()) {
   )
 }
 app.on('second-instance', (_event, argv) => {
-  if (isLabProcess()) openLabDashboard('debug')
-  else if (!shouldStartHidden(argv)) createDashboardWindow()
+  if (isLabProcess()) return
+  if (!shouldStartHidden(argv)) createDashboardWindow()
 })
 
 // Windows: keep app alive in tray when all windows closed
@@ -68,48 +70,56 @@ app.whenReady().then(() => {
   registerPhotoProtocol()
   registerPersistenceIpc()
   registerSessionCycleIpc()
-  registerDebugIpc()
   registerPhotoIpc()
   registerCustomExerciseIpc()
   registerAppIpc()
-  registerUpdateIpc()
-
-  createAppTray({
-    isPaused: () => getSettings().paused,
-    isReducedMotion: () => getSettings().reduceMotion,
-    onTogglePause: () => setPaused(!getSettings().paused),
-    onTriggerNow: () => triggerNow('manual'),
-    openDashboard: tab => {
-      if (isLabProcess()) openLabDashboard(tab === 'settings' ? 'settings' : 'today')
-      else if (tab) createDashboardWindow({ tab })
-      else createDashboardWindow()
-    },
-    getUpdateReadyVersion: () => {
-      const state = getUpdateState()
-      return state.status === 'ready' ? state.availableVersion : null
-    },
-    onInstallUpdate: () => { installUpdate() }
-  })
+  if (isLabProcess()) {
+    // The headless sandbox still needs the popup/preview lab IPC.
+    registerDebugIpc()
+  } else {
+    registerLabEngineIpc()
+    registerUpdateIpc()
+  }
 
   startTriggerLoop()
-  initUpdater()
 
-  // Open the dashboard on first launch so Tailwind styles are visible immediately.
-  // A login-item launch skips it and starts in the tray.
-  if (isLabProcess()) openLabDashboard('debug')
-  else if (!startHidden) createDashboardWindow()
+  if (isLabProcess()) {
+    // No tray, dashboard or lab window: the playground is the only lab UI.
+    if (isLabHeadless()) startHeadlessLabBridge()
+  } else {
+    createAppTray({
+      isPaused: () => getSettings().paused,
+      isReducedMotion: () => getSettings().reduceMotion,
+      onTogglePause: () => setPaused(!getSettings().paused),
+      onTriggerNow: () => triggerNow('manual'),
+      openDashboard: tab => {
+        if (tab) createDashboardWindow({ tab })
+        else createDashboardWindow()
+      },
+      getUpdateReadyVersion: () => {
+        const state = getUpdateState()
+        return state.status === 'ready' ? state.availableVersion : null
+      },
+      onInstallUpdate: () => { installUpdate() }
+    })
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      if (isLabProcess()) openLabDashboard('debug')
-      else createDashboardWindow()
-    }
-  })
+    // The sandbox never participates in the update feed; only the real app updates.
+    initUpdater()
+
+    // Open the dashboard on first launch so Tailwind styles are visible immediately.
+    // A login-item launch skips it and starts in the tray.
+    if (!startHidden) createDashboardWindow()
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createDashboardWindow()
+    })
+  }
 })
 
 app.on('will-quit', () => {
   logInfo('app', 'quit')
   stopUpdater()
+  stopLabEngine()
   stopLaboratory()
   stopTriggerLoop()
 })

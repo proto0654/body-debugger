@@ -1,6 +1,6 @@
 import { net, protocol } from 'electron'
 import { pathToFileURL } from 'node:url'
-import { getPhotoFile } from './photos'
+import { getLaboratoryPhotoFile, getPhotoFile } from './photos'
 
 /**
  * `photo://<id>` serves a stored progress photo to the renderer without exposing
@@ -28,7 +28,7 @@ export function registerPhotoProtocol(): void {
       return new Response('Bad photo url', { status: 400 })
     }
 
-    const file = getPhotoFile(id)
+    const file = getPhotoFile(id) ?? getLaboratoryPhotoFile(id)
     if (!file) return new Response('Photo not found', { status: 404 })
     return net.fetch(pathToFileURL(file).toString())
   })

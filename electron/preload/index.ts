@@ -1,4 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import type { LabCommand, LabState } from '../../shared/domain/laboratory'
 import type { LabDriverAck, LabDriverCommand } from '../../shared/domain/laboratory-playback'
 import type { LaunchAtLoginState } from '../../shared/domain/launch-at-login'
@@ -13,7 +15,6 @@ import {
   type DataSaveSettingsPayload,
   type DataSnapshotPayload,
   type DataUpdatedPayload,
-  type DebugApplyScenarioPayload,
   type PhotoAddPayload,
   type PhotoListPayload,
   type PhotoRemovePayload,
@@ -31,6 +32,7 @@ import {
 } from '../../shared/types/events'
 
 const api = {
+  labViewPreload: pathToFileURL(join(__dirname, 'lab.js')).toString(),
   getAppInfo: (): Promise<AppInfoPayload> => ipcRenderer.invoke(IpcChannels.AppGetInfo),
   openLogs: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.AppOpenLogs),
   getUpdateState: (): Promise<UpdateStatePayload> => ipcRenderer.invoke(IpcChannels.AppUpdateState),
@@ -51,7 +53,6 @@ const api = {
     ipcRenderer.on(IpcChannels.LabDriver, listener)
     return () => ipcRenderer.removeListener(IpcChannels.LabDriver, listener)
   },
-  openLaboratory: (): Promise<void> => ipcRenderer.invoke(IpcChannels.LabOpen),
   getLabState: (): Promise<LabState> => ipcRenderer.invoke(IpcChannels.LabGetState),
   labCommand: (command: LabCommand): Promise<LabState> => ipcRenderer.invoke(IpcChannels.LabCommand, command),
   onLabChanged: (handler: (state: LabState) => void): (() => void) => {
@@ -84,8 +85,6 @@ const api = {
     ipcRenderer.invoke(IpcChannels.DataAddWeight, payload),
   removeWeight: (payload: DataRemoveWeightPayload): Promise<DataSnapshotPayload> =>
     ipcRenderer.invoke(IpcChannels.DataRemoveWeight, payload),
-  applyDebugScenario: (payload: DebugApplyScenarioPayload): Promise<DataSnapshotPayload> =>
-    ipcRenderer.invoke(IpcChannels.DebugApplyScenario, payload),
   listPhotos: (): Promise<PhotoListPayload> => ipcRenderer.invoke(IpcChannels.PhotoList),
   addPhoto: (payload: PhotoAddPayload): Promise<PhotoListPayload[number] | null> =>
     ipcRenderer.invoke(IpcChannels.PhotoAdd, payload),

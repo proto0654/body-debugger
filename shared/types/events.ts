@@ -33,13 +33,13 @@ export const IpcChannels = {
   DataAddWeight: 'data:add-weight',
   DataRemoveWeight: 'data:remove-weight',
   DataUpdated: 'data:updated',
-  DebugApplyScenario: 'debug:apply-scenario',
-  LabOpen: 'lab:open',
   LabGetState: 'lab:get-state',
   LabCommand: 'lab:command',
   LabChanged: 'lab:changed',
   LabDriver: 'lab:driver',
   LabDriverAck: 'lab:driver-ack',
+  LabViewRegister: 'lab:view-register',
+  LabBridgeRequest: 'lab:bridge-request',
   PhotoList: 'photo:list',
   PhotoAdd: 'photo:add',
   PhotoRemove: 'photo:remove',
@@ -105,9 +105,9 @@ export interface TraySetStatePayload {
   state: TrayState
 }
 
-/** The tray and the laboratory open or focus the dashboard at a concrete tab. */
+/** The tray opens or focuses the dashboard at a concrete tab. */
 export interface WindowNavigateDashboardPayload {
-  tab: 'today' | 'settings' | 'debug'
+  tab: 'today' | 'settings'
 }
 
 export type DataSnapshotPayload = DataSnapshot
@@ -128,16 +128,6 @@ export interface DataRemoveWeightPayload {
 }
 
 export type DataUpdatedPayload = DataSnapshot
-
-/**
- * Debug-only scenario payload (docs/TESTING.md). It replaces the session history
- * and settings with a deterministic preset; main re-validates both.
- */
-export interface DebugApplyScenarioPayload {
-  sessions: Session[]
-  settings: AppSettings
-  progress: UserProgress
-}
 
 /** Optional photo layer: raw bytes are validated and written by main only. */
 export interface PhotoAddPayload {

@@ -41,9 +41,10 @@ Project docs and this file override global agent rules when they conflict.
 | Themes / equipment | `shared/constants/themes.ts`, `shared/constants/equipment.ts`, `src/styles/index.css` |
 | Core preferences (interval, picker mode, Focus, identity/build) | `shared/domain/preferences.ts`, `shared/constants/focus.ts`, `src/components/settings/` |
 | Dashboard calendar + stats | `shared/domain/stats.ts`, `src/components/stats/` |
-| Real-history chronicle (read-only timeline, no writes) | `shared/domain/chronicle.ts`, `src/components/character/CharacterChronicle.vue` |
+| Real-history chronicle (read-only timeline, no writes) | `shared/domain/chronicle.ts`, `src/components/character/CharacterChronicle.vue`, `shared/domain/character-context.ts` |
 | Shared session summary / transition text | `shared/domain/character-summary.ts` |
-| Native laboratory (dev-only, isolated profile, one window) | `src/debug/`, `shared/domain/laboratory.ts`, `electron/main/laboratory.ts`, `electron/main/windows/dashboard.ts` |
+| Playground contexts (read-only main character, manual preview, lab) | `src/components/character/PlaygroundPanel.vue`, `src/components/character/ManualCharacterControls.vue`, `src/components/character/PlaygroundLabWebview.vue` |
+| Native laboratory (Playground tab, headless sandbox engine) | `src/debug/`, `src/views/PlaygroundLabView.vue`, `shared/domain/laboratory.ts`, `electron/main/laboratory.ts`, `electron/main/lab-engine.ts`, `electron/main/lab-headless.ts`, `electron/preload/lab.ts` |
 | Manual visual preview | `src/debug/AppearancePanel.vue`, `src/views/LaboratoryPreviewView.vue`, `shared/domain/laboratory-preview.ts` |
 | Native replay phases / semantic driver | `electron/main/laboratory-playback.ts`, `shared/domain/laboratory-playback.ts` |
 | Application clock / laboratory time | `shared/domain/clock.ts`, `src/stores/runtime.ts` |
@@ -64,6 +65,7 @@ Project docs and this file override global agent rules when they conflict.
 | Tray frames + animation specs | `electron/resources/tray/`, `electron/main/tray-icons.ts` |
 | Tray icon script | `scripts/build-tray-icons.py` |
 | Installer config + icons | `electron-builder.yml`, `electron-builder.dev.yml`, `electron/resources/icon.ico`, `electron/resources/icon-dev.ico`, `scripts/build-app-icon.py` |
+| Dev launcher (strips `ELECTRON_RUN_AS_NODE`) | `scripts/run-electron-vite.cjs` |
 | Release script + CI | `scripts/publish-build.mjs`, `.github/workflows/release.yml` |
 | Build identity / profiles | `shared/domain/app-identity.ts`, `electron/main/app-identity.ts`, `electron/main/lab-environment.ts` |
 | Update feed, install gating, update UI | `electron/main/updater.ts`, `electron/main/ipc/updates.ts`, `shared/domain/update.ts`, `src/components/settings/AboutPanel.vue` |
@@ -77,8 +79,7 @@ Project docs and this file override global agent rules when they conflict.
 ## Commands
 
 ```bash
-npm run dev          # electron-vite: tray + dashboard
-npm run dev:lab      # isolated native visual laboratory (one dashboard window with a lab tab)
+npm run dev          # electron-vite: tray + dashboard; open Playground → Лаборатория for the sandbox
 npm run build
 npm run build:win    # prod NSIS installer + latest.yml in dist/ (see docs/DELIVERY.md)
 npm run build:dir    # unpacked prod package for a quick packaged run

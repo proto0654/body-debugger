@@ -5,6 +5,7 @@ import { buildPhotoEntry } from '../../shared/domain/photos'
 import type { PhotoEntry } from '../../shared/types/photo'
 import { readJsonEnvelope, writeJsonEnvelope } from './persistence/json-file'
 import { getPhotoDir, getPhotosPath } from './persistence/paths'
+import { getLaboratoryUserDataPath } from './lab-environment'
 
 /**
  * Main-owned progress photos (docs: optional layer). Metadata goes to
@@ -22,7 +23,7 @@ function filePath(entry: PhotoEntry): string {
   return join(getPhotoDir(), entry.fileName)
 }
 
-function validStoredEntry(value: unknown): PhotoEntry | null {
+function validStoredEntryIn(value: unknown, photoDir: string): PhotoEntry | null {
   if (!value || typeof value !== 'object') return null
   const entry = value as Record<string, unknown>
   if (typeof entry.id !== 'string' || typeof entry.fileName !== 'string') return null
@@ -36,8 +37,12 @@ function validStoredEntry(value: unknown): PhotoEntry | null {
     sessionId: entry.sessionId
   })
   if (!built || built.fileName !== entry.fileName) return null
-  if (!existsSync(filePath(built))) return null
+  if (!existsSync(join(photoDir, built.fileName))) return null
   return built
+}
+
+function validStoredEntry(value: unknown): PhotoEntry | null {
+  return validStoredEntryIn(value, getPhotoDir())
 }
 
 export function loadPhotos(): void {
@@ -71,6 +76,18 @@ export function getPhotoFile(id: string): string | null {
   if (!entry) return null
   const path = filePath(entry)
   return existsSync(path) ? path : null
+}
+
+/** The playground lab webview resolves its sandbox photos through the same scheme. */
+export function getLaboratoryPhotoFile(id: string): string | null {
+  const root = getLaboratoryUserDataPath()
+  const stored = readJsonEnvelope<unknown>(join(root, 'data', 'photos.json'))
+  if (!Array.isArray(stored)) return null
+  for (const value of stored) {
+    const entry = validStoredEntryIn(value, join(root, 'photos'))
+    if (entry?.id === id) return join(root, 'photos', entry.fileName)
+  }
+  return null
 }
 
 export interface AddPhotoInput {

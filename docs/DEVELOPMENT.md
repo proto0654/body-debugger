@@ -3,8 +3,7 @@
 ## Commands
 
 ```bash
-npm run dev          # tray + dashboard (electron-vite)
-npm run dev:lab      # isolated native visual laboratory
+npm run dev          # tray + dashboard (electron-vite); Playground → Лаборатория starts the sandbox
 npm run build
 npm run build:dir    # unpacked Windows package in dist/win-unpacked (no installer)
 npm run build:win    # NSIS installer + latest.yml in dist/
@@ -30,7 +29,7 @@ npm run dev
 
 `npm run dev` builds main / preload, starts the renderer dev server (port 5173, or the next free one) and launches Electron. Expected: an emerald tray icon, the dashboard window, and a popup after **Размяться сейчас** (dashboard) or **Напоминание сейчас** (tray). Data is written to `.userdata/data/*.json`, photos to `.userdata/photos/`; delete `.userdata/` to reset progress.
 
-If Electron boots as plain Node and crashes on `electron.app`, the shell exports `ELECTRON_RUN_AS_NODE=1` — clear it for the run (see Windows notes).
+If Electron boots as plain Node and crashes on `electron.app`, the shell exports `ELECTRON_RUN_AS_NODE=1`. The `npm run dev` wrapper ([scripts/run-electron-vite.cjs](../scripts/run-electron-vite.cjs)) removes it before starting Electron; a direct `electron.exe .` or packaged launch still needs it cleared (see Windows notes).
 
 What to click for a manual smoke: [TESTING.md](TESTING.md#manual-checklist).
 
@@ -70,10 +69,10 @@ Do **not** download Electron into `%LOCALAPPDATA%\electron` or park the profile 
 - Tray menu: **Дашборд**, **Напоминание сейчас**, **Пауза / Продолжить**, Quit. **Настройки** opens the preferences tab directly, including in an existing dashboard.
 - Two builds can run side by side: prod (`Body Debugger`) and dev (`Body Debugger Dev`). They have separate icons, titles, `appId`, profiles, single-instance locks, updater caches and autostart registry values; the dev tray tooltip is prefixed with `Dev · `.
 - **Настройки → Система** controls autostart. It is available only in an installed Windows build; the login item starts the app with `--hidden`, so only the tray opens. A manual launch opens the dashboard. The uninstaller removes the entry.
-- Dashboard sections: **Сегодня** (character, day totals, next form, quick weight entry), **Персонаж** (**Профиль**: identity/build, preview, evolution; **Хроника**: read-only scrub/play of the real history with calendar and statistics), **Прогресс** (calendar, statistics, weight history, photos), **Настройки** (rhythm/strictness, selection/Focus, inventory/AI, sounds and appearance); the dev-only **Лаборатория** entry opens the isolated process — see [ARCHITECTURE.md](ARCHITECTURE.md#core-preferences).
-- Renderer routes: `#/dashboard`, `#/popup`, `#/laboratory-preview` (visual popup preview inside the isolated laboratory); `#/dashboard?tab=settings` opens the settings tab directly. The laboratory process opens the dashboard with `?tab=debug`; the normal dashboard closes while that process runs and reopens when it exits.
+- Dashboard sections: **Сегодня** (character, day totals, next form, quick weight entry), **Персонаж** (**Профиль**: identity/build, preview, evolution; **Хроника**: read-only scrub/play of the real history with calendar and statistics), **Прогресс** (calendar, statistics, weight history, photos), **Настройки** (rhythm/strictness, selection/Focus, inventory/AI, sounds and appearance); the **Лаборатория** entry opens the sandboxed process from any shipped build — see [ARCHITECTURE.md](ARCHITECTURE.md#core-preferences).
+- Renderer routes: `#/dashboard`, `#/popup`, `#/lab-playground` (the Playground laboratory webview), `#/laboratory-preview` (visual popup preview inside the sandbox child); `#/dashboard?tab=settings` opens the settings tab directly. The dashboard has five primary sections including «Плейграунд»; the lab webview is the only laboratory UI.
 - After a **Готово** in the popup, streak, sessions and character survive quit/relaunch (check `.userdata/data/`).
-- If the shell exports `ELECTRON_RUN_AS_NODE=1` (some editors/agents do), `electron.exe .` boots as plain Node and crashes on `electron.app`. Clear the variable for smoke runs — it also makes a packaged `Body Debugger.exe` exit instantly with no profile and no log.
+- If the shell exports `ELECTRON_RUN_AS_NODE=1` (some editors/agents do), `electron.exe .` boots as plain Node and crashes on `electron.app`. The npm `dev` script strips it for the Electron child; clear it yourself for a direct `electron.exe .` or a packaged smoke run — it also makes a packaged `Body Debugger.exe` exit instantly with no profile and no log.
 
 ## Packaging
 
@@ -181,8 +180,8 @@ No network call is made. The dashboard panel accepts pasted AI JSON, validates i
 
 `src/styles/index.css` defines `:root[data-theme='night']` / `[data-theme='warm']` token overrides. `App.vue` mirrors `settings.themeId` onto `<html>`; no component reads the theme directly. Unknown ids normalize to `default`.
 
-## Testing / native laboratory
+## Testing / playground laboratory
 
-`npm test` runs the Vitest suite (domain, stores, persistence, popup/portrait, photos, AI, stats, chronicle, laboratory). `npm run typecheck` includes the test project (`tsconfig.test.json`). Layout, covered areas and gaps: [TESTING.md](TESTING.md). For native visual checks run `npm run dev:lab`, or choose **«Лаборатория» → «Открыть лабораторию»** in a dev dashboard. The separate Electron process uses `.userdata/laboratory/`, including media and Chromium cache. It opens one dashboard window with a «Лаборатория» tab; the normal profile is untouched and its dashboard closes until the laboratory process exits. Timeline, replay, random calendars and popup/idle/error controls: [TESTING.md](TESTING.md).
+`npm test` runs the Vitest suite (domain, stores, persistence, popup/portrait, photos, AI, stats, chronicle, playground contexts, laboratory engine/bridge). `npm run typecheck` includes the test project (`tsconfig.test.json`). Layout, covered areas and gaps: [TESTING.md](TESTING.md). For native visual checks run `npm run dev` and open **«Плейграунд» → «Лаборатория»**. The main app spawns a headless Electron child with `--body-debugger-lab --body-debugger-lab-headless`; the child uses `.userdata/laboratory/` when unpackaged and `%APPDATA%\Body Debugger\laboratory` (or the dev-channel equivalent) when packaged, including media and Chromium cache. It has no tray or dashboard: the lab panel is embedded in the main dashboard webview. The real profile is untouched; native popups/previews are child windows. The lab run pauses when the lab webview is destroyed; reopening shows the paused state and the user can continue.
 
-The laboratory launcher removes `ELECTRON_RUN_AS_NODE` from the child environment entirely; an empty value still enables Node mode in Electron. For a direct terminal launch, clear the variable as described in the Windows notes. Laboratory IPC remains unavailable in packaged builds.
+The npm `dev` wrapper removes `ELECTRON_RUN_AS_NODE` from the Electron child environment entirely; an empty value still enables Node mode in Electron. For a direct terminal launch or packaged smoke, clear the variable as described in the Windows notes. The packaged lab engine is started without the asar argument and skips the updater.

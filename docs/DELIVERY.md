@@ -27,6 +27,7 @@ Prod and dev are separate Windows applications that can run at the same time wit
 | Installer | `Body-Debugger-Setup-<version>.exe` | `Body-Debugger-Dev-Setup-<version>.exe` |
 | Icon | `electron/resources/icon.ico` (emerald) | `electron/resources/icon-dev.ico` (amber + DEV tag) |
 | Profile | `%APPDATA%\Body Debugger` | `%APPDATA%\Body Debugger Dev` |
+| Laboratory sandbox | `%APPDATA%\Body Debugger\laboratory` | `%APPDATA%\Body Debugger Dev\laboratory` |
 | Updater cache | `body-debugger-updater` | `body-debugger-dev-updater` |
 | Feed | stable `latest.yml` | `dev.yml` from a `-dev.N` prerelease |
 | Build command | `npm run build:win` / `publish:prod` | `npm run build:dev` / `publish:dev` |
@@ -117,7 +118,7 @@ The updater lives in [electron/main/updater.ts](../electron/main/updater.ts); sc
 | Packaged visual/behavior check | `npm run build:dev:dir`, then `dist-dev\win-unpacked\Body Debugger Dev.exe` |
 | Installed dev app for native update checks | `npm run build:dev` from a `-dev.N` version; install `dist-dev\Body-Debugger-Dev-Setup-<version>.exe` |
 | Prod and dev side by side | Start both; separate icons, titles, trays, profiles and locks |
-| Visual laboratory | `npm run dev:lab` — isolated `.userdata/laboratory`, one window |
+| Laboratory | **«Плейграунд → Лаборатория»** in any installed or unpackaged dashboard; headless sandbox profile, lab UI embedded in the playground webview |
 
 The dev build is not a second production app: it uses a dev icon, a dev profile and the `dev` feed. Never publish a stable version from the dev config; never install the dev build over prod (they are separate products, but keep the distinction anyway).
 

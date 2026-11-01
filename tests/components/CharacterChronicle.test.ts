@@ -3,10 +3,8 @@ import { defineComponent, nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import CharacterChronicle from '@/components/character/CharacterChronicle.vue'
-import { useSettingsStore } from '@/stores/settings'
-import { useSessionsStore } from '@/stores/sessions'
-import { useProgressStore } from '@/stores/progress'
-import { makeSession, makeSettings } from '../fixtures'
+import { makeSession } from '../fixtures'
+import type { CharacterContext, ManualCharacterState } from '@shared/domain/character-context'
 import type { Session } from '@shared/types/session'
 
 const CalendarStub = defineComponent({
@@ -16,14 +14,6 @@ const CalendarStub = defineComponent({
 })
 
 const NOW = new Date(2026, 9, 31, 12, 0, 0)
-const progress = {
-  streak: { current: 0, max: 0 },
-  characterStage: 0 as const,
-  characterBranch: 'neutral' as const,
-  characterBuild: 'average' as const,
-  exerciseLevels: {},
-  focus: { primary: null, accents: [] }
-}
 
 function at(day: number, hour = 12): string {
   return new Date(2026, 9, day, hour, 0, 0).toISOString()
@@ -37,14 +27,24 @@ function history(): Session[] {
   ]
 }
 
-function mountChronicle(sessions: Session[], now = NOW): VueWrapper {
+function context(sessions: Session[], overrides: Partial<CharacterContext> = {}): CharacterContext {
+  return {
+    id: 'test',
+    title: 'Test',
+    sessions,
+    packId: 'desk-hulk',
+    build: 'average',
+    allowStart: true,
+    manual: null,
+    ...overrides
+  }
+}
+
+function mountChronicle(sessions: Session[], overrides: Partial<CharacterContext> = {}, now = NOW): VueWrapper {
   const pinia = createPinia()
   setActivePinia(pinia)
-  useSettingsStore().hydrate(makeSettings())
-  useProgressStore().hydrate({ ...progress })
-  useSessionsStore().hydrate(sessions)
   return mount(CharacterChronicle, {
-    props: { now },
+    props: { now, context: context(sessions, overrides) },
     global: { plugins: [pinia], stubs: { CalendarHeatmap: CalendarStub, ProgressDynamics: true, StatsPanel: true } }
   })
 }
@@ -69,6 +69,11 @@ describe('CharacterChronicle', () => {
     expect(wrapper.find('[data-testid="chronicle"]').exists()).toBe(false)
     await wrapper.get('[data-testid="chronicle-empty"] button').trigger('click')
     expect(wrapper.emitted('start')).toHaveLength(1)
+  })
+
+  it('hides the workout call to action in a read-only context', () => {
+    wrapper = mountChronicle([], { allowStart: false })
+    expect(wrapper.find('[data-testid="chronicle-empty"] button').exists()).toBe(false)
   })
 
   it('starts at the current end and scrubs back to the beginning without writes', async () => {
@@ -120,5 +125,18 @@ describe('CharacterChronicle', () => {
     const range = wrapper.get('input[type="range"]').element as HTMLInputElement
     expect(range.value).toBe('2')
     expect(wrapper.get('[data-testid="chronicle-position"]').text()).toContain('Выполнено')
+  })
+
+  it('renders a temporary manual override without changing the context sessions', async () => {
+    const sessions = history()
+    const manual: ManualCharacterState = { stage: 5, branch: 'power', build: 'stocky', condition: 3, emotion: 'happy' }
+    wrapper = mountChronicle(sessions, { manual })
+    await nextTick()
+    const portrait = wrapper.get('[data-testid="chronicle-scene"] [data-stage]')
+    expect(portrait.attributes('data-stage')).toBe('5')
+    expect(portrait.attributes('data-emotion')).toBe('happy')
+    expect(wrapper.find('[data-testid="chronicle-manual-badge"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="chronicle-scene"]').text()).toContain('Ручной вид меняет только картинку')
+    expect(sessions).toHaveLength(3)
   })
 })

@@ -7,7 +7,8 @@ How the production app, the side-by-side dev build and testers receive new versi
 | Topic | Decision |
 |-------|----------|
 | Target | Windows, per-user NSIS installer (`oneClick`, no admin rights) |
-| Feed | Public GitHub release repository: [proto0654/body-debugger-releases](https://github.com/proto0654/body-debugger-releases); application code stays private |
+| Feed | Public GitHub release repository: [proto0654/body-debugger-releases](https://github.com/proto0654/body-debugger-releases); holds artifacts and channel manifests only |
+| Source | Public source repository: [proto0654/body-debugger](https://github.com/proto0654/body-debugger) |
 | Channels | `latest.yml` for stable prod; `dev.yml` for prerelease dev builds (`x.y.z-dev.N`) |
 | Update model | `electron-updater` downloads in the background, shows a small prompt with progress and asks for a restart; it never restarts on its own |
 | Restart gating | A restart is refused while an exercise popup is open; a downloaded update also installs on a normal quit |
@@ -156,7 +157,7 @@ The dev config also pins `publish.releaseType: prerelease` and `publish.channel:
 4. runs `node scripts/publish-build.mjs <channel>` with `GH_TOKEN` from `secrets.RELEASE_TOKEN`;
 5. uploads `dist/` / `dist-dev/` as artifacts.
 
-CI needs the source repository to be on GitHub and a `RELEASE_TOKEN` secret: a fine-grained PAT with `Contents: Read and write` on `proto0654/body-debugger-releases`. Until then, it is dormant; the local `publish:*` commands are the primary path. The CI job overrides the repo-local `E:` npm cache with a runner-temp cache; `scripts/ensure-electron.js` also falls back to the temp directory when `E:` is unavailable.
+CI runs from the public source repository [proto0654/body-debugger](https://github.com/proto0654/body-debugger) and needs a `RELEASE_TOKEN` secret: a fine-grained PAT with `Contents: Read and write` on `proto0654/body-debugger-releases`. Until the secret exists, it is dormant; the local `publish:*` commands are the primary path. The CI job overrides the repo-local `E:` npm cache with a runner-temp cache; `scripts/ensure-electron.js` also falls back to the temp directory when `E:` is unavailable.
 
 Publish the release as a normal release (stable) or a prerelease (dev), never as a draft for the `latest` channel. Release notes should name the previous installer for a manual rollback.
 

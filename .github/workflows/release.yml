@@ -17,7 +17,7 @@ jobs:
     runs-on: windows-latest
     env:
       # The repo-local .npmrc keeps npm on E: for development; CI has no E:.
-      NPM_CONFIG_CACHE: ${{ runner.temp }}\npm-cache
+      NPM_CONFIG_CACHE: ${{ github.workspace }}\.npm-cache
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - name: Checkout

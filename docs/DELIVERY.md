@@ -157,7 +157,7 @@ The dev config also pins `publish.releaseType: prerelease` and `publish.channel:
 4. runs `node scripts/publish-build.mjs <channel>` with `GH_TOKEN` from `secrets.RELEASE_TOKEN`;
 5. uploads `dist/` / `dist-dev/` as artifacts.
 
-CI runs from the public source repository [proto0654/body-debugger](https://github.com/proto0654/body-debugger) and needs a `RELEASE_TOKEN` secret: a fine-grained PAT with `Contents: Read and write` on `proto0654/body-debugger-releases`. Until the secret exists, it is dormant; the local `publish:*` commands are the primary path. The CI job overrides the repo-local `E:` npm cache with a runner-temp cache; `scripts/ensure-electron.js` also falls back to the temp directory when `E:` is unavailable.
+CI runs from the public source repository [proto0654/body-debugger](https://github.com/proto0654/body-debugger) and needs a `RELEASE_TOKEN` secret: a fine-grained PAT with `Contents: Read and write` on `proto0654/body-debugger-releases`. Until the secret exists, it is dormant; the local `publish:*` commands are the primary path. The CI job overrides the repo-local `E:` npm cache with a workspace-local `.npm-cache`; `scripts/ensure-electron.js` also falls back to the temp directory when `E:` is unavailable.
 
 Publish the release as a normal release (stable) or a prerelease (dev), never as a draft for the `latest` channel. Release notes should name the previous installer for a manual rollback.
 

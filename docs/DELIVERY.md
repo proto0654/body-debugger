@@ -128,7 +128,7 @@ The dev build is not a second production app: it uses a dev icon, a dev profile 
 ### Versioning
 
 - **Dev prerelease**: `npm version prerelease --preid dev` from the current version. If the current is `0.2.1`, this yields `0.2.2-dev.0`; repeating yields `0.2.2-dev.1`.
-- **Stable**: `npm version minor` (or `patch`) from the current line. `0.3.0` first shipped the delivery pipeline; `0.4.0` carries the Playground/lab release.
+- **Stable**: `npm version minor` (or `patch`) from the current line. `0.3.0` first shipped the delivery pipeline; `0.4.0` carries the Playground/lab release. Current stable: `0.4.0`, published 2026-11-01; previous installer `0.3.0` for rollback.
 - `npm version` creates a commit and a `v*` tag. Keep the working tree clean; the publish script refuses a dirty tree.
 
 ### Local publish

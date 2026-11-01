@@ -8,7 +8,7 @@ How the production app receives new versions, and how a build is identified. Dai
 |------|------------------|---------|
 | Develop | `npm run dev` | Disabled (HMR only; `.userdata/`) |
 | Ship | `npm run publish:prod` or CI on a stable `v*` tag | Writes `latest.yml` to [body-debugger-releases](https://github.com/proto0654/body-debugger-releases) |
-| Use | Install `Body-Debugger-Setup-<version>.exe`, then update from the client | Background check ~25 s after start and every 4 h |
+| Use | Install `Body-Debugger-Setup-<version>.exe`, then update from the client | Background check ~25 s after start and every 1 h |
 
 Do **not** use the side-by-side Dev product for ordinary work. Removing `Body Debugger Dev` / `publish:dev` / `dev.yml` is the next delivery wave — [ROADMAP.md](ROADMAP.md) #18.
 
@@ -90,7 +90,7 @@ Change the script and re-run it; do not hand-edit the `.ico` files.
 
 The updater lives in [electron/main/updater.ts](../electron/main/updater.ts); scheduling rules and progress math are shared in [shared/domain/update.ts](../shared/domain/update.ts).
 
-1. The first check runs 25 s after `app.whenReady`, then every 4 hours. A check is one request to the channel manifest; offline or failed background checks stay silent in the log, and only a manual check shows an error.
+1. The first check runs 25 s after `app.whenReady`, then every hour. A check is one request to the channel manifest; offline or failed background checks stay silent in the log, and only a manual check shows an error.
 2. Download starts automatically. On `update-available` a small always-on-top prompt opens at the bottom-right corner with the version and download percentage; it updates in place as `download-progress` arrives and becomes a **«Перезапустить и обновить»** button when the download is ready.
 3. The prompt is hidden while an exercise popup is open and returns after it closes. A restart is refused while a popup is open (`installBlocker`), so an exercise is never cut off.
 4. **«Позже»** (or the close button) dismisses the prompt for that version until the next run. While the download is running, closing only hides the prompt; once downloaded, the update installs on a normal quit (`autoInstallOnAppQuit`). The tray tooltip and the tray menu also advertise a ready version.
@@ -141,7 +141,7 @@ Never publish a stable version from the legacy dev config; never install the leg
 ### Versioning
 
 - **Dev prerelease**: `npm version prerelease --preid dev` from the current version. If the current is `0.2.1`, this yields `0.2.2-dev.0`; repeating yields `0.2.2-dev.1`.
-- **Stable**: `npm version minor` (or `patch`) from the current line. `0.3.0` first shipped the delivery pipeline; `0.4.0` first shipped the laboratory-in-dashboard line; `0.5.0` ships the native laboratory tab and shared playback engine. Current stable: `0.5.0`, published 2026-11-01; previous installer `0.4.0` for rollback.
+- **Stable**: `npm version minor` (or `patch`) from the current line. `0.3.0` first shipped the delivery pipeline; `0.4.0` first shipped the laboratory-in-dashboard line; `0.5.0` ships the native laboratory tab and shared playback engine. Current stable: `0.5.1`, published 2026-11-01; previous installer `0.5.0` for rollback.
 - `npm version` creates a commit and a `v*` tag. Keep the working tree clean; the publish script refuses a dirty tree.
 
 ### Local publish

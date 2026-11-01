@@ -66,6 +66,42 @@ export interface SoundPlayerDeps {
   getCharacterId?: () => string
   /** Variants of one spoken event; injectable for tests. */
   resolveVoiceClips?: (characterId: string, event: VoiceEvent) => readonly VoiceClip[]
+  /**
+   * Durable last-take memory so rotation survives a new popup window. Preview
+   * players omit these hooks and keep a private in-memory map only.
+   */
+  readLastVariant?: (key: string) => string | null
+  writeLastVariant?: (key: string, variant: string) => void
+}
+
+/** Shared across renderer windows on the default Electron session partition. */
+const VOICE_LAST_STORAGE_KEY = 'body-debugger:voice-last'
+
+function readStoredVoiceLast(key: string): string | null {
+  try {
+    const raw = localStorage.getItem(VOICE_LAST_STORAGE_KEY)
+    if (!raw) return null
+    const map = JSON.parse(raw) as unknown
+    if (!map || typeof map !== 'object') return null
+    const value = (map as Record<string, unknown>)[key]
+    return typeof value === 'string' ? value : null
+  } catch {
+    return null
+  }
+}
+
+function writeStoredVoiceLast(key: string, variant: string): void {
+  try {
+    const raw = localStorage.getItem(VOICE_LAST_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) as unknown : {}
+    const map = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? { ...(parsed as Record<string, string>) }
+      : {}
+    map[key] = variant
+    localStorage.setItem(VOICE_LAST_STORAGE_KEY, JSON.stringify(map))
+  } catch {
+    // Storage must never break the popup cycle.
+  }
 }
 
 export interface VoicePlaybackOptions {
@@ -139,11 +175,13 @@ export function createSoundPlayer(deps: SoundPlayerDeps): SoundPlayer {
     if (!clips.length) return false
 
     const key = `${characterId}#${event}`
-    const variant = pickVoiceVariant(clips.map((clip) => clip.variant), lastVariant.get(key) ?? null)
+    const last = deps.readLastVariant?.(key) ?? lastVariant.get(key) ?? null
+    const variant = pickVoiceVariant(clips.map((clip) => clip.variant), last)
     const clip = clips.find((item) => item.variant === variant)
     if (!clip) return false
 
     lastVariant.set(key, clip.variant)
+    deps.writeLastVariant?.(key, clip.variant)
     start(settings, clip.url, `${characterId}/${event}/${clip.variant}`)
     return true
   }
@@ -168,6 +206,8 @@ export function useSoundPlayer(): SoundPlayer {
     createAudio: (src) => new Audio(src),
     getSettings: () => settings.sound,
     isPaused: () => settings.paused,
-    getCharacterId: () => settings.characterPackId
+    getCharacterId: () => settings.characterPackId,
+    readLastVariant: readStoredVoiceLast,
+    writeLastVariant: writeStoredVoiceLast
   })
 }

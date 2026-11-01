@@ -83,7 +83,9 @@ The generated voice package plays through the same gate and the same player:
   spoken outside the cue map: `active` when the timer starts and `first-done` for the first completion of a day
   (`playVoiceEvent`).
 - One principal voice clip per event. Variants of that event (lines and vocal reactions) rotate through
-  `pickVoiceVariant`, which never repeats the previous take; the rotation state is per character and event.
+  `pickVoiceVariant`, which never repeats the previous take; the rotation state is per character and event
+  and survives popup window recreation via shared last-variant memory (`localStorage` in `useSoundPlayer`).
+  Preview players omit that memory so laboratory/settings previews do not advance the live rotation.
 - The line plays **instead of** the short signal of the same event: one sound per event, never both at once. If the voice is off,
   the character has no take, or playback is gated, the signal still plays, so the feedback never depends on the generated
   files.

@@ -37,7 +37,12 @@ function player(
   settings: Partial<SoundSettings> = {},
   state: { paused?: boolean; quiet?: boolean } = {},
   factory = fakeFactory(),
-  voice: { characterId?: string; variants?: Record<string, string[]> } = {}
+  voice: {
+    characterId?: string
+    variants?: Record<string, string[]>
+    readLastVariant?: (key: string) => string | null
+    writeLastVariant?: (key: string, variant: string) => void
+  } = {}
 ) {
   const instance = createSoundPlayer({
     createAudio: factory.createAudio,
@@ -50,9 +55,19 @@ function player(
       event,
       variant,
       url: `voice/${characterId}__${event}__${variant}.mp3`
-    }))
+    })),
+    readLastVariant: voice.readLastVariant,
+    writeLastVariant: voice.writeLastVariant
   })
   return { instance, factory }
+}
+
+function memoryVoiceLast() {
+  const store = new Map<string, string>()
+  return {
+    readLastVariant: (key: string) => store.get(key) ?? null,
+    writeLastVariant: (key: string, variant: string) => { store.set(key, variant) }
+  }
 }
 
 describe('sound player', () => {
@@ -191,6 +206,54 @@ describe('character voice playback', () => {
       'voice/desk-hulk__skipped__03.mp3',
       'voice/desk-hulk__skipped__01.mp3'
     ])
+  })
+
+  it('continues rotation across fresh player instances that share durable storage', () => {
+    const memory = memoryVoiceLast()
+    const first = player(
+      { enabled: true, voiceEnabled: true },
+      {},
+      fakeFactory(),
+      { variants: { done: ['01', '02', '03'] }, ...memory }
+    )
+    const second = player(
+      { enabled: true, voiceEnabled: true },
+      {},
+      fakeFactory(),
+      { variants: { done: ['01', '02', '03'] }, ...memory }
+    )
+
+    expect(first.instance.playVoice('done')).toBe(true)
+    expect(second.instance.playVoice('done')).toBe(true)
+    expect(second.instance.playVoice('done')).toBe(true)
+
+    expect(first.factory.created.map((audio) => audio.src)).toEqual([
+      'voice/desk-hulk__done__01.mp3'
+    ])
+    expect(second.factory.created.map((audio) => audio.src)).toEqual([
+      'voice/desk-hulk__done__02.mp3',
+      'voice/desk-hulk__done__03.mp3'
+    ])
+  })
+
+  it('restarts from the first take when a new player has no durable storage', () => {
+    const first = player(
+      { enabled: true, voiceEnabled: true },
+      {},
+      fakeFactory(),
+      { variants: { ready: ['01', '02'] } }
+    )
+    const second = player(
+      { enabled: true, voiceEnabled: true },
+      {},
+      fakeFactory(),
+      { variants: { ready: ['01', '02'] } }
+    )
+
+    expect(first.instance.playVoice('popup')).toBe(true)
+    expect(second.instance.playVoice('popup')).toBe(true)
+    expect(first.factory.created[0].src).toBe('voice/desk-hulk__ready__01.mp3')
+    expect(second.factory.created[0].src).toBe('voice/desk-hulk__ready__01.mp3')
   })
 
   it('honours an explicit variant for the save-failure error line', () => {

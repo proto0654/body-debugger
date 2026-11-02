@@ -84,6 +84,8 @@ It writes both pairs:
 
 Packaged builds embed their icon in the exe and shortcut through `win.icon`. An unpackaged `npm run dev` window starts from `icon-dev.png`, then the running dashboard button and the tray both switch to the character face with a green countdown ring. The dev tray tooltip is prefixed with `Dev · `.
 
+**Packaged taskbar ring:** Windows groups a Start-menu / desktop shortcut with the process AppUserModelId and keeps that static `icon.ico` on the taskbar button, so a plain `BrowserWindow.setIcon(NativeImage)` is ignored even though the same call works in unpackaged dev. `electron/main/tray-portrait.ts` gives the dashboard window a live-scoped AUMID (`{appId}.live`) once via `setAppDetails`, then reapplies the painted portrait (including the countdown ring) with `setIcon`. The process-level AUMID in `index.ts` stays unchanged for notifications and the installer shortcut.
+
 Change the script and re-run it; do not hand-edit the `.ico` files.
 
 ## Update behavior

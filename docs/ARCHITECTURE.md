@@ -388,7 +388,7 @@ CONCEPT §13 micro-animations. Each surface owns its own effect:
 
 | Surface | Motion |
 |---------|--------|
-| Tray | The live icon is the current character's head plus a green countdown ring (`shared/domain/tray-countdown.ts`, `electron/main/tray-portrait.ts`). The last 20 seconds blink yellow; reduced motion keeps that arc solid yellow. The same image is the dashboard taskbar icon |
+| Tray | The live icon is the current character's head plus a green countdown ring (`shared/domain/tray-countdown.ts`, `electron/main/tray-portrait.ts`). The last 20 seconds blink yellow; reduced motion keeps that arc solid yellow. The same image is the dashboard taskbar icon. Packaged Windows uses a live-scoped window AUMID so the shell does not keep the static shortcut `icon.ico` (see [DELIVERY.md](DELIVERY.md) Icons) |
 | Popup | `.popup-in` entrance, `.timer-urgent` pulse in the last 10 s, then on `done`: flash + happy crossfade + `.popup-out-done`; skip / snooze use `.popup-out-quiet`. Reading time and the 180 ms exit are separate; `shared/domain/reaction-timing.ts` owns the durations |
 | Character | `CharacterPortrait` crossfades sprite frames (`<Transition name="frame-fade">`), bounces on happy/surprised reactions, and fades in on the dashboard |
 | Dashboard | Large reaction portrait, then restoration of the stage body; selection feedback and brief panel entrances; a one-second environmental accent every ten seconds while idle |

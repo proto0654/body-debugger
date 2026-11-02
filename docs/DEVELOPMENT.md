@@ -164,7 +164,7 @@ The OS `prefers-reduced-motion` setting is honoured in the renderer only; the ma
 
 ## Tray icons
 
-The live tray and taskbar icon is drawn in `electron/main/tray-portrait.ts` from the selected character's emotion bust, with a green countdown ring. The stretching-figure PNGs in `electron/resources/tray/` are leftover glyph art. Regenerate them only if that art is brought back:
+The live tray and taskbar icon is drawn in `electron/main/tray-portrait.ts` from the selected character's emotion bust, with a green countdown ring. Packaged Windows needs the live-scoped window AUMID described in [DELIVERY.md](DELIVERY.md) Icons; without it the taskbar keeps static `icon.ico`. The stretching-figure PNGs in `electron/resources/tray/` are leftover glyph art. Regenerate them only if that art is brought back:
 
 ```bash
 python scripts/build-tray-icons.py   # needs Pillow

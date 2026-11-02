@@ -304,7 +304,7 @@ src/components/catalog/*
 - Config: `{ baseUrl, model }` in settings; the key is stored with `safeStorage` and is write-only for the renderer (`llm:set-key`; `llm:get-config` returns `hasKey: boolean`).
 - OpenAI-compatible chat completions endpoint. DeepSeek exposes such an API; check its current model names and JSON-mode parameters in the provider docs before wiring. The same adapter then works with other compatible providers and local servers.
 - JSON mode, when available, is only an aid. Output is always validated by `llm-parse.ts`.
-- Network rules: 60 s timeout, `AbortController` for cancel, one retry with backoff on 429/5xx, none on 4xx. Request limits: at most 24 exercises or 30 ops per call so the answer fits `max_tokens`.
+- Network rules: 60 s timeout (120 s for generate), `AbortController` for cancel, one retry with backoff on 429/5xx, none on 4xx. Request limits: `capGenerateCells` keeps outbound generate demand ≤ 24 exercises (round-robin across thin cells); parsed ops are also capped at 24 exercises / 30 ops so the answer fits.
 - No network call happens unless `llm.enabled` and a key exists. The CSP / main-only fetch means the renderer never talks to the provider.
 
 ### 6.2 IPC channels

@@ -8,6 +8,8 @@ export interface ChatCompletionInput {
   system: string
   user: string
   signal?: AbortSignal
+  /** Override the default 60s provider timeout (generate needs more headroom). */
+  timeoutMs?: number
 }
 
 export interface ChatCompletionResult {
@@ -43,7 +45,8 @@ async function postOnce(
 ): Promise<ChatCompletionResult> {
   const controller = new AbortController()
   const unlink = linkAbort(input.signal, controller)
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const timeoutMs = input.timeoutMs && input.timeoutMs > 0 ? input.timeoutMs : REQUEST_TIMEOUT_MS
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
     const body: Record<string, unknown> = {

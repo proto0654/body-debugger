@@ -1,3 +1,4 @@
+import { LLM_MAX_EXERCISES } from '../constants/catalog-tuning'
 import type { ExerciseV2, Method, Zone } from '../types/exercise-v2'
 import type { ChangesetKind } from './changeset'
 
@@ -21,6 +22,41 @@ export interface GenerateCell {
   zone: Zone
   method: Method
   count: number
+}
+
+/**
+ * Cap generate demand so one request stays within `LLM_MAX_EXERCISES`.
+ * Round-robin across cells so many thin cells still get at least one draft
+ * instead of over-filling the first few and timing out the provider.
+ */
+export function capGenerateCells(
+  cells: readonly GenerateCell[],
+  maxExercises = LLM_MAX_EXERCISES
+): GenerateCell[] {
+  const needs = cells
+    .map((cell) => ({
+      zone: cell.zone,
+      method: cell.method,
+      count: Math.max(0, Math.floor(cell.count))
+    }))
+    .filter((cell) => cell.count > 0)
+  const total = needs.reduce((sum, cell) => sum + cell.count, 0)
+  if (total <= maxExercises) return needs
+
+  const allocated = needs.map((cell) => ({ zone: cell.zone, method: cell.method, count: 0 }))
+  let remaining = maxExercises
+  let progress = true
+  while (remaining > 0 && progress) {
+    progress = false
+    for (let index = 0; index < needs.length && remaining > 0; index++) {
+      if (allocated[index]!.count < needs[index]!.count) {
+        allocated[index]!.count += 1
+        remaining -= 1
+        progress = true
+      }
+    }
+  }
+  return allocated.filter((cell) => cell.count > 0)
 }
 
 export interface GeneratePayload {

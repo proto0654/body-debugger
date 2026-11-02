@@ -271,7 +271,7 @@ The layer is off by default (`settings.photos.enabled`). `photoIds` are only car
 
 Paste-import (legacy UI path): `shared/domain/ai-proposal.ts` still validates a single `Exercise` and `catalog-store.addCustomExercise` writes into `catalog.json` (batch «Мои упражнения»). Shipped ids always win.
 
-Provider path (dashboard «Упражнения → AI»): OpenAI-compatible chat via `electron/main/llm/` (DeepSeek-compatible). Config in settings; API key in `safeStorage` only. Flow: preview payload → run → parse/validate ops → awaiting approval → atomic apply with inverse ops → revert. Kinds: `generate`, `edit`, `retag`, `tune`. Nothing is written without approval. Runtime picker never calls the network. `llm.shareProgress` (default off) gates progress-advisor payloads. Details: [CATALOG-V2.md](CATALOG-V2.md).
+Provider path (dashboard «Упражнения → AI»): OpenAI-compatible chat via `electron/main/llm/` (DeepSeek-compatible). Config in settings; API key in `safeStorage` only. Flow: preview payload → run → parse/validate ops → awaiting approval → atomic apply with inverse ops → revert. Kinds: `generate`, `edit`, `retag`, `tune`. Nothing is written without approval. Runtime picker never calls the network. `llm.shareProgress` (default off) gates progress-advisor payloads. Outbound generate demand is capped with `capGenerateCells` (≤ 24, round-robin across thin cells) before the provider call; generate uses a 120 s timeout (other calls 60 s). Failed changesets keep `error` and the AI panel shows it. Details: [CATALOG-V2.md](CATALOG-V2.md) §6.1.
 
 ### Themes and inventory
 

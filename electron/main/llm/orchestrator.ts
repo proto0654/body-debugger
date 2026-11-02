@@ -4,6 +4,7 @@ import {
   LLM_SYSTEM_PROMPT,
   buildEditPayload,
   buildGeneratePayload,
+  capGenerateCells,
   estimateTokens
 } from '../../../shared/domain/llm-prompt'
 import {
@@ -103,22 +104,29 @@ function catalogContext(): {
   }
 }
 
+function normalizeRunInput(input: RunInput): RunInput {
+  if (input.kind !== 'generate') return input
+  return { ...input, cells: capGenerateCells(input.cells ?? []) }
+}
+
 function previewPayload(input: RunInput): PreviewResult {
+  const normalized = normalizeRunInput(input)
   const ctx = catalogContext()
   let payload: unknown
-  if (input.kind === 'generate') {
+  if (normalized.kind === 'generate') {
     payload = buildGeneratePayload({
-      cells: input.cells ?? [],
+      cells: normalized.cells ?? [],
       equipment: ctx.equipment,
       existingTitles: ctx.existingTitles,
       examples: ctx.examples
     })
   } else {
     payload = buildEditPayload({
-      kind: input.kind,
-      instruction: input.instruction,
+      kind: normalized.kind,
+      instruction: normalized.instruction,
       catalog: ctx.catalog,
-      aggregates: input.kind === 'tune' ? resolveTuneAggregates(input.aggregates) : input.aggregates
+      aggregates:
+        normalized.kind === 'tune' ? resolveTuneAggregates(normalized.aggregates) : normalized.aggregates
     })
   }
   const user = JSON.stringify(payload)
@@ -256,8 +264,9 @@ async function completeRun(input: RunInput): Promise<Changeset> {
     throw new Error('LLM is disabled or API key is missing')
   }
 
-  const preview = previewPayload(input)
-  const changeset = newChangeset(input)
+  const normalized = normalizeRunInput(input)
+  const preview = previewPayload(normalized)
+  const changeset = newChangeset(normalized)
   activeChangesetId = changeset.id
   activeAbort = new AbortController()
   emitChangeset(changeset)
@@ -267,7 +276,7 @@ async function completeRun(input: RunInput): Promise<Changeset> {
     let usage: Changeset['usage']
 
     if (settings.llm.baseUrl === 'mock://local') {
-      raw = mockCompletion(input)
+      raw = mockCompletion(normalized)
       usage = { promptTokens: preview.estimatedTokens, completionTokens: 128 }
     } else {
       const apiKey = readKey()
@@ -278,14 +287,15 @@ async function completeRun(input: RunInput): Promise<Changeset> {
         apiKey,
         system: preview.system,
         user: preview.user,
-        signal: activeAbort.signal
+        signal: activeAbort.signal,
+        timeoutMs: normalized.kind === 'generate' ? 120_000 : undefined
       })
       raw = result.content
       usage = result.usage
     }
 
     const ctx = catalogContext()
-    const ops = parseResponse(input.kind, raw, [...ctx.catalog, ...shippedCatalogV2()])
+    const ops = parseResponse(normalized.kind, raw, [...ctx.catalog, ...shippedCatalogV2()])
     const parsed: Changeset = {
       ...changeset,
       status: 'awaiting_approval',

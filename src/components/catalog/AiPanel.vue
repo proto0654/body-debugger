@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { COVERAGE_THRESHOLD } from '@shared/constants/catalog-tuning'
+import { COVERAGE_THRESHOLD, LLM_MAX_EXERCISES } from '@shared/constants/catalog-tuning'
 import { METHOD_LABELS, ZONE_LABELS } from '@shared/constants/catalog-axes'
 import { summarize, type Changeset, type ChangesetKind } from '@shared/domain/changeset'
+import { capGenerateCells } from '@shared/domain/llm-prompt'
 import type { LlmPreviewResponsePayload } from '@shared/types/events'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSettingsStore } from '@/stores/settings'
@@ -99,11 +100,13 @@ async function refreshHistory(): Promise<void> {
 }
 
 function emptyCoverageCells() {
-  return emptyCells.value.map((cell) => ({
-    zone: cell.zone,
-    method: cell.method,
-    count: Math.max(1, COVERAGE_THRESHOLD - cell.count)
-  }))
+  return capGenerateCells(
+    emptyCells.value.map((cell) => ({
+      zone: cell.zone,
+      method: cell.method,
+      count: Math.max(1, COVERAGE_THRESHOLD - cell.count)
+    }))
+  )
 }
 
 function selectedCoverageCell() {
@@ -112,13 +115,17 @@ function selectedCoverageCell() {
   const coverage = catalog.coverage.find(
     (entry) => entry.zone === cell.zone && entry.method === cell.method
   )
-  return [
+  return capGenerateCells([
     {
       zone: cell.zone,
       method: cell.method,
       count: Math.max(1, COVERAGE_THRESHOLD - (coverage?.count ?? 0))
     }
-  ]
+  ])
+}
+
+function requestedExerciseCount(cells: ReturnType<typeof emptyCoverageCells>): number {
+  return cells.reduce((sum, cell) => sum + cell.count, 0)
 }
 
 function clearSelectedCell(): void {
@@ -154,6 +161,7 @@ async function runGenerate(cells: ReturnType<typeof emptyCoverageCells>, label: 
     error.value = 'Нет клеток ниже порога для генерации.'
     return
   }
+  const exerciseCount = requestedExerciseCount(cells)
   busy.value = true
   try {
     await showPreview('generate', cells)
@@ -163,13 +171,21 @@ async function runGenerate(cells: ReturnType<typeof emptyCoverageCells>, label: 
       targetSetId: targetSetId.value
     })
     if (next) changeset.value = next
-    status.value = next
-      ? `Черновик готов (${label}, ${cells.length} клет.) — проверьте и примените.`
-      : 'Все клетки уже выше порога или IPC недоступен.'
+    if (next?.status === 'failed') {
+      error.value = next.error || 'Генерация завершилась с ошибкой.'
+      status.value = ''
+    } else {
+      status.value = next
+        ? `Черновик готов (${label}, ≤${exerciseCount} упр. / лимит ${LLM_MAX_EXERCISES}) — проверьте и примените.`
+        : 'Все клетки уже выше порога или IPC недоступен.'
+    }
     await refreshHistory()
   } catch (cause) {
     console.warn('[catalog-ai] runLlm generate', cause)
-    error.value = 'Генерация недоступна — проверьте провайдер и ключ.'
+    const detail = cause instanceof Error ? cause.message : ''
+    error.value = detail
+      ? `Генерация не удалась: ${detail}`
+      : 'Генерация недоступна — проверьте провайдер и ключ.'
   } finally {
     busy.value = false
   }
@@ -429,7 +445,8 @@ onUnmounted(() => {
       </button>
     </p>
     <p v-else-if="emptyCells.length > 0" class="text-xs text-slate-500">
-      Пустых клеток: {{ emptyCells.length }} — «Сгенерировать для пустых» отправит их все разом.
+      Пустых клеток: {{ emptyCells.length }} — запрос ограничен
+      {{ LLM_MAX_EXERCISES }} упражнениями (по клеткам по кругу), чтобы провайдер не уходил в таймаут.
     </p>
 
     <div v-if="preview" class="rounded-xl border border-slate-800 bg-slate-950/50 p-3 space-y-2">
@@ -529,6 +546,13 @@ onUnmounted(() => {
           </button>
         </div>
       </div>
+      <p
+        v-if="changeset.status === 'failed' && changeset.error"
+        class="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200"
+        role="alert"
+      >
+        {{ changeset.error }}
+      </p>
       <ul class="space-y-2">
         <li
           v-for="(record, index) in changeset.ops"

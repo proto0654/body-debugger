@@ -1,6 +1,14 @@
 /** Strict Exercise schema from CONCEPT.md §8 */
 
 import type { FocusDirection } from './progress'
+import type {
+  ExerciseContext,
+  ExerciseTimer,
+  Intensity,
+  Limitation,
+  Method,
+  Zone
+} from './exercise-v2'
 
 export type ExerciseDifficulty = 1 | 2 | 3 | 4 | 5
 
@@ -26,4 +34,11 @@ export interface Exercise {
   focus?: FocusDirection[]
   /** Timer is per side (left/right); popup should say so (Catalog V2). */
   perSide?: boolean
+  /** Hand-retagged Catalog V2 fields (preferred over upgradeExercise defaults). */
+  method?: Method
+  zones?: Partial<Record<Zone, number>>
+  intensity?: Intensity
+  timer?: ExerciseTimer
+  context?: ExerciseContext
+  avoidIf?: Limitation[]
 }

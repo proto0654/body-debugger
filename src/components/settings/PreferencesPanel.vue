@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import ComfortSettingsPanel from './ComfortSettingsPanel.vue'
 import { SEVERITY_LABELS, SEVERITY_ORDER } from '@shared/domain/severity'
 import {
@@ -13,6 +13,8 @@ import {
 } from '@shared/domain/preferences'
 import {
   FOCUS_LEVEL_LABELS,
+  LIMITATIONS,
+  LIMITATION_LABELS,
   METHODS,
   METHOD_LABELS,
   ZONES,
@@ -20,11 +22,31 @@ import {
 } from '@shared/constants/catalog-axes'
 import { useSettingsStore } from '@/stores/settings'
 import type { ExercisePickerMode } from '@shared/types/settings'
-import type { Method, Zone } from '@shared/types/exercise-v2'
+import type { Limitation, Method, Zone } from '@shared/types/exercise-v2'
 
 const settings = useSettingsStore()
 const saving = ref(false)
 const error = ref('')
+
+const activeProfileShifts = computed(() => {
+  const now = Date.now()
+  return settings.profileShifts.filter((shift) => {
+    const until = Date.parse(shift.until)
+    return !Number.isNaN(until) && until > now
+  })
+})
+
+function shiftLabel(axis: 'zone' | 'method', key: string): string {
+  if (axis === 'zone') return ZONE_LABELS[key as Zone] ?? key
+  return METHOD_LABELS[key as Method] ?? key
+}
+
+function shiftUntilLabel(until: string): string {
+  const date = new Date(until)
+  if (Number.isNaN(date.getTime())) return until
+  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+}
+
 async function saveSetting(action: () => Promise<void>): Promise<void> {
   if (saving.value) return
   saving.value = true
@@ -62,6 +84,11 @@ async function cycleZone(zone: Zone): Promise<void> {
 
 async function cycleMethod(method: Method): Promise<void> {
   await saveSetting(() => settings.cycleMethodLevel(method))
+}
+
+async function toggleLimitation(tag: Limitation): Promise<void> {
+  const enabled = !settings.limitations.includes(tag)
+  await saveSetting(() => settings.setLimitation(tag, enabled))
 }
 
 async function onProfileStrength(event: Event): Promise<void> {
@@ -209,6 +236,23 @@ function focusChipLabel(level: -1 | 0 | 1 | 2): string {
         </div>
       </div>
 
+      <div
+        v-if="activeProfileShifts.length > 0"
+        class="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 space-y-1"
+        data-testid="profile-shifts"
+      >
+        <p class="text-xs font-medium text-amber-200">Временные сдвиги профиля</p>
+        <p
+          v-for="(shift, index) in activeProfileShifts"
+          :key="`${shift.axis}-${shift.key}-${index}`"
+          class="text-xs text-amber-100/80"
+        >
+          {{ shiftLabel(shift.axis, shift.key) }}
+          · {{ focusChipLabel(shift.level) }}
+          · до {{ shiftUntilLabel(shift.until) }}
+        </p>
+      </div>
+
       <div class="mt-4 border-t border-slate-800 pt-4" data-testid="auto-tune-controls">
         <p class="text-sm font-semibold text-white">Подсказки дозы</p>
         <p class="mt-1 text-xs text-slate-500">Значки в «Упражнения → Наборы»; попап не трогаем.</p>
@@ -223,6 +267,26 @@ function focusChipLabel(level: -1 | 0 | 1 | 2): string {
             @click="saveSetting(() => settings.setAutoTune(mode))"
           >
             {{ mode === 'suggest' ? 'Предлагать' : mode === 'auto' ? 'Авто' : 'Выкл' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-4 border-t border-slate-800 pt-4" data-testid="limitations-controls">
+        <p class="text-sm font-semibold text-white">Ограничения</p>
+        <p class="mt-1 text-xs text-slate-500">
+          Локальный фильтр каталога — никуда не отправляется. Упражнения с этими тегами не попадут в подбор.
+        </p>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button
+            v-for="tag in LIMITATIONS"
+            :key="tag"
+            type="button"
+            class="setting-chip"
+            :disabled="saving"
+            :aria-pressed="settings.limitations.includes(tag)"
+            @click="toggleLimitation(tag)"
+          >
+            {{ LIMITATION_LABELS[tag] }}
           </button>
         </div>
       </div>

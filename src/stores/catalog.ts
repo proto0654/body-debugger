@@ -1,7 +1,11 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { coverageMatrix, type CoverageCell } from '@shared/domain/coverage'
-import { exerciseHints, type ExerciseHint } from '@shared/domain/tune'
+import {
+  cooldownExerciseIds,
+  exerciseHints,
+  type ExerciseHint
+} from '@shared/domain/tune'
 import {
   resolveCatalog,
   shippedBatch,
@@ -51,7 +55,8 @@ export const useCatalogStore = defineStore('catalog', () => {
     for (const [id, override] of Object.entries(settings.overrides)) {
       if (override.scale !== undefined) scales[id] = override.scale
     }
-    return exerciseHints(sessions.history, resolved.value, scales)
+    const cooling = cooldownExerciseIds(sessions.history, settings.overrides)
+    return exerciseHints(sessions.history, resolved.value, scales, cooling)
   })
 
   function mergeBatches(fromFile: CatalogBatch[]): void {
@@ -86,6 +91,10 @@ export const useCatalogStore = defineStore('catalog', () => {
     section.value = 'ai'
   }
 
+  function clearSelectedCell(): void {
+    selectedCell.value = null
+  }
+
   function setLastExplanation(explanation: PickExplanation | null): void {
     lastExplanation.value = explanation
   }
@@ -102,6 +111,7 @@ export const useCatalogStore = defineStore('catalog', () => {
     refresh,
     applyCatalogFile,
     openAiForCell,
+    clearSelectedCell,
     setLastExplanation
   }
 })

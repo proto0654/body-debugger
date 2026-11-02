@@ -6,7 +6,8 @@ import type {
   FocusV2,
   Limitation,
   LlmSettings,
-  ProfileShift
+  ProfileShift,
+  ScaleHistoryEntry
 } from './exercise-v2'
 
 /** Fixation severity from CONCEPT.md §3 */
@@ -60,6 +61,8 @@ export interface AppSettings {
   profileShifts: ProfileShift[]
   limitations: Limitation[]
   overrides: Record<string, ExerciseOverride>
+  /** Recent personal-dose accepts (newest first). */
+  scaleHistory: ScaleHistoryEntry[]
   autoTune: AutoTuneMode
   llm: LlmSettings
   pickerMode: ExercisePickerMode

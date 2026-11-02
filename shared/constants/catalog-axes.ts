@@ -1,4 +1,4 @@
-import type { FocusLevel, Method, Zone } from '../types/exercise-v2'
+import type { FocusLevel, Limitation, Method, Zone } from '../types/exercise-v2'
 
 export const ZONES: readonly Zone[] = ['upper', 'core', 'lower', 'full']
 
@@ -40,4 +40,22 @@ export function isZone(value: unknown): value is Zone {
 
 export function isMethod(value: unknown): value is Method {
   return typeof value === 'string' && (METHODS as readonly string[]).includes(value)
+}
+
+export const LIMITATIONS: readonly Limitation[] = [
+  'neck',
+  'shoulder',
+  'wrist',
+  'lower_back',
+  'knee',
+  'ankle'
+]
+
+export const LIMITATION_LABELS: Record<Limitation, string> = {
+  neck: 'Шея',
+  shoulder: 'Плечо',
+  wrist: 'Запястье',
+  lower_back: 'Поясница',
+  knee: 'Колено',
+  ankle: 'Голеностоп'
 }

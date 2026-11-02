@@ -42,7 +42,7 @@ Project docs and this file override global agent rules when they conflict.
 | Per-clip audio API generator + take log | `scripts/generate-audio-api.mjs`, `src/assets/sounds/api-report.json` |
 | Voice Design casting + sound effects generators | `scripts/cast-voices-api.mjs`, `scripts/generate-effects-api.mjs` |
 | Progress photos (rules, main store, protocol, UI) | `shared/domain/photos.ts`, `electron/main/photos.ts`, `electron/main/photo-protocol.ts`, `src/components/photos/` |
-| Catalog V2 (model, picker, dose, tune, LLM) | [docs/CATALOG-V2.md](docs/CATALOG-V2.md), `shared/domain/catalog.ts`, `picker.ts`, `dose.ts`, `tune.ts`, `electron/main/catalog-store.ts`, `electron/main/llm/`, `src/components/catalog/` |
+| Catalog V2 (model, picker, dose, tune, LLM) | [docs/CATALOG-V2.md](docs/CATALOG-V2.md), `shared/domain/catalog.ts`, `picker.ts`, `dose.ts`, `tune.ts`, `llm-parse.ts`, `electron/main/catalog-store.ts`, `electron/main/llm/`, `shared/constants/exercise-v2-tags.ts`, `src/components/catalog/` |
 | AI proposals (parsing, approval, store, UI) | `shared/domain/ai-proposal.ts`, `electron/main/custom-exercises.ts`, `src/components/ai/` |
 | Themes / equipment | `shared/constants/themes.ts`, `shared/constants/equipment.ts`, `src/styles/index.css` |
 | Core preferences (interval, picker mode, Focus V2 / λ, identity/build) | `shared/domain/preferences.ts`, `shared/domain/focus-v2.ts`, `shared/constants/focus.ts`, `src/components/settings/` |

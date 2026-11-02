@@ -18,8 +18,10 @@ import type {
   LlmSettings,
   Method,
   ProfileShift,
+  ScaleHistoryEntry,
   Zone
 } from '@shared/types/exercise-v2'
+import { applyScaleChange, undoLastScale } from '@shared/domain/tune'
 import type { FocusDirection, UserFocus } from '@shared/types/progress'
 import type { WeightSettings } from '@shared/types/weight'
 import { normalizeWeightTarget } from '@shared/domain/weight'
@@ -59,6 +61,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const profileShifts = ref<ProfileShift[]>([])
   const limitations = ref<Limitation[]>([])
   const overrides = ref<Record<string, ExerciseOverride>>({})
+  const scaleHistory = ref<ScaleHistoryEntry[]>([])
   const autoTune = ref<AutoTuneMode>('suggest')
   const llm = ref<LlmSettings>({
     enabled: false,
@@ -94,6 +97,7 @@ export const useSettingsStore = defineStore('settings', () => {
       profileShifts: profileShifts.value.map((shift) => ({ ...shift })),
       limitations: [...limitations.value],
       overrides: { ...overrides.value },
+      scaleHistory: scaleHistory.value.map((entry) => ({ ...entry })),
       autoTune: autoTune.value,
       llm: { ...llm.value },
       pickerMode: pickerMode.value,
@@ -127,6 +131,7 @@ export const useSettingsStore = defineStore('settings', () => {
     profileShifts.value = [...(next.profileShifts ?? [])]
     limitations.value = [...(next.limitations ?? [])]
     overrides.value = { ...(next.overrides ?? {}) }
+    scaleHistory.value = [...(next.scaleHistory ?? [])]
     autoTune.value = next.autoTune ?? 'suggest'
     llm.value = { ...(next.llm ?? llm.value) }
     pickerMode.value = isPickerMode(next.pickerMode) ? next.pickerMode : DEFAULT_PICKER_MODE
@@ -248,12 +253,24 @@ export const useSettingsStore = defineStore('settings', () => {
     await persist()
   }
 
-  async function setExerciseScale(id: string, scale: number): Promise<void> {
-    overrides.value = {
-      ...overrides.value,
-      [id]: { ...overrides.value[id], scale }
-    }
+  async function setExerciseScale(
+    id: string,
+    scale: number,
+    source: ScaleHistoryEntry['source'] = 'suggest'
+  ): Promise<void> {
+    const applied = applyScaleChange(overrides.value, scaleHistory.value, id, scale, source)
+    overrides.value = applied.overrides
+    scaleHistory.value = applied.scaleHistory
     await persist()
+  }
+
+  async function undoExerciseScale(exerciseId?: string): Promise<boolean> {
+    const undone = undoLastScale(overrides.value, scaleHistory.value, exerciseId)
+    if (!undone) return false
+    overrides.value = undone.overrides
+    scaleHistory.value = undone.scaleHistory
+    await persist()
+    return true
   }
 
   async function setLimitation(tag: Limitation, enabled: boolean): Promise<void> {
@@ -370,6 +387,7 @@ export const useSettingsStore = defineStore('settings', () => {
     profileShifts,
     limitations,
     overrides,
+    scaleHistory,
     autoTune,
     llm,
     pickerMode,
@@ -399,6 +417,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setAutoTune,
     setLlmConfig,
     setExerciseScale,
+    undoExerciseScale,
     setLimitation,
     setReduceMotion,
     setSessionExtrasEnabled,

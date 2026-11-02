@@ -92,6 +92,62 @@ describe('changeset forkShipped', () => {
   })
 })
 
+describe('changeset applyOps ↔ invertOps round-trip', () => {
+  it('restores the original catalog after inverse apply', () => {
+    const exercise = upgradeExercise(EXERCISE_CATALOG[0]!)
+    const before: CatalogState = { exercises: [exercise], profileShifts: [] }
+    const { state: afterAdd, inverse: inverseAdd } = applyOps(
+      before,
+      [
+        {
+          op: 'add',
+          exercise: {
+            title: 'Новое',
+            description: 'Сделай короткое упражнение и держи спину ровно.',
+            method: 'mobility',
+            zones: { upper: 1 },
+            intensity: 1,
+            difficulty: 1,
+            timer: { minSec: 20, defaultSec: 30, maxSec: 40 },
+            context: { posture: 'standing', quiet: true, noSweat: true },
+            emojiFallback: '🧘'
+          }
+        },
+        { op: 'update', id: exercise.id, patch: { title: 'Временно' } },
+        {
+          op: 'profile_shift',
+          axis: 'zone',
+          key: 'upper',
+          level: 2,
+          until: new Date(Date.now() + 7 * 86_400_000).toISOString()
+        }
+      ],
+      {
+        changesetId: 'cs-round',
+        targetSetId: 'user-main',
+        shippedIds: new Set([exercise.id]),
+        allocateId: () => 'llm-user-main-novo'
+      }
+    )
+    expect(afterAdd.exercises).toHaveLength(2)
+    expect(afterAdd.profileShifts).toHaveLength(1)
+
+    const { state: restored } = applyOps(afterAdd, inverseAdd, {
+      changesetId: 'cs-round-inv',
+      targetSetId: 'user-main',
+      shippedIds: new Set([exercise.id]),
+      allocateId: () => 'unused'
+    })
+    const active = restored.exercises.filter((item) => item.status === 'active')
+    expect(active.map((item) => item.id)).toEqual([exercise.id])
+    expect(active[0]?.title).toBe(exercise.title)
+    expect(restored.exercises.find((item) => item.id === 'llm-user-main-novo')?.status).toBe(
+      'archived'
+    )
+    expect(restored.profileShifts).toEqual([])
+  })
+})
+
 describe('validateTuneTimerPatch', () => {
   it('rejects large timer moves', () => {
     const exercise = upgradeExercise(EXERCISE_CATALOG[0]!)

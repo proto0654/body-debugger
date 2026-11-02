@@ -180,7 +180,7 @@ The popup sends bytes; main validates JPEG/PNG/WebP up to 8 MB and writes `.user
 
 ## AI proposals / Catalog LLM
 
-Paste import still validates a single `Exercise` (`shared/domain/ai-proposal.ts`) and writes into `data/catalog.json` via `catalog-store` (legacy `custom-exercises.json` migrates once). The dashboard **Упражнения → AI** tab can call an OpenAI-compatible provider (key in `safeStorage`); nothing is applied without explicit approval. For offline smoke set `llm.baseUrl` to `mock://local`. Design: [CATALOG-V2.md](CATALOG-V2.md).
+Paste import still validates a single `Exercise` (`shared/domain/ai-proposal.ts`) and writes into `data/catalog.json` via `catalog-store` (legacy `custom-exercises.json` migrates once). The dashboard **Упражнения → AI** tab can call an OpenAI-compatible provider (key in `safeStorage`); nothing is applied without explicit approval. For offline smoke set `llm.baseUrl` to `mock://local` — mock generate replies use unique titles/cues per cell so filling a coverage cell to threshold 6 does not spam “likely duplicate” warns. Parse also accepts Russian/legacy axis labels and bumps `minSec` up to the method floor before reject. Design: [CATALOG-V2.md](CATALOG-V2.md).
 
 ## Themes
 

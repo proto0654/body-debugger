@@ -3,6 +3,7 @@ import CharacterSettingsPanel from '@/components/character/CharacterSettingsPane
 import SectionTabs from '@/components/SectionTabs.vue'
 import PreferencesPanel from '@/components/settings/PreferencesPanel.vue'
 import ComfortSettingsPanel from '@/components/settings/ComfortSettingsPanel.vue'
+import PickSimulatorBlock from '@/components/catalog/PickSimulatorBlock.vue'
 import WeightCard from '@/components/weight/WeightCard.vue'
 import PhotoGallery from '@/components/photos/PhotoGallery.vue'
 import { usePhotosStore } from '@/stores/photos'
@@ -298,6 +299,11 @@ onBeforeUnmount(() => { unsubscribe?.(); clearInterval(clock); clearTimeout(reac
       <section v-if="settings.photos.enabled" class="settings-card space-y-4"><h2 class="text-sm font-semibold text-white">Тестовые фотографии</h2><PhotoGallery :photos="photos.entries" @remove="photos.remove" /></section>
     </div>
     <div v-else class="space-y-4"><PreferencesPanel /><ComfortSettingsPanel group="presentation" />
+      <section class="settings-card space-y-3" data-testid="lab-pick-simulator">
+        <h2 class="text-sm font-semibold text-white">Симулятор подбора</h2>
+        <p class="text-xs text-slate-400">Те же 200 seeded-прогонов, что на «Упражнения → Выбор».</p>
+        <PickSimulatorBlock />
+      </section>
       <button type="button" class="setting-chip" :disabled="busy || !plan || state?.activePopup" @click="command({ action: 'restore-preferences' })">Восстановить параметры сценария</button>
       <p class="text-xs text-slate-400">Восстанавливает исходные настройки и телосложение, сохраняя историю и позицию.</p>
     </div>

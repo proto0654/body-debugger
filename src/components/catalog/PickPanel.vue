@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { METHOD_LABELS, ZONE_LABELS } from '@shared/constants/catalog-axes'
 import { SHARE_WINDOW_DAYS } from '@shared/constants/catalog-tuning'
 import { targetVsActual } from '@shared/domain/coverage'
 import { explainPick, type PickFactor } from '@shared/domain/picker'
 import { PICKER_MODE_LABELS } from '@shared/domain/preferences'
+import PickSimulatorBlock from '@/components/catalog/PickSimulatorBlock.vue'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsStore } from '@/stores/settings'
@@ -12,7 +13,6 @@ import { useSettingsStore } from '@/stores/settings'
 const catalog = useCatalogStore()
 const sessions = useSessionsStore()
 const settings = useSettingsStore()
-const saving = ref(false)
 
 const pickInput = computed(() => ({
   catalog: catalog.resolved,
@@ -24,22 +24,6 @@ const pickInput = computed(() => ({
   limitations: settings.limitations,
   useShareProfile: true
 }))
-
-const simulation = computed(() => {
-  const counts: Record<string, number> = {}
-  for (let seed = 0; seed < 200; seed++) {
-    const id = explainPick(pickInput.value, seed).chosenId
-    counts[id] = (counts[id] ?? 0) + 1
-  }
-  const zoneShares: Record<string, number> = { upper: 0, core: 0, lower: 0, full: 0 }
-  for (const id of Object.keys(counts)) {
-    const exercise = catalog.resolved.find((entry) => entry.id === id)
-    if (!exercise) continue
-    zoneShares[exercise.dominantZone] =
-      (zoneShares[exercise.dominantZone] ?? 0) + (counts[id] ?? 0) / 200
-  }
-  return zoneShares
-})
 
 const shares = computed(() =>
   targetVsActual(settings.focusV2, sessions.history, catalog.resolved)
@@ -81,17 +65,6 @@ const FACTOR_LABELS: Record<PickFactor['key'], string> = {
 
 function factorsFor(exerciseId: string, explanation = nextExplain.value) {
   return explanation.candidates.find((candidate) => candidate.id === exerciseId)?.factors ?? []
-}
-
-async function onProfileStrength(event: Event): Promise<void> {
-  const value = Number((event.target as HTMLInputElement).value) / 100
-  if (saving.value) return
-  saving.value = true
-  try {
-    await settings.setProfileStrength(value)
-  } finally {
-    saving.value = false
-  }
 }
 </script>
 
@@ -152,32 +125,7 @@ async function onProfileStrength(event: Event): Promise<void> {
     </div>
 
     <div class="border-t border-slate-800 pt-4">
-      <label class="block text-sm font-semibold text-white">Следовать профилю (λ)</label>
-      <p class="mt-1 text-xs text-slate-400">
-        Share-based профиль: λ тянет симулируемые доли к целям. Ротация при этом не отключается.
-      </p>
-      <input
-        type="range"
-        min="0"
-        max="100"
-        step="5"
-        class="mt-3 w-full accent-emerald-500"
-        :disabled="saving"
-        :value="Math.round(settings.profileStrength * 100)"
-        aria-label="Сила следования профилю"
-        @change="onProfileStrength"
-      />
-      <div class="mt-1 flex justify-between text-[11px] text-slate-500">
-        <span>Мягко</span>
-        <span>Обычно</span>
-        <span>Жёстко</span>
-      </div>
-      <h3 class="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Симулятор 200 прогонов</h3>
-      <ul class="mt-2 space-y-1 text-xs text-slate-400">
-        <li v-for="(share, zone) in simulation" :key="zone">
-          {{ ZONE_LABELS[zone as keyof typeof ZONE_LABELS] }} · {{ Math.round(share * 100) }}%
-        </li>
-      </ul>
+      <PickSimulatorBlock />
     </div>
 
     <div class="space-y-4 border-t border-slate-800 pt-4">

@@ -85,6 +85,7 @@ export const IpcChannels = {
   LlmRun: 'llm:run',
   LlmCancel: 'llm:cancel',
   LlmGetChangeset: 'llm:get-changeset',
+  LlmListChangesets: 'llm:list-changesets',
   LlmToggleOp: 'llm:toggle-op',
   LlmApply: 'llm:apply',
   LlmDiscard: 'llm:discard',
@@ -94,6 +95,7 @@ export const IpcChannels = {
   CatalogSetStatus: 'catalog:set-status',
   CatalogSetBatchEnabled: 'catalog:set-batch-enabled',
   CatalogRenameBatch: 'catalog:rename-batch',
+  CatalogCreateBatch: 'catalog:create-batch',
   CatalogUpdated: 'catalog:updated'
 } as const
 
@@ -308,5 +310,9 @@ export interface CatalogSetBatchEnabledPayload {
 
 export interface CatalogRenameBatchPayload {
   id: string
+  name: string
+}
+
+export interface CatalogCreateBatchPayload {
   name: string
 }

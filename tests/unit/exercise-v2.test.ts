@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { EXERCISE_CATALOG } from '@shared/constants/exercises'
+import { SHIPPED_V2_TAGS } from '@shared/constants/exercise-v2-tags'
 import {
   deriveExerciseFields,
   dominantZone,
@@ -42,6 +43,19 @@ describe('exercise-v2 upgrade', () => {
     const march = upgradeExercise(EXERCISE_CATALOG.find((e) => e.id === 'march-in-place')!)
     expect(march.method).toBe('cardio')
     expect(dominantZone(march.zones)).toBe('full')
+  })
+
+  it('keeps hand-retagged fields for every shipped id', () => {
+    expect(Object.keys(SHIPPED_V2_TAGS)).toHaveLength(34)
+    for (const v1 of EXERCISE_CATALOG) {
+      expect(SHIPPED_V2_TAGS[v1.id], v1.id).toBeTruthy()
+      expect(v1.method).toBe(SHIPPED_V2_TAGS[v1.id]!.method)
+      expect(v1.context?.posture).toBe(SHIPPED_V2_TAGS[v1.id]!.context.posture)
+      const v2 = upgradeExercise(v1)
+      expect(v2.method).toBe(v1.method)
+      expect(v2.context.posture).toBe(v1.context!.posture)
+      if (v1.perSide) expect(v2.timer.perSide).toBe(true)
+    }
   })
 
   it('rejects empty zones and bad timer order', () => {

@@ -106,16 +106,23 @@ export function resolveExercise(exercise: ExerciseV2): ExerciseV2Resolved {
 }
 
 /**
- * Working defaults so the app runs before manual retagging (CATALOG-V2 §2.1).
- * Does not mutate the input.
+ * Upgrade v1 (or partially retagged) exercise to V2.
+ * Explicit V2 fields on the input win over §2.1 defaults (CATALOG-V2 hand-retag).
  */
 export function upgradeExercise(v1: Exercise): ExerciseV2 {
   const d = Math.max(5, Math.round(v1.durationSec))
-  const method = methodFromV1(v1)
-  const zones = zonesFromV1(v1)
-  const minSec = Math.max(timerFloor(method), round5(0.7 * d))
-  const maxSec = Math.max(minSec, round5(1.5 * d))
-  const defaultSec = Math.min(maxSec, Math.max(minSec, d))
+  const method = v1.method ?? methodFromV1(v1)
+  const zones = v1.zones ?? zonesFromV1(v1)
+  const minSec = Math.max(
+    timerFloor(method),
+    v1.timer?.minSec ?? round5(0.7 * d)
+  )
+  const maxSec = Math.max(minSec, v1.timer?.maxSec ?? round5(1.5 * d))
+  const defaultSec = Math.min(
+    maxSec,
+    Math.max(minSec, v1.timer?.defaultSec ?? d)
+  )
+  const perSide = v1.timer?.perSide ?? v1.perSide
 
   return {
     id: v1.id,
@@ -123,11 +130,17 @@ export function upgradeExercise(v1: Exercise): ExerciseV2 {
     description: v1.description.slice(0, 220),
     method,
     zones,
-    intensity: clampIntensity(v1.difficulty),
+    intensity: clampIntensity(v1.intensity ?? v1.difficulty),
     difficulty: clampIntensity(v1.difficulty),
-    timer: { minSec, defaultSec, maxSec },
+    timer: {
+      minSec,
+      defaultSec,
+      maxSec,
+      ...(perSide ? { perSide: true } : {})
+    },
     ...(v1.equipment ? { equipment: [...v1.equipment] } : {}),
-    context: { posture: 'standing', quiet: true, noSweat: true },
+    context: v1.context ?? { posture: 'standing', quiet: true, noSweat: true },
+    ...(v1.avoidIf && v1.avoidIf.length > 0 ? { avoidIf: [...v1.avoidIf] } : {}),
     ...(v1.modificationOf ? { modificationOf: v1.modificationOf } : {}),
     emojiFallback: v1.emojiFallback,
     ...(v1.imageKey ? { imageKey: v1.imageKey } : {}),

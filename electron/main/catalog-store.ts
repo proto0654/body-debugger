@@ -208,6 +208,39 @@ export function renameBatch(id: string, name: string): boolean {
   return true
 }
 
+function slugifyBatchName(name: string): string {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9а-яё]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+  return slug || 'set'
+}
+
+/** Create a user-owned named set (`user-<slug>`). Returns null if the name is empty. */
+export function createBatch(name: string): CatalogBatch | null {
+  const trimmed = name.trim()
+  if (!trimmed) return null
+  const base = `user-${slugifyBatchName(trimmed)}`
+  let id = base
+  let suffix = 2
+  while (catalog.batches.some((batch) => batch.id === id)) {
+    id = `${base}-${suffix}`
+    suffix += 1
+  }
+  const batch: CatalogBatch = {
+    id,
+    name: trimmed,
+    kind: 'user',
+    createdAt: new Date().toISOString(),
+    enabled: true,
+    count: 0
+  }
+  upsertBatch(batch)
+  return batch
+}
+
 export function listChangesets(): Changeset[] {
   return changesets.map((entry) => structuredClone(entry))
 }

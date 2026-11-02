@@ -10,6 +10,24 @@ function cell(zone: Zone, method: Method) {
   return catalog.coverage.find((entry) => entry.zone === zone && entry.method === method)
 }
 
+function cellTooltip(zone: Zone, method: Method): string {
+  const matches = catalog.resolved.filter(
+    (exercise) =>
+      exercise.status === 'active' &&
+      exercise.dominantZone === zone &&
+      exercise.method === method
+  )
+  if (matches.length === 0) return 'Пусто'
+  const lines = matches.slice(0, 8).map((exercise) => {
+    const shares = ZONES.filter((key) => (exercise.zones[key] ?? 0) > 0)
+      .map((key) => `${ZONE_LABELS[key]} ${Math.round((exercise.zones[key] ?? 0) * 100)}%`)
+      .join(', ')
+    return `${exercise.title}: ${shares || ZONE_LABELS[zone]}`
+  })
+  if (matches.length > 8) lines.push(`…ещё ${matches.length - 8}`)
+  return lines.join('\n')
+}
+
 function generate(zone: Zone, method: Method): void {
   catalog.openAiForCell({ zone, method })
 }
@@ -47,6 +65,7 @@ function generate(zone: Zone, method: Method): void {
               :key="method"
               class="border border-slate-800 p-2 text-center align-middle"
               :class="cell(zone, method)?.belowThreshold ? 'bg-amber-400/10' : 'bg-slate-900/30'"
+              :title="cellTooltip(zone, method)"
             >
               <template v-if="cell(zone, method)">
                 <p class="text-base font-semibold text-white">{{ cell(zone, method)!.count }}</p>

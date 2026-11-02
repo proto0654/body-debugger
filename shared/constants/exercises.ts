@@ -1,4 +1,5 @@
 import type { Exercise, ExerciseDifficulty, ExerciseGroup } from '../types/exercise'
+import { applyShippedV2Tags } from './exercise-v2-tags'
 
 /**
  * Starter catalog for the desk-worker cycle (CONCEPT.md §7).
@@ -410,7 +411,9 @@ const ENTRIES: CatalogEntry[] = [
   }
 ]
 
-export const EXERCISE_CATALOG: Exercise[] = ENTRIES.map((entry) => ({ ...entry }))
+export const EXERCISE_CATALOG: Exercise[] = ENTRIES.map((entry) =>
+  applyShippedV2Tags({ ...entry })
+)
 
 /** Last-resort exercise when every candidate is filtered out. */
 export const FALLBACK_EXERCISE: Exercise = EXERCISE_CATALOG[0]

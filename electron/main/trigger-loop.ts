@@ -5,9 +5,12 @@ import { ringProgress } from '../../shared/domain/tray-countdown'
 import { paintTrayPortrait, setTrayPortraitRepaint, stopTrayPortrait } from './tray-portrait'
 import { powerMonitor } from 'electron'
 import { getAvailableCatalog } from './custom-exercises'
-import { pickNextExercise } from '../../shared/domain/exercise-picker'
+import { pickNextExerciseDetailed } from '../../shared/domain/exercise-picker'
+import type { PickTrace } from '../../shared/domain/picker'
 import { dose } from '../../shared/domain/dose'
 import { upgradeExercise } from '../../shared/domain/exercise-v2'
+import { applyAutoTuneHints } from '../../shared/domain/tune'
+import { getResolvedCatalogV2, setCatalogOverrides } from './catalog-store'
 import { normalizeSessionExtras } from '../../shared/domain/session-extras'
 import { normalizePhotoIds } from '../../shared/domain/photos'
 import { getPhoto } from './photos'
@@ -74,6 +77,7 @@ interface AwaitingResult {
   triggeredAt: string
   timeout: NodeJS.Timeout | undefined
   deadline: number
+  pickTrace?: PickTrace
 }
 
 /** Identity of a session being resolved — from the open popup or from the renderer. */
@@ -82,6 +86,7 @@ interface SessionOrigin {
   exerciseId: string
   triggeredAt: string
   durationSec: number
+  pickTrace?: PickTrace
 }
 
 type SessionCompletionExtras = SessionExtras & {
@@ -294,7 +299,8 @@ function completeSession(
     completedAt: nowDate().toISOString(),
     // Untrusted renderer input: only in-range details are stored.
     ...(status === 'done' ? normalizeSessionExtras(extras) : {}),
-    ...(photoIds.length > 0 ? { photoIds } : {})
+    ...(photoIds.length > 0 ? { photoIds } : {}),
+    ...(origin.pickTrace ? { pickTrace: origin.pickTrace } : {})
   }
   if (typeof extras.skipReason === 'string') session.skipReason = extras.skipReason.slice(0, 500)
 
@@ -329,6 +335,11 @@ function completeSession(
   } catch (error) {
     console.error('[trigger-loop] session saved; progress write failed', error)
   }
+  try {
+    maybeApplyAutoTune()
+  } catch (error) {
+    console.error('[trigger-loop] autoTune apply failed', error)
+  }
   const trayState = trayStateFor(status)
   setTrayState(trayState)
   broadcastToWindows(IpcChannels.SessionUpdated, { session, trayState })
@@ -355,12 +366,32 @@ function completeSession(
   return { saved: true }
 }
 
+/** Silent personal-dose steps when autoTune = auto (CATALOG-V2 §9.1). */
+function maybeApplyAutoTune(): void {
+  const settings = getSettings()
+  if (settings.autoTune !== 'auto') return
+  const applied = applyAutoTuneHints(
+    getSnapshot().sessions,
+    getResolvedCatalogV2(),
+    settings.overrides,
+    settings.scaleHistory ?? []
+  )
+  if (!applied) return
+  updateSettings({
+    ...settings,
+    overrides: applied.overrides,
+    scaleHistory: applied.scaleHistory
+  })
+  setCatalogOverrides(applied.overrides)
+}
+
 function originOfAwaiting(current: AwaitingResult): SessionOrigin {
   return {
     sessionId: current.sessionId,
     exerciseId: current.exercise.id,
     triggeredAt: current.triggeredAt,
-    durationSec: current.exercise.durationSec
+    durationSec: current.exercise.durationSec,
+    ...(current.pickTrace ? { pickTrace: current.pickTrace } : {})
   }
 }
 
@@ -414,18 +445,21 @@ export function missActivePopup(): void {
 }
 
 /** Pick the next exercise from stored history + settings (CONCEPT §7 / CATALOG-V2). */
-function pickForCycle(): Exercise {
+function pickForCycle(): { exercise: Exercise; pickTrace: PickTrace } {
   const settings = getSettings()
-  const exercise = pickNextExercise({
+  const picked = pickNextExerciseDetailed({
     catalog: getAvailableCatalog(),
     recentSessions: getSnapshot().sessions,
     settings,
     now: nowDate()
   })
-  const v2 = upgradeExercise(exercise)
-  const scale = settings.overrides?.[exercise.id]?.scale ?? 1
+  const v2 = upgradeExercise(picked.exercise)
+  const scale = settings.overrides?.[picked.exercise.id]?.scale ?? 1
   const plannedSec = dose(v2.timer, settings.intervalMinutes, scale)
-  return { ...exercise, durationSec: plannedSec }
+  return {
+    exercise: { ...picked.exercise, durationSec: plannedSec },
+    pickTrace: picked.pickTrace
+  }
 }
 
 /** Show the popup for one exercise and start the answer timeout. */
@@ -438,13 +472,15 @@ function trigger(reason: SessionTriggerReason, exercise?: Exercise): void {
 
   const sessionId = randomUUID()
   const triggeredAt = nowDate().toISOString()
+  const picked = exercise ? { exercise, pickTrace: undefined as PickTrace | undefined } : pickForCycle()
 
   awaiting = {
     sessionId,
-    exercise: exercise ?? pickForCycle(),
+    exercise: picked.exercise,
     triggeredAt,
     deadline: nowMs() + MISSED_AFTER_MS,
-    timeout: undefined
+    timeout: undefined,
+    ...(picked.pickTrace ? { pickTrace: picked.pickTrace } : {})
   }
   clearCountdown()
   awayStartedAt = null

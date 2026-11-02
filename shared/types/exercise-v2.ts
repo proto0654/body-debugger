@@ -90,7 +90,20 @@ export interface ExerciseOverride {
   disabled?: boolean
   /** Personal dose scale; 1 = default. */
   scale?: number
+  /** Scale before the last accept/auto apply (for undo). */
+  previousScale?: number
+  /** ISO time when scale last changed; used for hint cooldown. */
+  scaledAt?: string
   timer?: Partial<ExerciseTimer>
+}
+
+/** Accepted personal-dose changes shown on «Наборы». */
+export interface ScaleHistoryEntry {
+  exerciseId: string
+  fromScale: number
+  toScale: number
+  at: string
+  source: 'suggest' | 'auto' | 'undo'
 }
 
 export interface CatalogBatch {

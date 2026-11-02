@@ -41,9 +41,28 @@ import {
   setExerciseStatus,
   upsertBatch
 } from '../catalog-store'
-import { getSettings, updateSettings } from '../persistence'
+import { getSettings, getSnapshot, updateSettings } from '../persistence'
+import {
+  buildTuneAggregates,
+  cooldownExerciseIds,
+  exerciseHints
+} from '../../../shared/domain/tune'
 import { readKey, hasKey } from './secrets'
 import { chatCompletion } from './provider'
+
+function resolveTuneAggregates(explicit?: unknown): unknown {
+  if (explicit !== undefined) return explicit
+  const settings = getSettings()
+  const catalog = getResolvedCatalogV2()
+  const sessions = getSnapshot().sessions
+  const scales: Record<string, number> = {}
+  for (const [id, override] of Object.entries(settings.overrides)) {
+    if (override.scale !== undefined) scales[id] = override.scale
+  }
+  const cooling = cooldownExerciseIds(sessions, settings.overrides)
+  const hints = exerciseHints(sessions, catalog, scales, cooling)
+  return buildTuneAggregates(sessions, catalog, settings, hints)
+}
 
 export interface PreviewResult {
   system: string
@@ -99,7 +118,7 @@ function previewPayload(input: RunInput): PreviewResult {
       kind: input.kind,
       instruction: input.instruction,
       catalog: ctx.catalog,
-      aggregates: input.aggregates
+      aggregates: input.kind === 'tune' ? resolveTuneAggregates(input.aggregates) : input.aggregates
     })
   }
   const user = JSON.stringify(payload)
@@ -138,17 +157,29 @@ function mockCompletion(input: RunInput): string {
   if (input.kind === 'generate') {
     const cells = input.cells ?? []
     const exercises = cells.flatMap((cell, cellIndex) =>
-      Array.from({ length: Math.min(cell.count, LLM_MAX_EXERCISES) }, (_, index) => ({
-        title: `Mock ${cell.zone} ${cell.method} ${cellIndex + 1}.${index + 1}`.slice(0, 40),
-        description: `Сделай короткое упражнение для ${cell.zone}, держи спину ровно.`,
-        method: cell.method,
-        zones: { [cell.zone]: 1 },
-        intensity: 2,
-        difficulty: 2,
-        timer: { minSec: 25, defaultSec: 35, maxSec: 45 },
-        context: { posture: 'standing', quiet: true, noSweat: true },
-        emojiFallback: '💪'
-      }))
+      Array.from({ length: Math.min(cell.count, LLM_MAX_EXERCISES) }, (_, index) => {
+        const n = `${cellIndex + 1}.${index + 1}`
+        const cues = [
+          'держи спину ровно',
+          'не задерживай дыхание',
+          'плечи мягкие, без рывков',
+          'движение короткое и контролируемое',
+          'стопы устойчиво на полу',
+          'взгляд перед собой'
+        ]
+        const cue = cues[(cellIndex + index) % cues.length]!
+        return {
+          title: `Mock ${cell.zone} ${cell.method} ${n}`.slice(0, 40),
+          description: `Вариант ${n} (${cell.method}/${cell.zone}): сделай короткую серию на месте. ${cue}.`,
+          method: cell.method,
+          zones: { [cell.zone]: 1 },
+          intensity: (1 + ((cellIndex + index) % 3)) as 1 | 2 | 3,
+          difficulty: (1 + ((cellIndex + index) % 3)) as 1 | 2 | 3,
+          timer: { minSec: 30, defaultSec: 40, maxSec: 50 },
+          context: { posture: 'standing', quiet: true, noSweat: true },
+          emojiFallback: '💪'
+        }
+      })
     )
     return JSON.stringify({ exercises: exercises.slice(0, LLM_MAX_EXERCISES) })
   }
@@ -293,12 +324,22 @@ export function runTune(aggregates: unknown, targetSetId?: string): Promise<Chan
   if (!getSettings().llm.shareProgress && getSettings().llm.baseUrl !== 'mock://local') {
     throw new Error('shareProgress must be enabled for tune requests')
   }
-  return completeRun({ kind: 'tune', aggregates, targetSetId })
+  return completeRun({
+    kind: 'tune',
+    aggregates: resolveTuneAggregates(aggregates),
+    targetSetId
+  })
 }
 
 export function runRequest(input: RunInput): Promise<Changeset> {
   if (input.kind === 'tune' && !getSettings().llm.shareProgress && getSettings().llm.baseUrl !== 'mock://local') {
     throw new Error('shareProgress must be enabled for tune requests')
+  }
+  if (input.kind === 'tune') {
+    return completeRun({
+      ...input,
+      aggregates: resolveTuneAggregates(input.aggregates)
+    })
   }
   return completeRun(input)
 }

@@ -43,9 +43,11 @@ import type {
   CatalogUpdatedPayload,
   CatalogSetStatusPayload,
   CatalogSetBatchEnabledPayload,
-  CatalogRenameBatchPayload
+  CatalogRenameBatchPayload,
+  CatalogCreateBatchPayload
 } from '@shared/types/events'
 import type { Changeset } from '@shared/domain/changeset'
+import type { CatalogBatch } from '@shared/types/exercise-v2'
 
 declare module '*.vue' {
   import type { DefineComponent } from 'vue'
@@ -119,6 +121,7 @@ export interface BodyDebuggerApi {
   runLlm: (payload: LlmRunPayload) => Promise<Changeset>
   cancelLlm: () => Promise<{ cancelled: boolean }>
   getLlmChangeset: (id: string) => Promise<Changeset | null>
+  listLlmChangesets: () => Promise<Changeset[]>
   toggleLlmOp: (payload: LlmToggleOpPayload) => Promise<Changeset | null>
   applyLlmChangeset: (changesetId: string) => Promise<Changeset | null>
   discardLlmChangeset: (changesetId: string) => Promise<Changeset | null>
@@ -133,6 +136,9 @@ export interface BodyDebuggerApi {
   renameCatalogBatch: (
     payload: CatalogRenameBatchPayload
   ) => Promise<{ ok: boolean } & CatalogListPayload>
+  createCatalogBatch: (
+    payload: CatalogCreateBatchPayload
+  ) => Promise<{ ok: boolean; batch: CatalogBatch | null } & CatalogListPayload>
   onLlmChanged: (handler: (payload: LlmChangedPayload) => void) => () => void
   onCatalogUpdated: (handler: (payload: CatalogUpdatedPayload) => void) => () => void
 }

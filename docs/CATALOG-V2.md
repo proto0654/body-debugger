@@ -123,7 +123,7 @@ status    ← 'active'
 source    ← { kind: 'shipped' }
 ```
 
-The 34 shipped exercises should then be retagged once (by hand or through the LLM "retag" changeset, see §7) and the corrected values committed to `shared/constants/exercises.ts`.
+The 34 shipped exercises are hand-retagged in `shared/constants/exercise-v2-tags.ts` and merged into `EXERCISE_CATALOG`; `upgradeExercise` prefers those explicit fields over §2.1 defaults.
 
 ## 3. Catalog layers and persistence
 
@@ -370,20 +370,28 @@ Rules
 
 ### 7.1 Validation
 
+`llm-parse.ts` normalizes drafts before validation:
+
+- Axis enums accept ASCII ids, Russian UI labels, and common synonyms (`ударка` → `striking`, `кор` → `core`, …); string numbers/bools are coerced.
+- When `method` is known, timer fields are bumped so `minSec ≥` method floor and `min ≤ default ≤ max` (models often emit `minSec: 25` for every method).
+- `mock://local` generate replies use distinct titles/cues per cell index so coverage fills (threshold 6) are not false-flagged as duplicates of an earlier mock add.
+
 Reject (never reaches the catalog)
 
-- not JSON, schema mismatch, unknown zone / method / equipment id / limitation tag
+- not JSON, schema mismatch, unknown zone / method / equipment id / limitation tag (after alias normalize)
 - `zones` empty, or sum outside [0.95, 1.05] (inside that range: normalize to 1.0)
-- `min ≤ default ≤ max` violated, or `minSec` below the method floor
+- `min ≤ default ≤ max` violated, or `minSec` still below the method floor after the bump above
 - `title` > 40 chars or `description` > 220 chars (popup geometry is 320×360)
 - id collision
 
 Warn (approve consciously)
 
-- likely duplicate: same method, same dominant zone, and description token Jaccard > 0.6 or a near-identical title
+- likely duplicate: same method, same dominant zone, and (identical title, description Jaccard > 0.85, or description Jaccard > 0.6 with title Jaccard > 0.7); also checked against earlier `add` ops in the same changeset
 - `intensity ≥ 4` without `avoidIf`
 - `posture: seated` with `intensity ≥ 4`
 - strength exercise without a safety cue in the description
+
+The AI tab can generate for **all coverage cells below threshold** or for the **selected cell only**; a selected cell must not hijack the “all empty” action.
 
 ## 8. Prompts
 
@@ -484,7 +492,7 @@ State: the changeset lives in main and arrives through `llm:changed`. Pinia keep
 
 ## 12. Implementation phases
 
-Each phase ships on its own and leaves the app working without the LLM.
+Each phase ships on its own and leaves the app working without the LLM. **Phases 0–8 are implemented** (hand-retag of the 34 shipped exercises via `shared/constants/exercise-v2-tags.ts`; pick simulator in Laboratory; AI generate/edit/retag/tune UI).
 
 | # | Phase | Acceptance |
 |---|---|---|

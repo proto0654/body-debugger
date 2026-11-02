@@ -4,7 +4,7 @@ import type { Session } from '../types/session'
 import type { AppSettings } from '../types/settings'
 import { resolveCatalog } from './catalog'
 import { upgradeExercise, toExerciseV1 } from './exercise-v2'
-import { explainPick, pickExercise } from './picker'
+import { compactPickTrace, explainPick, pickExercise, type PickTrace } from './picker'
 import { nowDate } from './clock'
 import { emptyFocusV2, migrateFocusV1 } from './focus-v2'
 
@@ -33,7 +33,12 @@ function hasAnyFocus(focus: { zones: Record<string, number>; methods: Record<str
   )
 }
 
-export function pickNextExercise(context: PickerContext): Exercise {
+export interface PickedExercise {
+  exercise: Exercise
+  pickTrace: PickTrace
+}
+
+export function pickNextExerciseDetailed(context: PickerContext): PickedExercise {
   const settings = context.settings
   const now = context.now ?? nowDate()
   const random = context.random ?? Math.random
@@ -46,7 +51,9 @@ export function pickNextExercise(context: PickerContext): Exercise {
   const upgraded = v1Catalog.map((exercise) => upgradeExercise(exercise))
   const resolved = resolveCatalog(upgraded, [], settings.overrides ?? {})
 
-  if (resolved.length === 0) return FALLBACK_EXERCISE
+  if (resolved.length === 0) {
+    return { exercise: FALLBACK_EXERCISE, pickTrace: { seed, factors: [] } }
+  }
 
   const focus =
     settings.focusV2 && hasAnyFocus(settings.focusV2)
@@ -67,12 +74,23 @@ export function pickNextExercise(context: PickerContext): Exercise {
 
   const explanation = explainPick(input, seed)
   const hasEligible = explanation.candidates.some((candidate) => !candidate.filteredBy)
-  if (!hasEligible) return FALLBACK_EXERCISE
+  if (!hasEligible) {
+    return { exercise: FALLBACK_EXERCISE, pickTrace: compactPickTrace(explanation) }
+  }
 
   const picked = pickExercise(input, seed)
   // pickExercise may still return a filtered row when all weights are 0 — guard again.
   const chosen = explanation.candidates.find((candidate) => candidate.id === picked.id)
-  if (chosen?.filteredBy) return FALLBACK_EXERCISE
+  if (chosen?.filteredBy) {
+    return { exercise: FALLBACK_EXERCISE, pickTrace: compactPickTrace(explanation) }
+  }
 
-  return toExerciseV1(picked, legacyById.get(picked.id))
+  return {
+    exercise: toExerciseV1(picked, legacyById.get(picked.id)),
+    pickTrace: compactPickTrace(explanation)
+  }
+}
+
+export function pickNextExercise(context: PickerContext): Exercise {
+  return pickNextExerciseDetailed(context).exercise
 }

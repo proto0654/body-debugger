@@ -97,7 +97,9 @@ describe('PreferencesPanel', () => {
       '45'
     )
     expect(wrapper.get('[data-picker-mode="balance"]').attributes('aria-pressed')).toBe('true')
-    expect(wrapper.get('[data-focus-primary="none"]').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.find('[data-testid="focus-zone-controls"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="focus-method-controls"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="limitations-controls"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="severity-controls"]').text()).toContain('Средняя')
     expect(wrapper.find('[data-testid="inventory-controls"]').exists()).toBe(true)
     expect(wrapper.find('[data-character-pack]').exists()).toBe(false)
@@ -137,34 +139,29 @@ describe('PreferencesPanel', () => {
     expect(wrapper.get('[data-picker-mode="push"]').attributes('aria-pressed')).toBe('true')
   })
 
-  it('sets the primary direction and clears it on a second click', async () => {
+  it('cycles Focus V2 zone levels', async () => {
     const wrapper = mountPanel()
+    const upper = wrapper.get('[data-testid="focus-zone-controls"] button')
 
-    await click(wrapper, '[data-focus-primary="strength"]')
-    expect(saveSettings.mock.calls[0][0].focus).toEqual({ primary: 'strength', accents: [] })
+    await click(wrapper, '[data-testid="focus-zone-controls"] button')
+    expect(saveSettings.mock.calls[0][0].focusV2.zones.upper).toBe(1)
+    expect(upper.attributes('aria-label')).toContain('+')
 
-    await click(wrapper, '[data-focus-primary="strength"]')
-    expect(saveSettings.mock.calls[1][0].focus).toEqual({ primary: null, accents: [] })
+    await click(wrapper, '[data-testid="focus-zone-controls"] button')
+    expect(saveSettings.mock.calls[1][0].focusV2.zones.upper).toBe(2)
   })
 
-  it('toggles accents and disables the one used as the primary', async () => {
+  it('toggles a limitation chip', async () => {
     const wrapper = mountPanel()
 
-    await click(wrapper, '[data-focus-primary="strength"]')
-    expect(wrapper.get('[data-focus-accent="strength"]').attributes('disabled')).toBeDefined()
+    await click(wrapper, '[data-testid="limitations-controls"] button')
+    expect(saveSettings.mock.calls[0][0].limitations).toEqual(['neck'])
+    expect(
+      wrapper.get('[data-testid="limitations-controls"] button').attributes('aria-pressed')
+    ).toBe('true')
 
-    await click(wrapper, '[data-focus-accent="strength"]')
-    expect(saveSettings).toHaveBeenCalledTimes(1)
-
-    await click(wrapper, '[data-focus-accent="mobility"]')
-    expect(saveSettings.mock.calls[1][0].focus).toEqual({
-      primary: 'strength',
-      accents: ['mobility']
-    })
-    expect(wrapper.get('[data-focus-accent="mobility"]').attributes('aria-pressed')).toBe('true')
-
-    await click(wrapper, '[data-focus-accent="mobility"]')
-    expect(saveSettings.mock.calls[2][0].focus).toEqual({ primary: 'strength', accents: [] })
+    await click(wrapper, '[data-testid="limitations-controls"] button')
+    expect(saveSettings.mock.calls[1][0].limitations).toEqual([])
   })
 
   it('saves the character build through the progress store', async () => {

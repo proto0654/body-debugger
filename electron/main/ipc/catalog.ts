@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import {
   IpcChannels,
+  type CatalogCreateBatchPayload,
   type CatalogListPayload,
   type CatalogRenameBatchPayload,
   type CatalogSetBatchEnabledPayload,
@@ -9,6 +10,7 @@ import {
 } from '../../../shared/types/events'
 import { broadcastToWindows } from '../broadcast'
 import {
+  createBatch,
   getCatalogFile,
   getResolvedCatalogV2,
   renameBatch,
@@ -47,5 +49,11 @@ export function registerCatalogIpc(): void {
     const ok = renameBatch(payload.id, payload.name)
     if (ok) broadcastCatalogUpdated()
     return { ok, ...catalogListPayload() }
+  })
+
+  ipcMain.handle(IpcChannels.CatalogCreateBatch, (_event, payload: CatalogCreateBatchPayload) => {
+    const batch = createBatch(payload?.name ?? '')
+    if (batch) broadcastCatalogUpdated()
+    return { ok: batch != null, batch, ...catalogListPayload() }
   })
 }

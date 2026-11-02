@@ -6,7 +6,16 @@ Reply with VALID JSON only, matching the schema. No prose, no markdown.
 Rules: doable at a work desk, no pain, no equipment outside the provided list,
 description <= 220 chars in the imperative with one technique cue, title <= 40 chars,
 all texts in Russian. \`zones\` are load shares summing to 1.0. Do not invent ids.
-Do not repeat existing titles.`
+Do not repeat existing titles.
+Enums (ASCII ids only — do NOT emit Russian labels as method/zone values):
+method ∈ mobility | strength | cardio | striking | balance
+  (UI synonyms: Растяжки и йога→mobility, Силовая→strength, Лёгкая атлетика→cardio, Ударка→striking, Баланс→balance)
+zone keys ∈ upper | core | lower | full
+  (UI synonyms: Верх→upper, Кор и пояс→core, Низ→lower, Комплекс→full)
+avoidIf ∈ neck | shoulder | wrist | lower_back | knee | ankle
+posture ∈ seated | standing | floor
+Numbers must be JSON numbers (not strings). For striking/cardio, context may use quiet:false and/or noSweat:false.
+Timer floors: mobility/balance minSec≥20; strength/cardio/striking minSec≥30.`
 
 export interface GenerateCell {
   zone: Zone
@@ -63,7 +72,8 @@ export function buildGeneratePayload(input: {
       context: exercise.context,
       emojiFallback: exercise.emojiFallback
     })),
-    schema: 'ExerciseV2 without id, source, status'
+    schema:
+      'ExerciseV2 without id/source/status; method must be one of mobility|strength|cardio|striking|balance; zone keys upper|core|lower|full'
   }
 }
 

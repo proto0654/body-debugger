@@ -74,6 +74,7 @@ export function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings 
     profileShifts: [],
     limitations: [],
     overrides: {},
+    scaleHistory: [],
     autoTune: 'suggest',
     llm: {
       enabled: false,

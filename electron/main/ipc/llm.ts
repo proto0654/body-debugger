@@ -18,6 +18,7 @@ import {
   discardChangeset,
   getChangesetById,
   getLlmConfig,
+  listStoredChangesets,
   previewRequest,
   revertChangeset,
   runRequest,
@@ -59,6 +60,8 @@ export function registerLlmIpc(): void {
   ipcMain.handle(IpcChannels.LlmCancel, () => ({ cancelled: cancelRun() }))
 
   ipcMain.handle(IpcChannels.LlmGetChangeset, (_event, id: string) => getChangesetById(id))
+
+  ipcMain.handle(IpcChannels.LlmListChangesets, () => listStoredChangesets())
 
   ipcMain.handle(IpcChannels.LlmToggleOp, (_event, payload: LlmToggleOpPayload) =>
     toggleOp(payload.changesetId, payload.index, payload.enabled)

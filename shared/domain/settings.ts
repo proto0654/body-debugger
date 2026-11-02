@@ -15,6 +15,7 @@ export function cloneSettings(settings: AppSettings): AppSettings {
     profileShifts: settings.profileShifts.map((shift) => ({ ...shift })),
     limitations: [...settings.limitations],
     overrides: { ...settings.overrides },
+    scaleHistory: settings.scaleHistory.map((entry) => ({ ...entry })),
     llm: { ...settings.llm },
     inventory: {
       enabled: settings.inventory.enabled,

@@ -116,6 +116,7 @@ Design reference: [CATALOG-V2.md](CATALOG-V2.md). Runtime pieces:
 | Piece | Owner |
 |-------|-------|
 | Types / upgrade / validation | `shared/types/exercise-v2.ts`, `shared/domain/exercise-v2.ts` |
+| Hand-retag overlays (34 shipped) | `shared/constants/exercise-v2-tags.ts` (preferred by `upgradeExercise`) |
 | Resolve layers | `shared/domain/catalog.ts`, `electron/main/catalog-store.ts` |
 | Picker + explanation | `shared/domain/picker.ts`; `exercise-picker.ts` is a thin v1 adapter |
 | Dose / intensity cap | `shared/domain/dose.ts` (trigger loop writes `plannedSec`) |
@@ -124,9 +125,10 @@ Design reference: [CATALOG-V2.md](CATALOG-V2.md). Runtime pieces:
 | Progress hints | `shared/domain/tune.ts` (`autoTune`: suggest / auto / off) |
 | Focus V2 + λ | `shared/domain/focus-v2.ts`; old primary/accents migrate on load |
 | Dashboard tab | `src/components/catalog/*`, `src/stores/catalog.ts` |
+| Pick simulator (lab) | `src/components/catalog/PickSimulatorBlock.vue` (also embedded in Laboratory) |
 | LLM IPC | `electron/main/llm/*`, `electron/main/ipc/llm.ts`, `ipc/catalog.ts` |
 
-Shipped exercises are immutable; edits fork into a user batch. `custom-exercises.json` migrates once into `catalog.json`. The LLM never runs in the reminder loop; keys stay in `safeStorage`. Mock provider: `baseUrl === 'mock://local'`.
+Shipped exercises are immutable; edits fork into a user batch. `custom-exercises.json` migrates once into `catalog.json`. The LLM never runs in the reminder loop; keys stay in `safeStorage`. Mock provider: `baseUrl === 'mock://local'` (unique per-cell mock drafts; parse aliases + timer-floor bump — see [CATALOG-V2.md](CATALOG-V2.md) §7.1).
 
 ### Exercise picker
 

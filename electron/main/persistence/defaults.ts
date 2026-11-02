@@ -18,7 +18,13 @@ import {
 } from '../../../shared/domain/focus-v2'
 import { PROFILE_STRENGTH_DEFAULT } from '../../../shared/constants/catalog-tuning'
 import type { AppSettings } from '../../../shared/types/settings'
-import type { AutoTuneMode, ExerciseOverride, LlmSettings } from '../../../shared/types/exercise-v2'
+import type {
+  AutoTuneMode,
+  ExerciseOverride,
+  LlmSettings,
+  ScaleHistoryEntry
+} from '../../../shared/types/exercise-v2'
+import { SCALE_HISTORY_LIMIT } from '../../../shared/constants/catalog-tuning'
 import type { UserProgress } from '../../../shared/types/progress'
 import type {
   CharacterBranch,
@@ -47,6 +53,7 @@ export function defaultSettings(): AppSettings {
     profileShifts: [],
     limitations: [],
     overrides: {},
+    scaleHistory: [],
     autoTune: 'suggest',
     llm: defaultLlm(),
     pickerMode: DEFAULT_PICKER_MODE,
@@ -87,6 +94,7 @@ export function normalizeSettings(stored: Partial<AppSettings> | null | undefine
     profileShifts: normalizeProfileShifts(storedRecord.profileShifts),
     limitations: normalizeLimitations(storedRecord.limitations),
     overrides: normalizeOverrides(storedRecord.overrides),
+    scaleHistory: normalizeScaleHistory(storedRecord.scaleHistory),
     autoTune: normalizeAutoTune(storedRecord.autoTune),
     llm: normalizeLlm(storedRecord.llm, base.llm),
     inventory: {
@@ -135,10 +143,46 @@ function normalizeOverrides(value: unknown): Record<string, ExerciseOverride> {
     if (typeof entry.scale === 'number' && Number.isFinite(entry.scale) && entry.scale > 0) {
       next.scale = entry.scale
     }
+    if (
+      typeof entry.previousScale === 'number' &&
+      Number.isFinite(entry.previousScale) &&
+      entry.previousScale > 0
+    ) {
+      next.previousScale = entry.previousScale
+    }
+    if (typeof entry.scaledAt === 'string' && entry.scaledAt.trim()) {
+      next.scaledAt = entry.scaledAt
+    }
     if (entry.timer && typeof entry.timer === 'object') {
       next.timer = entry.timer as ExerciseOverride['timer']
     }
     out[id] = next
+  }
+  return out
+}
+
+function normalizeScaleHistory(value: unknown): ScaleHistoryEntry[] {
+  if (!Array.isArray(value)) return []
+  const out: ScaleHistoryEntry[] = []
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') continue
+    const entry = raw as Record<string, unknown>
+    if (typeof entry.exerciseId !== 'string' || !entry.exerciseId.trim()) continue
+    if (typeof entry.fromScale !== 'number' || !Number.isFinite(entry.fromScale)) continue
+    if (typeof entry.toScale !== 'number' || !Number.isFinite(entry.toScale)) continue
+    if (typeof entry.at !== 'string' || !entry.at.trim()) continue
+    const source =
+      entry.source === 'suggest' || entry.source === 'auto' || entry.source === 'undo'
+        ? entry.source
+        : 'suggest'
+    out.push({
+      exerciseId: entry.exerciseId,
+      fromScale: entry.fromScale,
+      toScale: entry.toScale,
+      at: entry.at,
+      source
+    })
+    if (out.length >= SCALE_HISTORY_LIMIT) break
   }
   return out
 }

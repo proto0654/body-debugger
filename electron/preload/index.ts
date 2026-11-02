@@ -43,9 +43,11 @@ import {
   type CatalogUpdatedPayload,
   type CatalogSetStatusPayload,
   type CatalogSetBatchEnabledPayload,
-  type CatalogRenameBatchPayload
+  type CatalogRenameBatchPayload,
+  type CatalogCreateBatchPayload
 } from '../../shared/types/events'
 import type { Changeset } from '../../shared/domain/changeset'
+import type { CatalogBatch } from '../../shared/types/exercise-v2'
 
 const api = {
   registerLabHost: (): void => {
@@ -158,6 +160,8 @@ const api = {
   cancelLlm: (): Promise<{ cancelled: boolean }> => ipcRenderer.invoke(IpcChannels.LlmCancel),
   getLlmChangeset: (id: string): Promise<Changeset | null> =>
     ipcRenderer.invoke(IpcChannels.LlmGetChangeset, id),
+  listLlmChangesets: (): Promise<Changeset[]> =>
+    ipcRenderer.invoke(IpcChannels.LlmListChangesets),
   toggleLlmOp: (payload: LlmToggleOpPayload): Promise<Changeset | null> =>
     ipcRenderer.invoke(IpcChannels.LlmToggleOp, payload),
   applyLlmChangeset: (changesetId: string): Promise<Changeset | null> =>
@@ -179,6 +183,10 @@ const api = {
     payload: CatalogRenameBatchPayload
   ): Promise<{ ok: boolean } & CatalogListPayload> =>
     ipcRenderer.invoke(IpcChannels.CatalogRenameBatch, payload),
+  createCatalogBatch: (
+    payload: CatalogCreateBatchPayload
+  ): Promise<{ ok: boolean; batch: CatalogBatch | null } & CatalogListPayload> =>
+    ipcRenderer.invoke(IpcChannels.CatalogCreateBatch, payload),
   onLlmChanged: (handler: (payload: LlmChangedPayload) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: LlmChangedPayload): void =>
       handler(payload)

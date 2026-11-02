@@ -2,7 +2,8 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { COVERAGE_THRESHOLD } from '@shared/constants/catalog-tuning'
 import { METHOD_LABELS, ZONE_LABELS } from '@shared/constants/catalog-axes'
-import { summarize, type Changeset } from '@shared/domain/changeset'
+import { summarize, type Changeset, type ChangesetKind } from '@shared/domain/changeset'
+import type { LlmPreviewResponsePayload } from '@shared/types/events'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSettingsStore } from '@/stores/settings'
 
@@ -13,9 +14,12 @@ const status = ref('')
 const error = ref('')
 const hasKey = ref(false)
 const keyDraft = ref('')
-const previewTokens = ref<number | null>(null)
+const instruction = ref('')
+const preview = ref<LlmPreviewResponsePayload | null>(null)
 const changeset = ref<Changeset | null>(null)
+const history = ref<Changeset[]>([])
 const targetSetId = ref('user-main')
+const showPreviewJson = ref(false)
 let unsubscribe: (() => void) | undefined
 
 const selectedCellLabel = computed(() => {
@@ -27,6 +31,10 @@ const selectedCellLabel = computed(() => {
 const emptyCells = computed(() => catalog.coverage.filter((cell) => cell.belowThreshold))
 
 const summary = computed(() => (changeset.value ? summarize(changeset.value) : null))
+
+const editableBatches = computed(() =>
+  catalog.batches.filter((batch) => batch.kind !== 'shipped')
+)
 
 async function saveLlm(patch: Parameters<typeof settings.setLlmConfig>[0]): Promise<void> {
   if (busy.value) return
@@ -59,44 +67,96 @@ async function saveKey(): Promise<void> {
   }
 }
 
-async function previewGenerate(): Promise<void> {
-  const cells = emptyCells.value.map((cell) => ({
+async function testConnection(): Promise<void> {
+  busy.value = true
+  error.value = ''
+  try {
+    const result = await window.api?.testLlm?.()
+    status.value = result?.ok ? `Связь ок: ${result.message}` : `Связь не удалась: ${result?.message ?? 'нет ответа'}`
+  } catch (cause) {
+    console.warn('[catalog-ai] testLlm', cause)
+    error.value = 'Тест провайдера недоступен.'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function cancelRun(): Promise<void> {
+  try {
+    const result = await window.api?.cancelLlm?.()
+    status.value = result?.cancelled ? 'Запрос отменён.' : 'Нечего отменять.'
+  } catch {
+    error.value = 'Не удалось отменить запрос.'
+  }
+}
+
+async function refreshHistory(): Promise<void> {
+  try {
+    history.value = (await window.api?.listLlmChangesets?.()) ?? []
+  } catch {
+    history.value = []
+  }
+}
+
+function emptyCoverageCells() {
+  return emptyCells.value.map((cell) => ({
     zone: cell.zone,
     method: cell.method,
     count: Math.max(1, COVERAGE_THRESHOLD - cell.count)
   }))
+}
+
+function selectedCoverageCell() {
+  const cell = catalog.selectedCell
+  if (!cell) return []
+  const coverage = catalog.coverage.find(
+    (entry) => entry.zone === cell.zone && entry.method === cell.method
+  )
+  return [
+    {
+      zone: cell.zone,
+      method: cell.method,
+      count: Math.max(1, COVERAGE_THRESHOLD - (coverage?.count ?? 0))
+    }
+  ]
+}
+
+function clearSelectedCell(): void {
+  catalog.clearSelectedCell()
+}
+
+async function showPreview(kind: ChangesetKind, cells = emptyCoverageCells()): Promise<void> {
   try {
-    const preview = await window.api?.previewLlmRequest?.({
-      kind: 'generate',
-      cells,
-      targetSetId: targetSetId.value
-    })
-    previewTokens.value = preview?.estimatedTokens ?? null
+    const payload =
+      kind === 'generate'
+        ? {
+            kind,
+            cells,
+            targetSetId: targetSetId.value
+          }
+        : {
+            kind,
+            instruction: instruction.value.trim() || undefined,
+            targetSetId: targetSetId.value
+          }
+    const next = await window.api?.previewLlmRequest?.(payload)
+    preview.value = next ?? null
+    showPreviewJson.value = true
   } catch {
-    previewTokens.value = null
+    preview.value = null
   }
 }
 
-async function runGenerateEmpty(): Promise<void> {
+async function runGenerate(cells: ReturnType<typeof emptyCoverageCells>, label: string): Promise<void> {
   status.value = ''
   error.value = ''
+  if (cells.length === 0) {
+    error.value = 'Нет клеток ниже порога для генерации.'
+    return
+  }
   busy.value = true
-  const cells =
-    catalog.selectedCell != null
-      ? [
-          {
-            zone: catalog.selectedCell.zone,
-            method: catalog.selectedCell.method,
-            count: COVERAGE_THRESHOLD
-          }
-        ]
-      : emptyCells.value.map((cell) => ({
-          zone: cell.zone,
-          method: cell.method,
-          count: Math.max(1, COVERAGE_THRESHOLD - cell.count)
-        }))
   try {
-    await previewGenerate()
+    await showPreview('generate', cells)
     const next = await window.api?.runLlm?.({
       kind: 'generate',
       cells,
@@ -104,11 +164,52 @@ async function runGenerateEmpty(): Promise<void> {
     })
     if (next) changeset.value = next
     status.value = next
-      ? 'Черновик готов — проверьте операции и примените.'
+      ? `Черновик готов (${label}, ${cells.length} клет.) — проверьте и примените.`
       : 'Все клетки уже выше порога или IPC недоступен.'
+    await refreshHistory()
   } catch (cause) {
     console.warn('[catalog-ai] runLlm generate', cause)
     error.value = 'Генерация недоступна — проверьте провайдер и ключ.'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function runGenerateEmpty(): Promise<void> {
+  // Always all below-threshold cells — selection must not shrink the request.
+  clearSelectedCell()
+  await runGenerate(emptyCoverageCells(), 'все пустые')
+}
+
+async function runGenerateSelected(): Promise<void> {
+  await runGenerate(selectedCoverageCell(), 'выбранная клетка')
+}
+
+async function runInstruction(kind: 'edit' | 'retag'): Promise<void> {
+  const text = instruction.value.trim()
+  if (!text) {
+    error.value = 'Введите инструкцию для изменения или retag.'
+    return
+  }
+  status.value = ''
+  error.value = ''
+  busy.value = true
+  try {
+    await showPreview(kind)
+    const next = await window.api?.runLlm?.({
+      kind,
+      instruction: text,
+      targetSetId: targetSetId.value
+    })
+    if (next) changeset.value = next
+    status.value =
+      kind === 'retag'
+        ? 'Черновик retag готов.'
+        : 'Черновик правок готов — проверьте операции и примените.'
+    await refreshHistory()
+  } catch (cause) {
+    console.warn(`[catalog-ai] runLlm ${kind}`, cause)
+    error.value = kind === 'retag' ? 'Retag недоступен.' : 'Изменение набора недоступно.'
   } finally {
     busy.value = false
   }
@@ -119,12 +220,14 @@ async function runAnalyzeProgress(): Promise<void> {
   error.value = ''
   busy.value = true
   try {
+    await showPreview('tune')
     const next = await window.api?.runLlm?.({
       kind: 'tune',
       targetSetId: targetSetId.value
     })
     if (next) changeset.value = next
     status.value = 'Черновик анализа прогресса готов.'
+    await refreshHistory()
   } catch (cause) {
     console.warn('[catalog-ai] runLlm tune', cause)
     error.value = 'Анализ прогресса недоступен.'
@@ -149,6 +252,7 @@ async function applyChangeset(): Promise<void> {
     const next = await window.api?.applyLlmChangeset?.(changeset.value.id)
     if (next) changeset.value = next
     await catalog.refresh()
+    await refreshHistory()
     status.value = 'Изменения применены.'
   } catch (cause) {
     console.error('[catalog-ai] apply failed', cause)
@@ -162,20 +266,28 @@ async function discardChangeset(): Promise<void> {
   if (!changeset.value) return
   const next = await window.api?.discardLlmChangeset?.(changeset.value.id)
   if (next) changeset.value = next
+  await refreshHistory()
   status.value = 'Черновик отброшен.'
 }
 
-async function revertChangeset(): Promise<void> {
-  if (!changeset.value) return
+async function revertChangeset(id?: string): Promise<void> {
+  const targetId = id ?? changeset.value?.id
+  if (!targetId) return
   busy.value = true
   try {
-    const next = await window.api?.revertLlmChangeset?.(changeset.value.id)
+    const next = await window.api?.revertLlmChangeset?.(targetId)
     if (next) changeset.value = next
     await catalog.refresh()
+    await refreshHistory()
     status.value = 'Изменения откатены.'
   } finally {
     busy.value = false
   }
+}
+
+async function loadHistoryItem(id: string): Promise<void> {
+  const next = await window.api?.getLlmChangeset?.(id)
+  if (next) changeset.value = next
 }
 
 async function refreshLlmFromMain(): Promise<void> {
@@ -192,8 +304,10 @@ async function refreshLlmFromMain(): Promise<void> {
 
 onMounted(() => {
   void refreshLlmFromMain()
+  void refreshHistory()
   unsubscribe = window.api?.onLlmChanged?.((payload) => {
     changeset.value = payload.changeset
+    void refreshHistory()
   })
 })
 
@@ -261,6 +375,15 @@ onUnmounted(() => {
       </div>
     </label>
 
+    <div class="flex flex-wrap gap-2">
+      <button type="button" class="setting-chip" :disabled="busy || !settings.llm.enabled" @click="testConnection">
+        Проверить связь
+      </button>
+      <button type="button" class="setting-chip" :disabled="!busy" @click="cancelRun">
+        Отменить запрос
+      </button>
+    </div>
+
     <label class="flex items-center justify-between gap-3 text-sm text-slate-300">
       Делиться агрегатами прогресса
       <input
@@ -279,20 +402,83 @@ onUnmounted(() => {
         v-model="targetSetId"
         :disabled="busy"
       >
-        <option v-for="batch in catalog.batches.filter((b) => b.kind !== 'shipped')" :key="batch.id" :value="batch.id">
+        <option v-for="batch in editableBatches" :key="batch.id" :value="batch.id">
           {{ batch.name }}
         </option>
       </select>
     </label>
 
-    <p v-if="selectedCellLabel" class="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-200">
-      Контекст генерации: {{ selectedCellLabel }}
+    <label class="block text-xs text-slate-400">
+      Инструкция (edit / retag)
+      <textarea
+        v-model="instruction"
+        rows="3"
+        class="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-emerald-500"
+        :disabled="busy || !settings.llm.enabled"
+        placeholder="например: сделай растяжки длиннее, добавь для запястий"
+      />
+    </label>
+
+    <p
+      v-if="selectedCellLabel"
+      class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-200"
+    >
+      <span>Выбранная клетка: {{ selectedCellLabel }}</span>
+      <button type="button" class="setting-chip text-[11px]" :disabled="busy" @click="clearSelectedCell">
+        Сбросить
+      </button>
     </p>
-    <p v-if="previewTokens !== null" class="text-xs text-slate-500">Оценка токенов запроса: ~{{ previewTokens }}</p>
+    <p v-else-if="emptyCells.length > 0" class="text-xs text-slate-500">
+      Пустых клеток: {{ emptyCells.length }} — «Сгенерировать для пустых» отправит их все разом.
+    </p>
+
+    <div v-if="preview" class="rounded-xl border border-slate-800 bg-slate-950/50 p-3 space-y-2">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <p class="text-xs text-slate-400">
+          Preview · ~{{ preview.estimatedTokens }} ток.
+        </p>
+        <button type="button" class="setting-chip" @click="showPreviewJson = !showPreviewJson">
+          {{ showPreviewJson ? 'Скрыть JSON' : 'Показать JSON' }}
+        </button>
+      </div>
+      <pre
+        v-if="showPreviewJson"
+        class="max-h-48 overflow-auto rounded-lg bg-slate-950 p-2 text-[11px] leading-relaxed text-slate-300"
+      >{{ JSON.stringify(preview.payload, null, 2) }}</pre>
+    </div>
 
     <div class="flex flex-wrap gap-2">
-      <button type="button" class="setting-chip" :disabled="busy || !settings.llm.enabled" @click="runGenerateEmpty">
+      <button
+        type="button"
+        class="setting-chip"
+        :disabled="busy || !settings.llm.enabled || emptyCells.length === 0"
+        @click="runGenerateEmpty"
+      >
         Сгенерировать для пустых клеток
+      </button>
+      <button
+        type="button"
+        class="setting-chip"
+        :disabled="busy || !settings.llm.enabled || !selectedCellLabel"
+        @click="runGenerateSelected"
+      >
+        Только выбранная клетка
+      </button>
+      <button
+        type="button"
+        class="setting-chip"
+        :disabled="busy || !settings.llm.enabled || !instruction.trim()"
+        @click="runInstruction('edit')"
+      >
+        Изменить набор
+      </button>
+      <button
+        type="button"
+        class="setting-chip"
+        :disabled="busy || !settings.llm.enabled || !instruction.trim()"
+        @click="runInstruction('retag')"
+      >
+        Retag
       </button>
       <button
         type="button"
@@ -337,7 +523,7 @@ onUnmounted(() => {
             type="button"
             class="setting-chip"
             :disabled="busy"
-            @click="revertChangeset"
+            @click="revertChangeset()"
           >
             Откатить
           </button>
@@ -361,6 +547,32 @@ onUnmounted(() => {
             <p v-if="record.reason" class="mt-1 text-slate-400">{{ record.reason }}</p>
             <p v-for="issue in record.issues" :key="issue" class="mt-1 text-amber-300">{{ issue }}</p>
           </div>
+        </li>
+      </ul>
+    </div>
+
+    <div v-if="history.length > 0" class="border-t border-slate-800 pt-4 space-y-2">
+      <h3 class="text-sm font-semibold text-white">История changesets</h3>
+      <ul class="space-y-2">
+        <li
+          v-for="entry in history"
+          :key="entry.id"
+          class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 px-3 py-2 text-xs"
+        >
+          <button type="button" class="text-left text-slate-300 hover:text-white" @click="loadHistoryItem(entry.id)">
+            <span class="font-medium text-slate-200">{{ entry.kind }}</span>
+            · {{ entry.status }}
+            · {{ new Date(entry.createdAt).toLocaleString('ru-RU') }}
+          </button>
+          <button
+            v-if="entry.status === 'applied'"
+            type="button"
+            class="setting-chip"
+            :disabled="busy"
+            @click="revertChangeset(entry.id)"
+          >
+            Откатить
+          </button>
         </li>
       </ul>
     </div>

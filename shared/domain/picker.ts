@@ -126,6 +126,8 @@ interface Scene {
   lastZoneAt: Map<Zone, number>
   shareActual: Record<Zone, number>
   shareMethodActual: Record<Method, number>
+  /** Done-session count; drives rotation soft-slot (level −) parity. */
+  doneCount: number
 }
 
 function buildScene(
@@ -149,10 +151,12 @@ function buildScene(
     balance: 0
   }
   let shareTotal = 0
+  let doneCount = 0
 
   for (const { session, at } of doneSessions(sessions)) {
     const exercise = catalogById.get(session.exerciseId)
     if (!exercise) continue
+    doneCount += 1
     if (at > lastAt) {
       lastAt = at
       lastDone = exercise
@@ -197,7 +201,8 @@ function buildScene(
     loadToday: clipLoad(loadToday),
     lastZoneAt,
     shareActual,
-    shareMethodActual
+    shareMethodActual,
+    doneCount
   }
 }
 
@@ -297,15 +302,19 @@ function hardFilter(
   return null
 }
 
-function rotationSlots(focus: FocusV2): Zone[] {
+/**
+ * Rotation slots (§4.5): ++ → two slots, 0/+ → one, − → one slot every second cycle.
+ * `cycleIndex` is derived from done-session count / base cycle length.
+ */
+function rotationSlots(focus: FocusV2, cycleIndex: number): Zone[] {
   const slots: Zone[] = []
+  const includeSoft = cycleIndex % 2 === 1
   for (const zone of ROTATION_ORDER) {
     const level = focus.zones[zone]
     if (level === 2) {
       slots.push(zone, zone)
     } else if (level === -1) {
-      // one slot every second cycle — represented as a single soft slot; caller filters emptiness
-      slots.push(zone)
+      if (includeSoft) slots.push(zone)
     } else {
       slots.push(zone)
     }
@@ -313,12 +322,23 @@ function rotationSlots(focus: FocusV2): Zone[] {
   return slots
 }
 
+function baseRotationLength(focus: FocusV2): number {
+  let length = 0
+  for (const zone of ROTATION_ORDER) {
+    const level = focus.zones[zone]
+    if (level === 2) length += 2
+    else length += 1
+  }
+  return Math.max(1, length)
+}
+
 function nextRotationZone(
   scene: Scene,
   focus: FocusV2,
   eligible: readonly ExerciseV2Resolved[]
 ): Zone | null {
-  const slots = rotationSlots(focus)
+  const cycleIndex = Math.floor(scene.doneCount / baseRotationLength(focus))
+  const slots = rotationSlots(focus, cycleIndex)
   if (slots.length === 0) return null
   const lastZone = scene.lastDone?.dominantZone
   let start = 0

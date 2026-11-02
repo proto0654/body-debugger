@@ -1,7 +1,7 @@
 {
   "name": "body-debugger",
   "productName": "Body Debugger",
-  "version": "0.5.4",
+  "version": "0.6.0",
   "description": "Desktop tray app for short desk workouts — Body Debugger",
   "main": "./out/main/index.js",
   "author": "Body Debugger",

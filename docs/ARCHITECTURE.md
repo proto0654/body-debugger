@@ -34,7 +34,7 @@ src/photos.ts               # photo:// URL helper
 src/styles/index.css        # Tailwind entry, keyframes, theme tokens, reduced-motion overrides
 src/stores/                 # sessions, progress, settings, character, reminder, weight, photos, catalog, AI
 src/components/             # UI (character, weight, stats, photos, catalog, AI)
-src/components/catalog/     # Dashboard «Упражнения» (coverage / pick / sets / AI)
+src/components/catalog/     # Dashboard «Упражнения» (library / sandbox / coverage / sets / AI)
 src/debug/                  # Laboratory host, panels and previews (dashboard «Лаборатория»)
 src/components/character/   # Portraits, journey, chronicle and the shared progress charts
 src/assets/character/       # Manifest, ten selectable identities and cut frames
@@ -42,9 +42,9 @@ src/assets/sounds/default/  # Default cue pack (mp3)
 src/assets/sounds/<character>/ # Generated voice takes + archived sources
 src/assets/sounds/system/   # Shared effect takes
 shared/types/               # Exercise, Session, Character, Progress, Settings, Photo, Events, Persistence
-shared/domain/              # Pure rules: picker v2, catalog, dose, tune, character, severity, extras, weight, sounds, photos, AI, streak, stats, chronicle
+shared/domain/              # Pure rules: picker v2, catalog, dose, tune, sandbox helpers, queue, character, severity, extras, weight, sounds, photos, AI, streak, stats, chronicle
 shared/validation/          # Exercise + Session payload guards
-shared/constants/           # stage keys, exercise/equipment catalogs, catalog axes/tuning, themes, popup geometry
+shared/constants/           # stage keys, exercise/equipment catalogs, catalog axes/tuning/field-docs, themes, popup geometry
 shared/types/exercise-v2.ts # Zone / Method / ExerciseV2 / FocusV2 / catalog file types
 ```
 
@@ -62,6 +62,7 @@ On disk under `.userdata/data/` (see [DEVELOPMENT.md](DEVELOPMENT.md)):
 | `weights.json` | `WeightEntry[]` (optional layer) |
 | `catalog.json` | Catalog V2 user/llm layer (`version: 2`, exercises + named batches) |
 | `changesets.json` | Last ~30 LLM/catalog changesets (ops, inverse, status, usage) |
+| `queue.json` | Next-breaks planning queue (pins / zone·method constraints / exclude-today) |
 | `custom-exercises.json` | Legacy AI approvals; migrated once into `catalog.json` as batch `legacy-import` |
 | `photos.json` | Photo metadata (optional layer) |
 
@@ -124,15 +125,17 @@ Design reference: [CATALOG-V2.md](CATALOG-V2.md). Runtime pieces:
 | Changesets / LLM parse | `shared/domain/changeset.ts`, `llm-prompt.ts`, `llm-parse.ts` |
 | Progress hints | `shared/domain/tune.ts` (`autoTune`: suggest / auto / off) |
 | Focus V2 + λ | `shared/domain/focus-v2.ts`; old primary/accents migrate on load |
-| Dashboard tab | `src/components/catalog/*`, `src/stores/catalog.ts` |
-| Pick simulator (lab) | `src/components/catalog/PickSimulatorBlock.vue` (also embedded in Laboratory) |
+| Dashboard tab | `src/components/catalog/*`, `src/stores/catalog.ts` / `catalog-view.ts` / `sandbox.ts` / `queue.ts` |
+| Field docs / playground helpers | `shared/constants/field-docs.ts`, `shared/domain/catalog-sandbox.ts` — [CATALOG-UI.md](CATALOG-UI.md) |
+| Next-breaks queue | `shared/domain/queue.ts`, `electron/main/queue-store.ts`; adapter applies queue before pick |
+| Pick simulator (lab) | `src/components/catalog/PickSimulatorBlock.vue` (uses `simulate()`; also embedded in Laboratory) |
 | LLM IPC | `electron/main/llm/*`, `electron/main/ipc/llm.ts`, `ipc/catalog.ts` |
 
-Shipped exercises are immutable; edits fork into a user batch. `custom-exercises.json` migrates once into `catalog.json`. The LLM never runs in the reminder loop; keys stay in `safeStorage`. Mock provider: `baseUrl === 'mock://local'` (unique per-cell mock drafts; parse aliases + timer-floor bump — see [CATALOG-V2.md](CATALOG-V2.md) §7.1).
+Shipped exercises are immutable; edits fork into a user batch (including manual library edits via `edit` changesets). `custom-exercises.json` migrates once into `catalog.json`. The LLM never runs in the reminder loop; keys stay in `safeStorage`. Mock provider: `baseUrl === 'mock://local'` (unique per-cell mock drafts; parse aliases + timer-floor bump — see [CATALOG-V2.md](CATALOG-V2.md) §7.1). UI depth (library, number explainer, playground, preference board, queue): [CATALOG-UI.md](CATALOG-UI.md).
 
 ### Exercise picker
 
-`shared/domain/picker.ts` (adapter: `exercise-picker.ts`) — main calls it on every trigger. Weights use zone-vector overlap, method repeat, zone neglect, share-based profile boost (λ) and mode.
+`shared/domain/picker.ts` (adapter: `exercise-picker.ts`) — main calls it on every trigger. Optional `queue.json` slots are applied via `applyQueue` so explain and pick stay identical. Weights use zone-vector overlap, method repeat, zone neglect, share-based profile boost (λ) and mode.
 
 | Rule | Behaviour |
 |------|-----------|
@@ -164,7 +167,7 @@ Skipped / snoozed / missed sessions never count as training. Character branch sc
 
 `#/dashboard?tab=settings` and `?tab=exercises` open those tabs. The tray «Настройки» item still deep-links settings.
 
-The dashboard has six primary sections: «Сегодня», «Персонаж», «Лаборатория», «Прогресс», «Упражнения» and «Настройки». «Упражнения» uses `SectionTabs` for Покрытие / Выбор / Наборы / AI. Today contains the hero, day counts, streak, a compact journey and optional quick weight entry. «Персонаж» uses `SectionTabs.vue`: «Профиль» and «Хроника». «Лаборатория» mounts via `LaboratoryHost.vue`. `ProgressPanel.vue` groups calendar, statistics, weight and photos. Legacy `tab=calendar` / `tab=stats` select progress subsections; `tab=playground` aliases to laboratory.
+The dashboard has six primary sections: «Сегодня», «Персонаж», «Лаборатория», «Прогресс», «Упражнения» and «Настройки». «Упражнения» uses `SectionTabs` for Каталог / Песочница / Покрытие / Наборы / AI (see [CATALOG-UI.md](CATALOG-UI.md)). Today contains the hero, day counts, streak, an optional next-breaks queue hint, a compact journey and optional quick weight entry. «Персонаж» uses `SectionTabs.vue`: «Профиль» and «Хроника». «Лаборатория» mounts via `LaboratoryHost.vue`. `ProgressPanel.vue` groups calendar, statistics, weight and photos. Legacy `tab=calendar` / `tab=stats` select progress subsections; `tab=playground` aliases to laboratory.
 
 `PreferencesPanel.vue` groups interval/strictness, picker mode and Focus V2 + λ + autoTune. Selection still reuses `ComfortSettingsPanel.vue` for inventory; «Импорт из AI» links to «Упражнения». Character identity/build remain on «Персонаж».
 

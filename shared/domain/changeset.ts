@@ -76,7 +76,8 @@ export interface CatalogState {
     key: string
     level: -1 | 1 | 2
     until: string
-    changesetId: string
+    changesetId?: string
+    source: 'llm' | 'user'
   }[]
 }
 
@@ -230,7 +231,8 @@ export function applyOps(
         key: op.key,
         level: op.level,
         until: op.until,
-        changesetId: options.changesetId
+        changesetId: options.changesetId,
+        source: 'llm'
       })
       inverse.unshift({
         op: 'remove_profile_shift',

@@ -6,6 +6,11 @@ import { paintTrayPortrait, setTrayPortraitRepaint, stopTrayPortrait } from './t
 import { powerMonitor } from 'electron'
 import { getAvailableCatalog } from './custom-exercises'
 import { pickNextExerciseDetailed } from '../../shared/domain/exercise-picker'
+import {
+  consumeQueueSlot,
+  getBreakQueue,
+  setLastQueueNotes
+} from './queue-store'
 import type { PickTrace } from '../../shared/domain/picker'
 import { dose } from '../../shared/domain/dose'
 import { upgradeExercise } from '../../shared/domain/exercise-v2'
@@ -451,8 +456,11 @@ function pickForCycle(): { exercise: Exercise; pickTrace: PickTrace } {
     catalog: getAvailableCatalog(),
     recentSessions: getSnapshot().sessions,
     settings,
-    now: nowDate()
+    now: nowDate(),
+    queue: getBreakQueue()
   })
+  if (picked.queueNotes?.length) setLastQueueNotes(picked.queueNotes)
+  if (picked.consumeQueueSlot) consumeQueueSlot()
   const v2 = upgradeExercise(picked.exercise)
   const scale = settings.overrides?.[picked.exercise.id]?.scale ?? 1
   const plannedSec = dose(v2.timer, settings.intervalMinutes, scale)

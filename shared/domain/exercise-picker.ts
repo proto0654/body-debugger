@@ -7,6 +7,7 @@ import { upgradeExercise, toExerciseV1 } from './exercise-v2'
 import { compactPickTrace, explainPick, pickExercise, type PickTrace } from './picker'
 import { nowDate } from './clock'
 import { emptyFocusV2, migrateFocusV1 } from './focus-v2'
+import { applyQueue, emptyQueue, type BreakQueue, type QueueSkipNote } from './queue'
 
 /**
  * Thin adapter over picker v2 (CATALOG-V2 §4).
@@ -20,6 +21,15 @@ export interface PickerContext {
   now?: Date
   /** Injectable RNG so callers (and tests) can make the pick deterministic */
   random?: () => number
+  /** Optional next-breaks queue (CATALOG-UI §5). */
+  queue?: BreakQueue
+}
+
+export interface PickedExercise {
+  exercise: Exercise
+  pickTrace: PickTrace
+  queueNotes?: QueueSkipNote[]
+  consumeQueueSlot?: boolean
 }
 
 function seedFromRandom(random: () => number): number {
@@ -31,11 +41,6 @@ function hasAnyFocus(focus: { zones: Record<string, number>; methods: Record<str
     Object.values(focus.zones).some((level) => level !== 0) ||
     Object.values(focus.methods).some((level) => level !== 0)
   )
-}
-
-export interface PickedExercise {
-  exercise: Exercise
-  pickTrace: PickTrace
 }
 
 export function pickNextExerciseDetailed(context: PickerContext): PickedExercise {
@@ -60,7 +65,7 @@ export function pickNextExerciseDetailed(context: PickerContext): PickedExercise
       ? settings.focusV2
       : migrateFocusV1(settings.focus)
 
-  const input = {
+  const baseInput = {
     catalog: resolved,
     recentSessions: context.recentSessions,
     settings,
@@ -72,22 +77,39 @@ export function pickNextExerciseDetailed(context: PickerContext): PickedExercise
     now
   }
 
+  const queued = applyQueue(baseInput, context.queue ?? emptyQueue())
+  const input = queued.input
+
   const explanation = explainPick(input, seed)
   const hasEligible = explanation.candidates.some((candidate) => !candidate.filteredBy)
   if (!hasEligible) {
-    return { exercise: FALLBACK_EXERCISE, pickTrace: compactPickTrace(explanation) }
+    return {
+      exercise: FALLBACK_EXERCISE,
+      pickTrace: compactPickTrace(explanation),
+      queueNotes: queued.notes,
+      consumeQueueSlot: queued.consumeSlot
+    }
   }
 
-  const picked = pickExercise(input, seed)
+  const picked = queued.forcedId
+    ? (input.catalog.find((exercise) => exercise.id === queued.forcedId) ?? pickExercise(input, seed))
+    : pickExercise(input, seed)
   // pickExercise may still return a filtered row when all weights are 0 — guard again.
   const chosen = explanation.candidates.find((candidate) => candidate.id === picked.id)
   if (chosen?.filteredBy) {
-    return { exercise: FALLBACK_EXERCISE, pickTrace: compactPickTrace(explanation) }
+    return {
+      exercise: FALLBACK_EXERCISE,
+      pickTrace: compactPickTrace(explanation),
+      queueNotes: queued.notes,
+      consumeQueueSlot: queued.consumeSlot
+    }
   }
 
   return {
     exercise: toExerciseV1(picked, legacyById.get(picked.id)),
-    pickTrace: compactPickTrace(explanation)
+    pickTrace: compactPickTrace(explanation),
+    queueNotes: queued.notes,
+    consumeQueueSlot: queued.consumeSlot
   }
 }
 

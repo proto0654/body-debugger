@@ -83,7 +83,9 @@ export interface ProfileShift {
   key: string
   level: -1 | 1 | 2
   until: string
-  changesetId: string
+  /** Present for LLM / changeset-backed shifts; optional for user board shifts. */
+  changesetId?: string
+  source: 'llm' | 'user'
 }
 
 export interface ExerciseOverride {

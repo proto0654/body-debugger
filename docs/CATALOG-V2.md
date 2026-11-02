@@ -461,7 +461,7 @@ Derived from `done` / `skipped` per exercise. `skipped` and `missed` count as sk
 
 ## 10. Dashboard tab «Упражнения»
 
-New top-level tab using `SectionTabs.vue`: **Покрытие · Выбор · Наборы · AI**. The «Импорт из AI» block on «Настройки» becomes a link to this tab.
+New top-level tab using `SectionTabs.vue`. Core Catalog V2 shipped **Покрытие · Выбор · Наборы · AI**. Deeper library / playground / preference board / next-breaks queue continue in [CATALOG-UI.md](CATALOG-UI.md) (phases 4a–8b; «Выбор» becomes «Песочница», «Каталог» is added). The «Импорт из AI» block on «Настройки» becomes a link to this tab.
 
 | Subtab | Content | Data |
 |---|---|---|
@@ -492,7 +492,7 @@ State: the changeset lives in main and arrives through `llm:changed`. Pinia keep
 
 ## 12. Implementation phases
 
-Each phase ships on its own and leaves the app working without the LLM. **Phases 0–8 are implemented** (hand-retag of the 34 shipped exercises via `shared/constants/exercise-v2-tags.ts`; pick simulator in Laboratory; AI generate/edit/retag/tune UI).
+Each phase ships on its own and leaves the app working without the LLM. **Phases 0–8 are implemented** (hand-retag of the 34 shipped exercises via `shared/constants/exercise-v2-tags.ts`; pick simulator in Laboratory; AI generate/edit/retag/tune UI). UI depth beyond §10 (library, number explainer, playground, queue) is tracked in [CATALOG-UI.md](CATALOG-UI.md).
 
 | # | Phase | Acceptance |
 |---|---|---|

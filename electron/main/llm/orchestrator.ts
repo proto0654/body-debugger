@@ -555,4 +555,36 @@ export function getCatalogSnapshot(): ReturnType<typeof getCatalogFile> {
   return getCatalogFile()
 }
 
+/** Manual library edit: single update op, no LLM (CATALOG-UI §2.4 / phase 8b). */
+export function applyManualEdit(
+  id: string,
+  patch: Extract<CatalogOp, { op: 'update' }>['patch'],
+  reason = 'ручное изменение'
+): Changeset {
+  const changeset: Changeset = {
+    id: randomUUID(),
+    status: 'awaiting_approval',
+    createdAt: new Date().toISOString(),
+    kind: 'edit',
+    targetSetId: USER_MAIN_BATCH_ID,
+    ops: [
+      {
+        op: { op: 'update', id, patch },
+        state: 'ok',
+        enabled: true,
+        issues: [],
+        reason
+      }
+    ]
+  }
+  emitChangeset(changeset)
+  const applied = applyChangeset(changeset.id)
+  if (!applied) {
+    const failed: Changeset = { ...changeset, status: 'failed', error: 'apply failed' }
+    emitChangeset(failed)
+    return failed
+  }
+  return applied
+}
+
 export { activeChangesetId }

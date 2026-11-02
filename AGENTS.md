@@ -20,7 +20,7 @@ Project docs and this file override global agent rules when they conflict.
 1. [docs/CONTEXT.md](docs/CONTEXT.md) — permanent snapshot
 2. [docs/README.md](docs/README.md) — docs hub
 3. [CONCEPT.md](CONCEPT.md) — product rules (cycle, character, picker)
-4. Optional layers: [docs/SOUNDS.md](docs/SOUNDS.md), [docs/TESTING.md](docs/TESTING.md), [docs/CATALOG-V2.md](docs/CATALOG-V2.md)
+4. Optional layers: [docs/SOUNDS.md](docs/SOUNDS.md), [docs/TESTING.md](docs/TESTING.md), [docs/CATALOG-V2.md](docs/CATALOG-V2.md), [docs/CATALOG-UI.md](docs/CATALOG-UI.md)
 
 ## Repository
 
@@ -43,6 +43,7 @@ Project docs and this file override global agent rules when they conflict.
 | Voice Design casting + sound effects generators | `scripts/cast-voices-api.mjs`, `scripts/generate-effects-api.mjs` |
 | Progress photos (rules, main store, protocol, UI) | `shared/domain/photos.ts`, `electron/main/photos.ts`, `electron/main/photo-protocol.ts`, `src/components/photos/` |
 | Catalog V2 (model, picker, dose, tune, LLM) | [docs/CATALOG-V2.md](docs/CATALOG-V2.md), `shared/domain/catalog.ts`, `picker.ts`, `dose.ts`, `tune.ts`, `llm-parse.ts`, `electron/main/catalog-store.ts`, `electron/main/llm/`, `shared/constants/exercise-v2-tags.ts`, `src/components/catalog/` |
+| Catalog UI (library, field-docs, sandbox, queue) | [docs/CATALOG-UI.md](docs/CATALOG-UI.md), `shared/constants/field-docs.ts`, `shared/domain/catalog-sandbox.ts`, `shared/domain/queue.ts`, `src/stores/catalog-view.ts`, `src/stores/sandbox.ts` |
 | AI proposals (parsing, approval, store, UI) | `shared/domain/ai-proposal.ts`, `electron/main/custom-exercises.ts`, `src/components/ai/` |
 | Themes / equipment | `shared/constants/themes.ts`, `shared/constants/equipment.ts`, `src/styles/index.css` |
 | Core preferences (interval, picker mode, Focus V2 / λ, identity/build) | `shared/domain/preferences.ts`, `shared/domain/focus-v2.ts`, `shared/constants/focus.ts`, `src/components/settings/` |

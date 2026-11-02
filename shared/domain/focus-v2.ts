@@ -92,17 +92,26 @@ export function normalizeProfileShifts(
     if (s.axis === 'zone' && !isZone(s.key)) continue
     if (s.axis === 'method' && !isMethod(s.key)) continue
     if (s.level !== -1 && s.level !== 1 && s.level !== 2) continue
-    if (typeof s.until !== 'string' || typeof s.changesetId !== 'string') continue
+    if (typeof s.until !== 'string') continue
     const until = Date.parse(s.until)
     if (Number.isNaN(until) || until <= now) continue
     const maxUntil = now + PROFILE_SHIFT_MAX_DAYS * 86_400_000
     if (until > maxUntil) continue
+    const source: ProfileShift['source'] =
+      s.source === 'user' || s.source === 'llm'
+        ? s.source
+        : typeof s.changesetId === 'string'
+          ? 'llm'
+          : 'user'
+    // LLM shifts historically required changesetId; keep that rule.
+    if (source === 'llm' && typeof s.changesetId !== 'string') continue
     out.push({
       axis: s.axis,
       key: s.key,
       level: s.level,
       until: s.until,
-      changesetId: s.changesetId
+      source,
+      ...(typeof s.changesetId === 'string' ? { changesetId: s.changesetId } : {})
     })
   }
   return out

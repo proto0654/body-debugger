@@ -29,7 +29,8 @@ describe('focus v2 migration', () => {
         key: 'core',
         level: 2,
         until: '2099-01-01T00:00:00.000Z',
-        changesetId: 'cs-1'
+        changesetId: 'cs-1',
+        source: 'llm' as const
       }
     ])
     expect(effective.zones.core).toBe(2)

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { ZONE_LABELS } from '@shared/constants/catalog-axes'
-import { explainPick } from '@shared/domain/picker'
+import { simulate } from '@shared/domain/catalog-sandbox'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsStore } from '@/stores/settings'
@@ -19,24 +19,10 @@ const pickInput = computed(() => ({
   profileStrength: settings.profileStrength,
   overrides: settings.overrides,
   limitations: settings.limitations,
-  useShareProfile: true
+  useShareProfile: true as const
 }))
 
-const simulation = computed(() => {
-  const counts: Record<string, number> = {}
-  for (let seed = 0; seed < 200; seed++) {
-    const id = explainPick(pickInput.value, seed).chosenId
-    counts[id] = (counts[id] ?? 0) + 1
-  }
-  const zoneShares: Record<string, number> = { upper: 0, core: 0, lower: 0, full: 0 }
-  for (const id of Object.keys(counts)) {
-    const exercise = catalog.resolved.find((entry) => entry.id === id)
-    if (!exercise) continue
-    zoneShares[exercise.dominantZone] =
-      (zoneShares[exercise.dominantZone] ?? 0) + (counts[id] ?? 0) / 200
-  }
-  return zoneShares
-})
+const simulation = computed(() => simulate(pickInput.value, 200, 0).zoneShares)
 
 async function onProfileStrength(event: Event): Promise<void> {
   const value = Number((event.target as HTMLInputElement).value) / 100

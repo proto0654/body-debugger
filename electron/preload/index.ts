@@ -44,7 +44,9 @@ import {
   type CatalogSetStatusPayload,
   type CatalogSetBatchEnabledPayload,
   type CatalogRenameBatchPayload,
-  type CatalogCreateBatchPayload
+  type CatalogCreateBatchPayload,
+  type CatalogManualEditPayload,
+  type BreakQueuePayload
 } from '../../shared/types/events'
 import type { Changeset } from '../../shared/domain/changeset'
 import type { CatalogBatch } from '../../shared/types/exercise-v2'
@@ -187,6 +189,13 @@ const api = {
     payload: CatalogCreateBatchPayload
   ): Promise<{ ok: boolean; batch: CatalogBatch | null } & CatalogListPayload> =>
     ipcRenderer.invoke(IpcChannels.CatalogCreateBatch, payload),
+  applyCatalogManualEdit: (
+    payload: CatalogManualEditPayload
+  ): Promise<{ ok: boolean; changeset: Changeset } & CatalogListPayload> =>
+    ipcRenderer.invoke(IpcChannels.CatalogManualEdit, payload),
+  getBreakQueue: (): Promise<BreakQueuePayload> => ipcRenderer.invoke(IpcChannels.QueueGet),
+  saveBreakQueue: (payload: BreakQueuePayload): Promise<BreakQueuePayload> =>
+    ipcRenderer.invoke(IpcChannels.QueueSave, payload),
   onLlmChanged: (handler: (payload: LlmChangedPayload) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: LlmChangedPayload): void =>
       handler(payload)

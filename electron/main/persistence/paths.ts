@@ -44,3 +44,8 @@ export function getCatalogPath(): string {
 export function getChangesetsPath(): string {
   return join(getDataDir(), 'changesets.json')
 }
+
+/** Next-breaks planning queue (docs/CATALOG-UI.md §5). */
+export function getQueuePath(): string {
+  return join(getDataDir(), 'queue.json')
+}

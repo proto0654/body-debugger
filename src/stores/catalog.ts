@@ -16,7 +16,7 @@ import type { PickExplanation } from '@shared/domain/picker'
 import { useSettingsStore } from '@/stores/settings'
 import { useSessionsStore } from '@/stores/sessions'
 
-export type ExercisesSection = 'coverage' | 'pick' | 'sets' | 'ai'
+export type ExercisesSection = 'library' | 'sandbox' | 'coverage' | 'sets' | 'ai'
 
 export interface SelectedCoverageCell {
   zone: Zone
@@ -33,8 +33,9 @@ export const useCatalogStore = defineStore('catalog', () => {
   const userExercises = ref<ExerciseV2[]>([])
   const batches = ref<CatalogBatch[]>([shippedBatch()])
   const lastExplanation = ref<PickExplanation | null>(null)
-  const section = ref<ExercisesSection>('coverage')
+  const section = ref<ExercisesSection>('library')
   const selectedCell = ref<SelectedCoverageCell | null>(null)
+  const editExerciseId = ref<string | null>(null)
 
   const resolved = computed(() => {
     const settings = useSettingsStore()
@@ -99,12 +100,22 @@ export const useCatalogStore = defineStore('catalog', () => {
     lastExplanation.value = explanation
   }
 
+  function openManualEdit(id: string): void {
+    editExerciseId.value = id
+    section.value = 'sandbox'
+  }
+
+  function clearManualEdit(): void {
+    editExerciseId.value = null
+  }
+
   return {
     userExercises,
     batches,
     lastExplanation,
     section,
     selectedCell,
+    editExerciseId,
     resolved,
     coverage,
     hints,
@@ -112,6 +123,8 @@ export const useCatalogStore = defineStore('catalog', () => {
     applyCatalogFile,
     openAiForCell,
     clearSelectedCell,
-    setLastExplanation
+    setLastExplanation,
+    openManualEdit,
+    clearManualEdit
   }
 })

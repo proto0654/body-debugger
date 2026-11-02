@@ -84,7 +84,7 @@ describe('DashboardView — optional layers', () => {
   it('keeps the primary sections and groups identity and build in the character section', async () => {
     wrapper = mountDashboard()
     expect(wrapper.get('nav[aria-label="Разделы приложения"]').findAll('button').map(button => button.text()))
-      .toEqual(['Сегодня', 'Персонаж', 'Лаборатория', 'Прогресс', 'Настройки'])
+      .toEqual(['Сегодня', 'Персонаж', 'Лаборатория', 'Прогресс', 'Упражнения', 'Настройки'])
     await wrapper.findAll('nav button').find(button => button.text() === 'Персонаж')!.trigger('click')
     expect(wrapper.findAll('[data-character-pack]')).toHaveLength(10)
     expect(wrapper.findAll('[data-build]')).toHaveLength(3)

@@ -44,7 +44,9 @@ import type {
   CatalogSetStatusPayload,
   CatalogSetBatchEnabledPayload,
   CatalogRenameBatchPayload,
-  CatalogCreateBatchPayload
+  CatalogCreateBatchPayload,
+  CatalogManualEditPayload,
+  BreakQueuePayload
 } from '@shared/types/events'
 import type { Changeset } from '@shared/domain/changeset'
 import type { CatalogBatch } from '@shared/types/exercise-v2'
@@ -139,6 +141,11 @@ export interface BodyDebuggerApi {
   createCatalogBatch: (
     payload: CatalogCreateBatchPayload
   ) => Promise<{ ok: boolean; batch: CatalogBatch | null } & CatalogListPayload>
+  applyCatalogManualEdit: (
+    payload: CatalogManualEditPayload
+  ) => Promise<{ ok: boolean; changeset: Changeset } & CatalogListPayload>
+  getBreakQueue: () => Promise<BreakQueuePayload>
+  saveBreakQueue: (payload: BreakQueuePayload) => Promise<BreakQueuePayload>
   onLlmChanged: (handler: (payload: LlmChangedPayload) => void) => () => void
   onCatalogUpdated: (handler: (payload: CatalogUpdatedPayload) => void) => () => void
 }

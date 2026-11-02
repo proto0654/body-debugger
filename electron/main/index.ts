@@ -74,6 +74,7 @@ app.whenReady().then(() => {
   loadPhotos()
   loadCustomExercises()
   setCatalogOverrides(getSettings().overrides ?? {})
+  // Queue store loads with catalog IPC registration (registerCatalogIpc).
   registerPhotoProtocol()
   registerPersistenceIpc()
   registerSessionCycleIpc()

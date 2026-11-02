@@ -3,10 +3,12 @@ import {
   IpcChannels,
   type CatalogCreateBatchPayload,
   type CatalogListPayload,
+  type CatalogManualEditPayload,
   type CatalogRenameBatchPayload,
   type CatalogSetBatchEnabledPayload,
   type CatalogSetStatusPayload,
-  type CatalogUpdatedPayload
+  type CatalogUpdatedPayload,
+  type BreakQueuePayload
 } from '../../../shared/types/events'
 import { broadcastToWindows } from '../broadcast'
 import {
@@ -17,6 +19,8 @@ import {
   setBatchEnabled,
   setExerciseStatus
 } from '../catalog-store'
+import { applyManualEdit } from '../llm/orchestrator'
+import { getBreakQueue, loadQueueStore, saveBreakQueue } from '../queue-store'
 
 export function catalogListPayload(): CatalogListPayload {
   return {
@@ -55,5 +59,19 @@ export function registerCatalogIpc(): void {
     const batch = createBatch(payload?.name ?? '')
     if (batch) broadcastCatalogUpdated()
     return { ok: batch != null, batch, ...catalogListPayload() }
+  })
+
+  ipcMain.handle(IpcChannels.CatalogManualEdit, (_event, payload: CatalogManualEditPayload) => {
+    const changeset = applyManualEdit(payload.id, payload.patch ?? {}, payload.reason)
+    broadcastCatalogUpdated()
+    return { ok: changeset.status === 'applied', changeset, ...catalogListPayload() }
+  })
+
+  loadQueueStore()
+
+  ipcMain.handle(IpcChannels.QueueGet, () => getBreakQueue())
+
+  ipcMain.handle(IpcChannels.QueueSave, (_event, payload: BreakQueuePayload) => {
+    return saveBreakQueue(payload)
   })
 }

@@ -14,7 +14,8 @@ import type {
 import type { AppChannel } from '../domain/app-identity'
 import type { UpdateState } from '../domain/update'
 import type { Changeset } from '../domain/changeset'
-import type { CatalogFile, LlmSettings } from './exercise-v2'
+import type { CatalogFile, ExerciseV2, LlmSettings } from './exercise-v2'
+import type { BreakQueue } from '../domain/queue'
 import type { GenerateCell } from '../domain/llm-prompt'
 import type { ChangesetKind } from '../domain/changeset'
 
@@ -96,7 +97,10 @@ export const IpcChannels = {
   CatalogSetBatchEnabled: 'catalog:set-batch-enabled',
   CatalogRenameBatch: 'catalog:rename-batch',
   CatalogCreateBatch: 'catalog:create-batch',
-  CatalogUpdated: 'catalog:updated'
+  CatalogManualEdit: 'catalog:manual-edit',
+  CatalogUpdated: 'catalog:updated',
+  QueueGet: 'queue:get',
+  QueueSave: 'queue:save'
 } as const
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels]
@@ -316,3 +320,21 @@ export interface CatalogRenameBatchPayload {
 export interface CatalogCreateBatchPayload {
   name: string
 }
+
+export interface CatalogManualEditPayload {
+  id: string
+  patch: Partial<{
+    title: string
+    description: string
+    timer: ExerciseV2['timer']
+    reps: ExerciseV2['reps']
+    intensity: ExerciseV2['intensity']
+    zones: ExerciseV2['zones']
+    avoidIf: ExerciseV2['avoidIf']
+    context: ExerciseV2['context']
+    method: ExerciseV2['method']
+  }>
+  reason?: string
+}
+
+export type BreakQueuePayload = BreakQueue

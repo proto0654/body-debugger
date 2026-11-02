@@ -38,6 +38,7 @@ import {
   emptyFocusV2,
   migrateFocusV1,
   normalizeFocusV2,
+  normalizeProfileShifts,
   normalizeProfileStrength
 } from '@shared/domain/focus-v2'
 import { PROFILE_STRENGTH_DEFAULT } from '@shared/constants/catalog-tuning'
@@ -235,6 +236,25 @@ export const useSettingsStore = defineStore('settings', () => {
     await persist()
   }
 
+  async function setFocusV2(next: FocusV2): Promise<void> {
+    focusV2.value = normalizeFocusV2(next)
+    await persist()
+  }
+
+  async function setProfileShifts(next: ProfileShift[]): Promise<void> {
+    profileShifts.value = normalizeProfileShifts(next)
+    await persist()
+  }
+
+  async function addUserProfileShift(shift: Omit<ProfileShift, 'source' | 'changesetId'>): Promise<void> {
+    const entry: ProfileShift = { ...shift, source: 'user' }
+    const rest = profileShifts.value.filter(
+      (s) => !(s.axis === entry.axis && s.key === entry.key && s.source === 'user')
+    )
+    profileShifts.value = normalizeProfileShifts([...rest, entry])
+    await persist()
+  }
+
   async function setProfileStrength(next: number): Promise<void> {
     const value = normalizeProfileStrength(next)
     if (value === profileStrength.value) return
@@ -413,6 +433,9 @@ export const useSettingsStore = defineStore('settings', () => {
     toggleFocusAccent,
     cycleZoneLevel,
     cycleMethodLevel,
+    setFocusV2,
+    setProfileShifts,
+    addUserProfileShift,
     setProfileStrength,
     setAutoTune,
     setLlmConfig,

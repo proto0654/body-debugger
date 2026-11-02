@@ -24,6 +24,7 @@ import { useCharacterStore } from '@/stores/character'
 import { useSettingsStore } from '@/stores/settings'
 import { useReminderStore } from '@/stores/reminder'
 import { useSessionsStore } from '@/stores/sessions'
+import { useQueueStore } from '@/stores/queue'
 import { CHARACTER_BRANCH_LABELS, CHARACTER_STAGE_LABELS } from '@shared/constants/character'
 import { characterJourney } from '@shared/domain/character-progress'
 import { CHARACTER_CONDITION_MAX_POINTS, CHARACTER_CONDITION_RECOVERY_POINTS } from '@shared/domain/character-condition'
@@ -52,6 +53,7 @@ const character = useCharacterStore()
 const settings = useSettingsStore()
 const reminder = useReminderStore()
 const sessions = useSessionsStore()
+const breakQueue = useQueueStore()
 const now = ref(nowDate())
 const chronicleManual = ref<ManualCharacterState | null>(null)
 const chronicleContext = computed<CharacterContext>(() => ({
@@ -98,6 +100,7 @@ function navigateFromHash(): void {
 watch(() => runtime.revision, refreshClock, { flush: 'sync' })
 onMounted(() => {
   resetReaction()
+  void breakQueue.refresh()
   clock = setInterval(refreshClock, 30_000)
   document.addEventListener('visibilitychange', refreshClock)
   window.addEventListener('hashchange', navigateFromHash)
@@ -187,6 +190,9 @@ async function triggerReminder(): Promise<void> {
             <span class="text-xs text-slate-500">Одно упражнение за раз</span>
           </div>
           <p class="mt-4 text-xs" :class="reminder.paused ? 'text-amber-400' : 'text-slate-400'">{{ reminder.nextTriggerLabel }}</p>
+          <p v-if="breakQueue.summary" class="mt-2 text-xs text-slate-400" data-testid="queue-plan-hint">
+            Дальше по плану: {{ breakQueue.summary }}
+          </p>
           <p class="mt-3 text-xs text-emerald-400">{{ journey.nextStage === null ? 'Пиковая форма достигнута' : `${remainingLabel} до формы «${CHARACTER_STAGE_LABELS[journey.nextStage]}»` }}</p>
           <div v-if="character.condition.points > 0" class="mt-4 max-w-sm rounded-xl border border-amber-400/25 bg-amber-400/5 p-3 text-xs leading-relaxed" data-testid="character-condition" role="status">
             <p class="font-semibold text-amber-300">{{ character.conditionLabel }} · {{ character.condition.points }} / {{ CHARACTER_CONDITION_MAX_POINTS }}</p>

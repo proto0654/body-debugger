@@ -13,6 +13,10 @@ import type {
 } from './character'
 import type { AppChannel } from '../domain/app-identity'
 import type { UpdateState } from '../domain/update'
+import type { Changeset } from '../domain/changeset'
+import type { CatalogFile, LlmSettings } from './exercise-v2'
+import type { GenerateCell } from '../domain/llm-prompt'
+import type { ChangesetKind } from '../domain/changeset'
 
 /** Tray visual states from CONCEPT.md §4 / §13 */
 export type TrayState = 'idle' | 'soon' | 'standup' | 'success' | 'streak'
@@ -72,7 +76,25 @@ export const IpcChannels = {
   AppUpdateCheck: 'app:update-check',
   AppUpdateInstall: 'app:update-install',
   AppUpdateDismiss: 'app:update-dismiss',
-  AppUpdateChanged: 'app:update-changed'
+  AppUpdateChanged: 'app:update-changed',
+  LlmGetConfig: 'llm:get-config',
+  LlmSaveConfig: 'llm:save-config',
+  LlmSetKey: 'llm:set-key',
+  LlmTest: 'llm:test',
+  LlmPreviewRequest: 'llm:preview-request',
+  LlmRun: 'llm:run',
+  LlmCancel: 'llm:cancel',
+  LlmGetChangeset: 'llm:get-changeset',
+  LlmToggleOp: 'llm:toggle-op',
+  LlmApply: 'llm:apply',
+  LlmDiscard: 'llm:discard',
+  LlmRevert: 'llm:revert',
+  LlmChanged: 'llm:changed',
+  CatalogList: 'catalog:list',
+  CatalogSetStatus: 'catalog:set-status',
+  CatalogSetBatchEnabled: 'catalog:set-batch-enabled',
+  CatalogRenameBatch: 'catalog:rename-batch',
+  CatalogUpdated: 'catalog:updated'
 } as const
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels]
@@ -223,4 +245,68 @@ export type UpdateStatePayload = UpdateState
 export interface UpdateInstallResult {
   started: boolean
   reason: 'not-ready' | 'popup-open' | null
+}
+
+export interface LlmConfigPayload {
+  llm: LlmSettings
+  hasKey: boolean
+}
+
+export interface LlmSaveConfigPayload {
+  llm: Partial<LlmSettings>
+}
+
+export interface LlmSetKeyPayload {
+  key: string
+}
+
+export interface LlmPreviewRequestPayload {
+  kind: ChangesetKind
+  targetSetId?: string
+  cells?: GenerateCell[]
+  instruction?: string
+  aggregates?: unknown
+}
+
+export interface LlmPreviewResponsePayload {
+  system: string
+  user: string
+  payload: unknown
+  estimatedTokens: number
+}
+
+export type LlmRunPayload = LlmPreviewRequestPayload
+
+export interface LlmToggleOpPayload {
+  changesetId: string
+  index: number
+  enabled?: boolean
+}
+
+export interface LlmChangedPayload {
+  changeset: Changeset
+}
+
+export interface CatalogListPayload {
+  catalog: CatalogFile
+  resolvedCount: number
+}
+
+export interface CatalogUpdatedPayload {
+  catalog: CatalogFile
+}
+
+export interface CatalogSetStatusPayload {
+  id: string
+  status: 'active' | 'archived'
+}
+
+export interface CatalogSetBatchEnabledPayload {
+  id: string
+  enabled: boolean
+}
+
+export interface CatalogRenameBatchPayload {
+  id: string
+  name: string
 }

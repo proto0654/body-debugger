@@ -461,6 +461,7 @@ function finishFeedback(): void {
             <div class="popup-cast-fill" :style="{ width: `${progressPercent}%` }"></div>
           </div>
           <span class="popup-cast-time" :class="isUrgent ? 'timer-urgent is-urgent' : ''">{{ timeLabel }}</span>
+          <span v-if="sessions.currentExercise?.perSide" class="popup-hud-note">На каждую сторону</span>
         </div>
         <div class="popup-actions" :class="arcadeLocked ? 'pointer-events-none is-locked' : ''">
           <button v-if="!sessions.current && !resolved" type="button" class="popup-action" :disabled="arcadeLocked" @click.stop="closeResolved(true)">Закрыть</button>

@@ -17,6 +17,9 @@ import { registerPhotoIpc } from './ipc/photos'
 import { loadPhotos } from './photos'
 import { loadCustomExercises } from './custom-exercises'
 import { registerCustomExerciseIpc } from './ipc/custom-exercises'
+import { registerCatalogIpc } from './ipc/catalog'
+import { registerLlmIpc } from './ipc/llm'
+import { setCatalogOverrides } from './catalog-store'
 import { registerPhotoProtocol, registerPhotoScheme } from './photo-protocol'
 import { registerAppIpc } from './ipc/app'
 import { registerUpdateIpc } from './ipc/updates'
@@ -70,11 +73,14 @@ app.whenReady().then(() => {
   loadPersistence()
   loadPhotos()
   loadCustomExercises()
+  setCatalogOverrides(getSettings().overrides ?? {})
   registerPhotoProtocol()
   registerPersistenceIpc()
   registerSessionCycleIpc()
   registerPhotoIpc()
   registerCustomExerciseIpc()
+  registerCatalogIpc()
+  registerLlmIpc()
   registerAppIpc()
   if (isLabProcess()) {
     // The headless sandbox still needs the popup/preview lab IPC.

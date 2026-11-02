@@ -20,7 +20,7 @@ Project docs and this file override global agent rules when they conflict.
 1. [docs/CONTEXT.md](docs/CONTEXT.md) — permanent snapshot
 2. [docs/README.md](docs/README.md) — docs hub
 3. [CONCEPT.md](CONCEPT.md) — product rules (cycle, character, picker)
-4. Optional layers: [docs/SOUNDS.md](docs/SOUNDS.md), [docs/TESTING.md](docs/TESTING.md)
+4. Optional layers: [docs/SOUNDS.md](docs/SOUNDS.md), [docs/TESTING.md](docs/TESTING.md), [docs/CATALOG-V2.md](docs/CATALOG-V2.md)
 
 ## Repository
 
@@ -42,9 +42,10 @@ Project docs and this file override global agent rules when they conflict.
 | Per-clip audio API generator + take log | `scripts/generate-audio-api.mjs`, `src/assets/sounds/api-report.json` |
 | Voice Design casting + sound effects generators | `scripts/cast-voices-api.mjs`, `scripts/generate-effects-api.mjs` |
 | Progress photos (rules, main store, protocol, UI) | `shared/domain/photos.ts`, `electron/main/photos.ts`, `electron/main/photo-protocol.ts`, `src/components/photos/` |
+| Catalog V2 (model, picker, dose, tune, LLM) | [docs/CATALOG-V2.md](docs/CATALOG-V2.md), `shared/domain/catalog.ts`, `picker.ts`, `dose.ts`, `tune.ts`, `electron/main/catalog-store.ts`, `electron/main/llm/`, `src/components/catalog/` |
 | AI proposals (parsing, approval, store, UI) | `shared/domain/ai-proposal.ts`, `electron/main/custom-exercises.ts`, `src/components/ai/` |
 | Themes / equipment | `shared/constants/themes.ts`, `shared/constants/equipment.ts`, `src/styles/index.css` |
-| Core preferences (interval, picker mode, Focus, identity/build) | `shared/domain/preferences.ts`, `shared/constants/focus.ts`, `src/components/settings/` |
+| Core preferences (interval, picker mode, Focus V2 / λ, identity/build) | `shared/domain/preferences.ts`, `shared/domain/focus-v2.ts`, `shared/constants/focus.ts`, `src/components/settings/` |
 | Dashboard calendar + stats | `shared/domain/stats.ts`, `src/components/stats/` |
 | Real-history chronicle (read-only timeline, shared playback engine) | `shared/domain/chronicle.ts`, `src/components/character/CharacterChronicle.vue`, `electron/main/chronicle-playback.ts`, `shared/domain/character-context.ts` |
 | Shared session summary / transition text | `shared/domain/character-summary.ts` |
@@ -58,7 +59,7 @@ Project docs and this file override global agent rules when they conflict.
 | Vue renderer | `src/` |
 | Pinia hydrate | `src/bootstrap/hydrate.ts` |
 | Shared types & validation | `shared/` |
-| Exercise catalog + domain rules (picker, character, session extras, weight) | `shared/constants/exercises.ts`, `shared/domain/` |
+| Exercise catalog + domain rules (picker, character, session extras, weight) | `shared/constants/exercises.ts`, `shared/constants/catalog-axes.ts`, `shared/constants/catalog-tuning.ts`, `shared/domain/` |
 | Character assets (source sheets + cut frames) | `src/assets/character/desk-hulk/` |
 | Additional character art (nine packs, three builds) | [Art library](src/assets/character/README.md), `src/assets/character/packs.json` |
 | Character profile / evolution | `src/components/character/CharacterSettingsPanel.vue`, `src/components/character/CharacterJourney.vue` |
@@ -78,7 +79,7 @@ Project docs and this file override global agent rules when they conflict.
 | Launch at login / system settings | `shared/domain/launch-at-login.ts`, `electron/main/launch-at-login.ts`, `src/components/settings/SystemPanel.vue` |
 | Main-process log, build stamp, app info IPC | `electron/main/logger.ts`, `electron/main/build-info.ts`, `electron/main/ipc/app.ts`, `src/components/settings/AboutPanel.vue` |
 | Tests (Vitest) | `tests/`, `vitest.config.ts` |
-| Docs | `docs/` |
+| Docs | `docs/` (hub [docs/README.md](docs/README.md); Catalog V2 [docs/CATALOG-V2.md](docs/CATALOG-V2.md)) |
 | `/actualize` | [.cursor/commands/actualize.md](.cursor/commands/actualize.md) |
 
 ## Commands

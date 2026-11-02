@@ -16,6 +16,7 @@ import {
 import { broadcastToWindows } from '../broadcast'
 import { refreshTrayPortrait, syncLoopFromSettings } from '../trigger-loop'
 import { rememberLabPreferences } from '../laboratory'
+import { setCatalogOverrides } from '../catalog-store'
 
 export async function getSnapshotRequest(): Promise<ReturnType<typeof getSnapshot>> {
   return getSnapshot()
@@ -23,6 +24,7 @@ export async function getSnapshotRequest(): Promise<ReturnType<typeof getSnapsho
 
 export async function saveSettingsRequest(payload: DataSaveSettingsPayload): Promise<ReturnType<typeof updateSettings>> {
   const snapshot = updateSettings(payload)
+  setCatalogOverrides(snapshot.settings.overrides ?? {})
   broadcastToWindows(IpcChannels.DataUpdated, snapshot)
   // Interval / pause changes must reach the reminder schedule.
   syncLoopFromSettings()

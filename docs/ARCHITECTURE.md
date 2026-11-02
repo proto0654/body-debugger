@@ -20,8 +20,10 @@ electron/main/broadcast.ts  # Window broadcast helpers
 electron/main/persistence/  # JSON SoT (settings / progress / sessions / weights)
 electron/main/photos.ts     # Photo files + metadata (main-owned)
 electron/main/photo-protocol.ts # photo://<id> scheme for the renderer
-electron/main/custom-exercises.ts # Approved AI exercises
-electron/main/ipc/          # session-cycle, persistence, photos, AI, debug channels
+electron/main/catalog-store.ts # Catalog V2 SoT (catalog.json + changesets)
+electron/main/custom-exercises.ts # Compatibility re-exports over catalog-store
+electron/main/llm/          # Optional OpenAI-compatible provider, secrets, orchestrator
+electron/main/ipc/          # session-cycle, persistence, photos, catalog, llm, debug channels
 electron/preload/           # contextBridge → window.api
 src/                        # Vue renderer
 src/bootstrap/              # hydrate Pinia from main snapshot + optional layers
@@ -30,8 +32,9 @@ src/sounds.ts               # Cue URLs + gated renderer player (effects and char
 src/voice-assets.ts         # Manifest of the generated voice/effect takes (import.meta.glob)
 src/photos.ts               # photo:// URL helper
 src/styles/index.css        # Tailwind entry, keyframes, theme tokens, reduced-motion overrides
-src/stores/                 # sessions, progress, settings, character, reminder, weight, photos, AI
-src/components/             # UI (character, weight, stats, photos, AI)
+src/stores/                 # sessions, progress, settings, character, reminder, weight, photos, catalog, AI
+src/components/             # UI (character, weight, stats, photos, catalog, AI)
+src/components/catalog/     # Dashboard «Упражнения» (coverage / pick / sets / AI)
 src/debug/                  # Laboratory host, panels and previews (dashboard «Лаборатория»)
 src/components/character/   # Portraits, journey, chronicle and the shared progress charts
 src/assets/character/       # Manifest, ten selectable identities and cut frames
@@ -39,9 +42,10 @@ src/assets/sounds/default/  # Default cue pack (mp3)
 src/assets/sounds/<character>/ # Generated voice takes + archived sources
 src/assets/sounds/system/   # Shared effect takes
 shared/types/               # Exercise, Session, Character, Progress, Settings, Photo, Events, Persistence
-shared/domain/              # Pure rules: picker, character, severity, extras, weight, sounds, photos, AI, streak, stats, chronicle
+shared/domain/              # Pure rules: picker v2, catalog, dose, tune, character, severity, extras, weight, sounds, photos, AI, streak, stats, chronicle
 shared/validation/          # Exercise + Session payload guards
-shared/constants/           # stage keys, exercise/equipment catalogs, themes, popup geometry
+shared/constants/           # stage keys, exercise/equipment catalogs, catalog axes/tuning, themes, popup geometry
+shared/types/exercise-v2.ts # Zone / Method / ExerciseV2 / FocusV2 / catalog file types
 ```
 
 ## Persistence (main-owned)
@@ -52,11 +56,13 @@ On disk under `.userdata/data/` (see [DEVELOPMENT.md](DEVELOPMENT.md)):
 
 | File | Payload |
 |------|---------|
-| `settings.json` | `AppSettings` |
+| `settings.json` | `AppSettings` (includes Focus V2, λ, LLM config without key, overrides, autoTune) |
 | `progress.json` | `UserProgress` |
-| `sessions.json` | `Session[]` |
+| `sessions.json` | `Session[]` (optional `plannedSec`, `pickTrace`) |
 | `weights.json` | `WeightEntry[]` (optional layer) |
-| `custom-exercises.json` | Approved AI exercises (optional layer) |
+| `catalog.json` | Catalog V2 user/llm layer (`version: 2`, exercises + named batches) |
+| `changesets.json` | Last ~30 LLM/catalog changesets (ops, inverse, status, usage) |
+| `custom-exercises.json` | Legacy AI approvals; migrated once into `catalog.json` as batch `legacy-import` |
 | `photos.json` | Photo metadata (optional layer) |
 
 Photo **files** live outside `data/` in `.userdata/photos/`; `photos.json` only stores
@@ -103,41 +109,62 @@ The persisted JSON schema stays at version 1: no migration is needed. Character 
 | Missed | Open popup without an answer for 5 min → `missed`, popup closed |
 | Closed popup | Closing the popup without a result → `skipped` |
 
+### Catalog V2
+
+Design reference: [CATALOG-V2.md](CATALOG-V2.md). Runtime pieces:
+
+| Piece | Owner |
+|-------|-------|
+| Types / upgrade / validation | `shared/types/exercise-v2.ts`, `shared/domain/exercise-v2.ts` |
+| Resolve layers | `shared/domain/catalog.ts`, `electron/main/catalog-store.ts` |
+| Picker + explanation | `shared/domain/picker.ts`; `exercise-picker.ts` is a thin v1 adapter |
+| Dose / intensity cap | `shared/domain/dose.ts` (trigger loop writes `plannedSec`) |
+| Coverage / target vs actual | `shared/domain/coverage.ts` |
+| Changesets / LLM parse | `shared/domain/changeset.ts`, `llm-prompt.ts`, `llm-parse.ts` |
+| Progress hints | `shared/domain/tune.ts` (`autoTune`: suggest / auto / off) |
+| Focus V2 + λ | `shared/domain/focus-v2.ts`; old primary/accents migrate on load |
+| Dashboard tab | `src/components/catalog/*`, `src/stores/catalog.ts` |
+| LLM IPC | `electron/main/llm/*`, `electron/main/ipc/llm.ts`, `ipc/catalog.ts` |
+
+Shipped exercises are immutable; edits fork into a user batch. `custom-exercises.json` migrates once into `catalog.json`. The LLM never runs in the reminder loop; keys stay in `safeStorage`. Mock provider: `baseUrl === 'mock://local'`.
+
 ### Exercise picker
 
-`shared/domain/exercise-picker.ts` — pure function, main calls it on every trigger.
+`shared/domain/picker.ts` (adapter: `exercise-picker.ts`) — main calls it on every trigger. Weights use zone-vector overlap, method repeat, zone neglect, share-based profile boost (λ) and mode.
 
 | Rule | Behaviour |
 |------|-----------|
-| Base | Every available exercise starts at weight 1 |
-| Previous session | ×0.2 for the same category, ×0.45 for the same group (last **done** session only) |
-| Done today | ×0.45 for a category already trained today, ×0.8 for the group |
-| Neglect | ×1…×1.8 by days since the category was last done (caps at 7 days) |
-| Focus | ×1.6 for the primary direction, ×1.25 for an accent |
-| Inventory | Equipment exercises need `inventory.enabled` and the owned item |
-| Modes | `balance` (default), `rotation` (drops the previous category), `focus` (×2.4 primary), `push` (×3 for the most neglected category) |
+| Hard filters | Missing inventory, intensity above `intensityCap(interval)`, `avoidIf` ∩ limitations, archived / disabled batch, context prefs |
+| Previous / today | `1 − 0.8·overlap` with last done zones; `1 − 0.55·overlap` with today's clipped zone load |
+| Method repeat | ×0.75 when the method matches the last done method |
+| Neglect | Zone-weighted ×1…×1.8 by days since that zone was last done (cap 7) |
+| Profile | Share-based boost toward Focus V2 targets over 14 days; λ = `profileStrength` (focus mode ×1.5, clamped) |
+| Inventory | Equipment exercises need `inventory.enabled` and every listed item owned |
+| Modes | `balance`; `rotation` cycles zones upper→lower→core→full; `focus` strengthens λ; `push` ×3 the most neglected zone |
+| Dose | Timer scaled by `(interval/45)^0.35` inside per-exercise min/max; optional personal `overrides[id].scale` |
 
-Skipped / snoozed / missed sessions never count as training. Difficulty and
-`exerciseLevels` are not weighted yet — a later pass, once stage/severity data is used.
+Skipped / snoozed / missed sessions never count as training. Character branch scoring uses Catalog V2 rules (dominant zone / method) via `upgradeExercise` in `character-progress.ts`.
 
 ### Core preferences
 
-`shared/domain/preferences.ts` — interval, picker mode and Focus rules; `src/components/settings/PreferencesPanel.vue` renders them on the dashboard «Настройки» tab.
+`shared/domain/preferences.ts` — interval and picker mode; Focus V2 lives in `shared/domain/focus-v2.ts`. `PreferencesPanel.vue` renders them on «Настройки».
 
 | Rule | Behaviour |
 |------|-----------|
-| Interval | `settings.intervalMinutes`, integer 5–240; out-of-range and non-numeric input is rejected, never clamped; every save reschedules the loop through `syncLoopFromSettings` |
-| Picker mode | `balance` / `rotation` / `focus` / `push`; an unknown id falls back to `balance` on load |
-| Focus | One primary direction plus accents; unknown ids are dropped, accents stay unique and never repeat the primary |
-| Build | `progress.characterBuild` (`lean` / `average` / `stocky`); presentation only, `neutral` means "not chosen" |
-| Character | `settings.characterPackId`; Desk Hulk plus the nine manifest identities, normalized to the default for unknown IDs |
-| Storage | Interval, mode, Focus and identity live in `settings.json`; build lives in `progress.json` |
+| Interval | `settings.intervalMinutes`, integer 5–240; out-of-range rejected; save reschedules via `syncLoopFromSettings` and changes dose |
+| Picker mode | `balance` / `rotation` / `focus` / `push`; unknown → `balance` |
+| Focus V2 | Zone and method chips cycle `− / 0 / + / ++`; legacy primary/accents migrate to levels |
+| λ | `profileStrength` 0…1 (default 0.7), labelled Мягко / Обычно / Жёстко |
+| autoTune | `suggest` (default) / `auto` / `off` for personal dose hints on «Наборы» |
+| Build | `progress.characterBuild` (`lean` / `average` / `stocky`); presentation only |
+| Character | `settings.characterPackId`; Desk Hulk plus nine manifest identities |
+| Storage | Interval, mode, Focus V2, λ, LLM config (no key), overrides and identity in `settings.json`; build in `progress.json` |
 
-`#/dashboard?tab=settings` opens the tab directly. The tray «Настройки» item opens it in a new dashboard or sends `window:navigate-dashboard` with `{ tab }` to an existing window without reloading the renderer.
+`#/dashboard?tab=settings` and `?tab=exercises` open those tabs. The tray «Настройки» item still deep-links settings.
 
-The dashboard has five primary sections: «Сегодня», «Персонаж», «Лаборатория», «Прогресс» and «Настройки». Today contains the hero, day counts, streak, a compact journey and optional quick weight entry. «Персонаж» uses `SectionTabs.vue`: «Профиль» groups identity/build with a preview (`CharacterSettingsPanel.vue`) and the full evolution (`CharacterJourney.vue`); «Хроника» is the real-history timeline with temporary manual controls and the shared arcade `NativePlayback` engine. «Лаборатория» mounts the sandbox UI natively via `LaboratoryHost.vue`. `ProgressPanel.vue` groups calendar, statistics, full weight history and photos using the same keyboard-accessible tabs. Legacy `tab=calendar` / `tab=stats` links select the matching progress subsection; `tab=playground` aliases to laboratory.
+The dashboard has six primary sections: «Сегодня», «Персонаж», «Лаборатория», «Прогресс», «Упражнения» and «Настройки». «Упражнения» uses `SectionTabs` for Покрытие / Выбор / Наборы / AI. Today contains the hero, day counts, streak, a compact journey and optional quick weight entry. «Персонаж» uses `SectionTabs.vue`: «Профиль» and «Хроника». «Лаборатория» mounts via `LaboratoryHost.vue`. `ProgressPanel.vue` groups calendar, statistics, weight and photos. Legacy `tab=calendar` / `tab=stats` select progress subsections; `tab=playground` aliases to laboratory.
 
-`PreferencesPanel.vue` groups interval/strictness and picker/Focus. Its selection group reuses `ComfortSettingsPanel.vue` for inventory and AI approval. The presentation group owns sound with volume/previews, weight/photo switches, themes and reduced motion; each layer's controls stay beside its switch. Character identity/build remain on «Персонаж». Stage changes and completed breaks trigger a brief non-blocking banner. The Electron application menu is hidden by default. The dashboard height is capped at 900 px and the available work area minus 80 px; shorter screens keep normal scrolling.
+`PreferencesPanel.vue` groups interval/strictness, picker mode and Focus V2 + λ + autoTune. Selection still reuses `ComfortSettingsPanel.vue` for inventory; «Импорт из AI» links to «Упражнения». Character identity/build remain on «Персонаж».
 
 ### Popup severity
 
@@ -235,18 +262,11 @@ The layer is off by default (`settings.photos.enabled`). `photoIds` are only car
 
 `<img src="photo://…">` only works because the renderer CSP lists `photo:` in `img-src` ([index.html](../index.html)); `'self'` does not cover a different scheme. `tests/unit/csp.test.ts` pins that down — dropping the scheme silently blanks the popup thumbnail and the gallery.
 
-### AI proposals
+### AI proposals and Catalog LLM
 
-`shared/domain/ai-proposal.ts`, `electron/main/custom-exercises.ts`.
+Paste-import (legacy UI path): `shared/domain/ai-proposal.ts` still validates a single `Exercise` and `catalog-store.addCustomExercise` writes into `catalog.json` (batch «Мои упражнения»). Shipped ids always win.
 
-| Rule | Behaviour |
-|------|-----------|
-| Input | User pastes an AI answer; JSON may sit inside prose or a markdown fence |
-| Validation | The object must pass `isValidExercise` (required fields, difficulty, group, focus tags) |
-| Approval | Nothing is written until «Утвердить»; a shipped or already-approved id cannot be replaced |
-| Storage | `data/custom-exercises.json`; shipped catalog wins on id conflicts |
-| Picker | Main merges shipped + approved exercises for every trigger |
-| No AI | The layer is off by default and the app works without it; no network call is made |
+Provider path (dashboard «Упражнения → AI»): OpenAI-compatible chat via `electron/main/llm/` (DeepSeek-compatible). Config in settings; API key in `safeStorage` only. Flow: preview payload → run → parse/validate ops → awaiting approval → atomic apply with inverse ops → revert. Kinds: `generate`, `edit`, `retag`, `tune`. Nothing is written without approval. Runtime picker never calls the network. `llm.shareProgress` (default off) gates progress-advisor payloads. Details: [CATALOG-V2.md](CATALOG-V2.md).
 
 ### Themes and inventory
 

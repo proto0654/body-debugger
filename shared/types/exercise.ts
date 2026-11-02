@@ -24,4 +24,6 @@ export interface Exercise {
   group?: ExerciseGroup
   /** Focus directions this exercise serves (CONCEPT §6); omitted = no preference bonus */
   focus?: FocusDirection[]
+  /** Timer is per side (left/right); popup should say so (Catalog V2). */
+  perSide?: boolean
 }

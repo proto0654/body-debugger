@@ -1,5 +1,13 @@
 import type { UserFocus } from './progress'
 import type { WeightSettings } from './weight'
+import type {
+  AutoTuneMode,
+  ExerciseOverride,
+  FocusV2,
+  Limitation,
+  LlmSettings,
+  ProfileShift
+} from './exercise-v2'
 
 /** Fixation severity from CONCEPT.md §3 */
 export type SeverityLevel = 'soft' | 'medium' | 'hardcore'
@@ -43,7 +51,17 @@ export interface AppSettings {
   severity: SeverityLevel
   /** Minutes between triggers (counted from last session completion) */
   intervalMinutes: number
+  /** Legacy Focus (primary + accents); kept for migration and v1 UI until fully replaced. */
   focus: UserFocus
+  /** Two-axis Focus (zones × methods). */
+  focusV2: FocusV2
+  /** Profile strength λ in [0, 1]; default 0.7. */
+  profileStrength: number
+  profileShifts: ProfileShift[]
+  limitations: Limitation[]
+  overrides: Record<string, ExerciseOverride>
+  autoTune: AutoTuneMode
+  llm: LlmSettings
   pickerMode: ExercisePickerMode
   inventory: InventorySettings
   sessionExtras: SessionExtrasSettings

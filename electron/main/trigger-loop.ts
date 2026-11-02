@@ -6,6 +6,8 @@ import { paintTrayPortrait, setTrayPortraitRepaint, stopTrayPortrait } from './t
 import { powerMonitor } from 'electron'
 import { getAvailableCatalog } from './custom-exercises'
 import { pickNextExercise } from '../../shared/domain/exercise-picker'
+import { dose } from '../../shared/domain/dose'
+import { upgradeExercise } from '../../shared/domain/exercise-v2'
 import { normalizeSessionExtras } from '../../shared/domain/session-extras'
 import { normalizePhotoIds } from '../../shared/domain/photos'
 import { getPhoto } from './photos'
@@ -287,6 +289,7 @@ function completeSession(
     exerciseId: origin.exerciseId,
     status,
     durationSec: extras.durationSec ?? origin.durationSec,
+    plannedSec: origin.durationSec,
     triggeredAt: origin.triggeredAt,
     completedAt: nowDate().toISOString(),
     // Untrusted renderer input: only in-range details are stored.
@@ -410,14 +413,19 @@ export function missActivePopup(): void {
   handleMissed(awaiting.sessionId)
 }
 
-/** Pick the next exercise from stored history + settings (CONCEPT §7). */
+/** Pick the next exercise from stored history + settings (CONCEPT §7 / CATALOG-V2). */
 function pickForCycle(): Exercise {
-  return pickNextExercise({
+  const settings = getSettings()
+  const exercise = pickNextExercise({
     catalog: getAvailableCatalog(),
     recentSessions: getSnapshot().sessions,
-    settings: getSettings(),
+    settings,
     now: nowDate()
   })
+  const v2 = upgradeExercise(exercise)
+  const scale = settings.overrides?.[exercise.id]?.scale ?? 1
+  const plannedSec = dose(v2.timer, settings.intervalMinutes, scale)
+  return { ...exercise, durationSec: plannedSec }
 }
 
 /** Show the popup for one exercise and start the answer timeout. */

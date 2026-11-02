@@ -6,6 +6,7 @@ Slim TOC. Agents start from [CONTEXT.md](CONTEXT.md).
 |-------|------|
 | Permanent project snapshot | [CONTEXT.md](CONTEXT.md) |
 | Code layout, IPC cycle, skeleton status | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Catalog V2 (axes, picker, dose, LLM changesets) | [CATALOG-V2.md](CATALOG-V2.md) |
 | Explorable architecture snapshot (2026-10-30) | [Diagram](../.archify/architecture-app-20261030-020407/body-debugger-architecture.html) |
 | Run / cache / Electron on E: | [DEVELOPMENT.md](DEVELOPMENT.md) |
 | Installer, prod/dev channels, updates, autostart, release flow | [DELIVERY.md](DELIVERY.md) |

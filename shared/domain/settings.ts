@@ -8,6 +8,14 @@ export function cloneSettings(settings: AppSettings): AppSettings {
       primary: settings.focus.primary,
       accents: [...settings.focus.accents]
     },
+    focusV2: {
+      zones: { ...settings.focusV2.zones },
+      methods: { ...settings.focusV2.methods }
+    },
+    profileShifts: settings.profileShifts.map((shift) => ({ ...shift })),
+    limitations: [...settings.limitations],
+    overrides: { ...settings.overrides },
+    llm: { ...settings.llm },
     inventory: {
       enabled: settings.inventory.enabled,
       items: [...settings.inventory.items]

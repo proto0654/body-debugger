@@ -42,7 +42,8 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Sounds rules + renderer player + generated voice manifest | `shared/domain/sounds.ts`, `src/sounds.ts`, `src/voice-assets.ts` |
 | Sound auditioning (laboratory) | `src/debug/SoundAuditionPanel.vue` |
 | Photo rules / main store / protocol / UI | `shared/domain/photos.ts`, `electron/main/photos.ts`, `electron/main/photo-protocol.ts`, `src/components/photos/` |
-| AI proposal parsing + approval | `shared/domain/ai-proposal.ts`, `electron/main/custom-exercises.ts`, `src/components/ai/` |
+| Catalog V2 (resolve, picker, dose, tune, LLM) | [CATALOG-V2.md](CATALOG-V2.md), `shared/domain/catalog.ts`, `picker.ts`, `dose.ts`, `electron/main/catalog-store.ts`, `electron/main/llm/`, `src/components/catalog/` |
+| AI proposal parsing + approval (legacy paste + catalog write) | `shared/domain/ai-proposal.ts`, `electron/main/custom-exercises.ts`, `src/components/ai/` |
 | Themes + equipment catalogs | `shared/constants/themes.ts`, `shared/constants/equipment.ts` |
 | Dashboard aggregation (heatmap / stats) | `shared/domain/stats.ts`, `src/components/stats/` |
 | Real-history chronicle (shared playback engine, no profile writes) | `shared/domain/chronicle.ts`, `src/components/character/CharacterChronicle.vue`, `electron/main/chronicle-playback.ts`, `shared/domain/character-context.ts` |
@@ -58,8 +59,8 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 | Stores | `src/stores/` |
 | Reminder schedule store (UI mirror) | `src/stores/reminder.ts` |
 | Domain rules (picker, character, severity, session extras, weight) | `shared/domain/` |
-| Core preferences (interval, picker mode, Focus, identity/build) | `shared/domain/preferences.ts`, `shared/constants/focus.ts`, `src/components/settings/` |
-| Exercise catalog (34) | `shared/constants/exercises.ts` |
+| Core preferences (interval, picker mode, Focus V2 / λ, identity/build) | `shared/domain/preferences.ts`, `shared/domain/focus-v2.ts`, `shared/constants/focus.ts`, `src/components/settings/` |
+| Exercise catalog (34 shipped) + V2 axes/tuning | `shared/constants/exercises.ts`, `shared/constants/catalog-axes.ts`, `shared/constants/catalog-tuning.ts` |
 | Shared types | `shared/types/` |
 | Exercise validation | `shared/validation/exercise.ts` |
 | Desk Hulk assets (sheets + cut frames) | `src/assets/character/desk-hulk/` |
@@ -88,6 +89,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 |---------|-------|
 | Product rules (cycle, severity, character model, picker) | [CONCEPT.md](../CONCEPT.md) |
 | What code already reflects | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Catalog V2 design + acceptance | [CATALOG-V2.md](CATALOG-V2.md) |
 | How to run / caches | [DEVELOPMENT.md](DEVELOPMENT.md) |
 | Installer, updates, build stamp | [DELIVERY.md](DELIVERY.md) |
 | Optional sound cues + packs | [SOUNDS.md](SOUNDS.md) |
@@ -99,7 +101,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 - Happy path: `npm run dev` (HMR) for daily work; stable GitHub prod installs + in-app updates for shipped use. Retiring the side-by-side Dev channel is ROADMAP #18.
 - Keep the app runnable (`npm run dev` → tray + dashboard; data survives restart).
 - Trigger loop: interval from last completion, idle hold/reset, snooze, tray + dashboard pause, `missed` timeout.
-- Picker: 34-exercise catalog plus approved AI exercises, zone/group penalties, neglect bonus, Focus, inventory gate, four modes.
+- Picker (Catalog V2): zone-vector weights, share-based Focus V2 + λ, dose by interval, inventory / intensity / limitations filters, four modes (rotation = zone cycle). User/llm exercises live in `catalog.json`; legacy `custom-exercises.json` migrates once.
 - Character stage/branch and a **day-based streak** derive from history. Streak is recomputed on snapshot reads and in the dashboard clock, so a gap cannot leave an old active run visible.
 - Temporary character condition also derives from history: skips/misses add points (cap 10), completions remove 2; levels at 3/6/10 select nine generated neglect bodies. Earned stage/branch and selected build are preserved; see [ARCHITECTURE.md](ARCHITECTURE.md#temporary-character-condition).
 - Severity: explicit «Начать» starts the timer. Medium/Hardcore gate «Готово» at 80%; Hardcore accepts pointer or keyboard hold. Results are acknowledged after a durable session write and retries are idempotent.
@@ -110,13 +112,13 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 - Optional layers are live (new profiles enable sounds at 40%; other layers are off by default): weight history, photos, inventory, sounds, AI proposals, themes. Session-detail fields remain in history/validation; the popup no longer collects them.
 - The [audio production package](AUDIO-PRODUCTION.md) authors ten voice profiles, 400 voice positions and nine shared effect prompts in `src/assets/sounds/production.json`. Manual pilots use separated batch tracks with `scripts/cut-audio-batch.py`; Voice Design casting, per-clip speech and Sound Effects generation use `scripts/cast-voices-api.mjs`, `scripts/generate-audio-api.mjs` and `scripts/generate-effects-api.mjs`, logging takes in `src/assets/sounds/api-report.json`. Selection, duration and review records live with the catalog/sources. All ten voices are cast and every position has a first take, but nothing has been listened to: 45 takes exceed their budget and four chuckles are under 0.2 s.
 - The generated voice and effects are the default sound experience (`sound.voiceEnabled` on; toggle in «Настройки → Звуки»). Cue files are the generated `system/` takes; the popup speaks `ready`, `active`, `first-done`, `done`, `skipped`, `snoozed`, `stage-up` and the failed-save error, with the generated cue as the fallback and variants rotating without immediate repeats (last take remembered across popup windows; chronicle preview keeps a separate rotation namespace). Clips are bundled through `src/voice-assets.ts` (418 mp3 assets, ~11 MB). The popup player queues lines so entry/`active`/result never cut each other; `streak`/`welcome`/`alert` narration, per-event mixes and OS DND detection are not implemented. Laboratory «Звуки» auditions every variant and effect take without changing settings.
-- Dashboard: five primary sections. «Сегодня» foregrounds the large character, day totals, current streak and progress to the next form. «Персонаж» groups identity/build under «Профиль» and «Хроника» (real history scrub/play via the shared arcade `NativePlayback` engine, preview character overlay, milestones, calendar/statistics up to the cursor; no profile writes). «Лаборатория» mounts the sandbox UI natively in the same dashboard (nested Pinia + lab bridge; headless child owns the test profile). «Прогресс» groups calendar/stats, weight history and photos. «Настройки» groups rhythm/strictness, picker/Focus with inventory/AI, sound, weight/photos and appearance (including tray pin on installed Windows 11); current-day values refresh while open.
-- Core preferences: the «Настройки» tab edits interval (5–240 min), picker mode and Focus; character identity and build on «Персонаж»; values are normalized on load, and an interval change reschedules the loop.
+- Dashboard: six primary sections. «Сегодня» foregrounds the large character, day totals, current streak and progress to the next form. «Персонаж» groups identity/build under «Профиль» and «Хроника» (real history scrub/play via the shared arcade `NativePlayback` engine, preview character overlay, milestones, calendar/statistics up to the cursor; no profile writes). «Лаборатория» mounts the sandbox UI natively in the same dashboard (nested Pinia + lab bridge; headless child owns the test profile). «Прогресс» groups calendar/stats, weight history and photos. «Упражнения» covers catalog coverage, pick explanation, named sets and the optional LLM layer. «Настройки» groups rhythm/strictness, picker/Focus V2/λ/autoTune with inventory, sound, weight/photos and appearance (including tray pin on installed Windows 11); current-day values refresh while open.
+- Core preferences: the «Настройки» tab edits interval (5–240 min), picker mode and Focus V2; character identity and build on «Персонаж»; values are normalized on load, and an interval change reschedules the loop and scales dose.
 - Renderer CSP lists `photo:` in `img-src`, so progress photos load through the custom scheme.
 - Native laboratory: the full lab UI lives on the «Лаборатория» dashboard tab (`LaboratoryHost` + nested Pinia); there is no separate lab window, no webview guest and no `dev:lab` command. The main process pre-warms a headless Electron child with `--body-debugger-lab --body-debugger-lab-headless` and an isolated profile — `.userdata/laboratory/` when unpackaged and `%APPDATA%\Body Debugger\laboratory` (or the dev-channel equivalent) when packaged. The child runs the reminder loop, owns the six laboratory stories, silent seeking, native phased replay, seeded calendars, action plans, popup/idle/write-failure controls, settings/data and its native popup/preview windows; it opens no tray or dashboard. `lab-engine.ts` registers the dashboard host and forwards bridge requests; only `LabChanged` (with sandbox snapshot) is relayed to the host so the real Pinia is never overwritten. Chronicle play and laboratory play share one arcade `NativePlayback` sequencer (event → scene beat → popup → semantic driver → voice-gated feedback → next; no tempo control) behind `playback-coordinator` (mutex); real timer/manual reminders are deferred until the run ends + 30 s. See [TESTING.md](TESTING.md).
 - Distribution: primary path is prod `Body Debugger` (`com.bodydebugger.app`, `%APPDATA%\Body Debugger`, emerald icon) updating from stable `latest.yml`. A legacy side-by-side `Body Debugger Dev` identity still exists and is scheduled for removal (ROADMAP #18). Current stable is `0.5.4` (published 2026-11-02). Auto-update checks 25 s after start and every hour, opens a bottom-right prompt with download progress, hides it while an exercise popup is open, offers a restart (refused during a popup) and installs on quit. Autostart is an off-by-default setting that launches hidden in the tray; the OS registry is the source of truth and uninstall removes it. See [DELIVERY.md](DELIVERY.md).
 - Tests: Vitest covers domain rules, stores, persistence, preferences, popup/portrait/weight/heatmap/stats/photo/AI components, the playback coordinator, the headless laboratory engine/bridge, the sandbox laboratory controller/driver, the dashboard chronicle, the dashboard window contract, update schedule/gating/prompt rules, build identity and autostart.
-- Known gaps: six distinct body illustrations for the default Desk Hulk (still three tiers), personal exercise-level progression, automatic AI analysis, export, external-event triggers and Playwright E2E. Window/tray integration still needs manual Electron smoke checks.
+- Known gaps: six distinct body illustrations for the default Desk Hulk (still three tiers), custom pack import, exercise-level progression beyond autoTune scales, shipping retagged shipped catalog values, export, external-event triggers and Playwright E2E. Window/tray integration still needs manual Electron smoke checks. Optional LLM catalog editing is implemented behind approval + `safeStorage` key.
 
 ## Doc index
 
@@ -124,6 +126,7 @@ Permanent snapshot for agents. Domain detail lives in linked docs — no session
 |-----|------|
 | [README.md](README.md) | Hub / TOC |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Structure, IPC, persistence |
+| [CATALOG-V2.md](CATALOG-V2.md) | Catalog / picker / dose / LLM design |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Dev commands, E: caches |
 | [DELIVERY.md](DELIVERY.md) | Installer, update feed, build stamp, release flow |
 | [SOUNDS.md](SOUNDS.md) | Optional sound layer + default pack |

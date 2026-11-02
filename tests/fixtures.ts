@@ -66,6 +66,21 @@ export function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings 
     severity: 'medium',
     intervalMinutes: 45,
     focus: makeFocus(),
+    focusV2: {
+      zones: { upper: 0, core: 0, lower: 0, full: 0 },
+      methods: { mobility: 0, strength: 0, cardio: 0, striking: 0, balance: 0 }
+    },
+    profileStrength: 0.7,
+    profileShifts: [],
+    limitations: [],
+    overrides: {},
+    autoTune: 'suggest',
+    llm: {
+      enabled: false,
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-chat',
+      shareProgress: false
+    },
     pickerMode: 'balance',
     inventory: { enabled: false, items: [] },
     sessionExtras: { enabled: false },

@@ -18,6 +18,7 @@ import PreferencesPanel from '@/components/settings/PreferencesPanel.vue'
 import ComfortSettingsPanel from '@/components/settings/ComfortSettingsPanel.vue'
 import SystemPanel from '@/components/settings/SystemPanel.vue'
 import AboutPanel from '@/components/settings/AboutPanel.vue'
+import ExercisesPanel from '@/components/catalog/ExercisesPanel.vue'
 import { useProgressStore } from '@/stores/progress'
 import { useCharacterStore } from '@/stores/character'
 import { useSettingsStore } from '@/stores/settings'
@@ -31,7 +32,7 @@ import { computeStreak } from '@shared/domain/streak'
 import { localDateKey } from '@shared/domain/stats'
 import type { CharacterContext } from '@shared/domain/character-context'
 
-type TabId = 'today' | 'character' | 'laboratory' | 'progress' | 'settings'
+type TabId = 'today' | 'character' | 'laboratory' | 'progress' | 'exercises' | 'settings'
 type ProgressSection = 'calendar' | 'stats' | 'weight' | 'photos'
 type CharacterSection = 'profile' | 'chronicle'
 const requestedTab = () => /[?&]tab=([a-z]+)/.exec(window.location.hash)?.[1]
@@ -41,7 +42,7 @@ const runtime = useRuntimeStore()
 function initialTab(): TabId {
   const requested = requestedTab()
   if (requested === 'calendar' || requested === 'stats') return 'progress'
-  if (requested === 'settings' || requested === 'character' || requested === 'progress') return requested
+  if (requested === 'settings' || requested === 'character' || requested === 'progress' || requested === 'exercises') return requested
   if (requested === 'laboratory' || requested === 'playground') return 'laboratory'
   return 'today'
 }
@@ -83,7 +84,9 @@ const todayDone = computed(() => sessions.history.filter(session =>
 const tabs = computed<{ id: TabId; label: string }[]>(() => [
   { id: 'today', label: 'Сегодня' }, { id: 'character', label: 'Персонаж' },
   { id: 'laboratory', label: 'Лаборатория' },
-  { id: 'progress', label: 'Прогресс' }, { id: 'settings', label: 'Настройки' }
+  { id: 'progress', label: 'Прогресс' },
+  { id: 'exercises', label: 'Упражнения' },
+  { id: 'settings', label: 'Настройки' }
 ])
 const dateLabel = computed(() => now.value.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'long' }))
 
@@ -220,6 +223,7 @@ async function triggerReminder(): Promise<void> {
     </div>
     <LaboratoryHost v-show="tab === 'laboratory'" :active="tab === 'laboratory'" />
     <ProgressPanel v-if="tab === 'progress'" :now="now" :initial-section="progressSection" @settings="tab = 'settings'" />
+    <ExercisesPanel v-if="tab === 'exercises'" />
     <template v-if="tab === 'settings'"><PreferencesPanel /><ComfortSettingsPanel group="presentation" /><SystemPanel /><AboutPanel /></template>
   </div>
 </template>

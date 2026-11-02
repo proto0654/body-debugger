@@ -4,7 +4,9 @@ import type {
   CharacterStage
 } from '../types/character'
 import type { Exercise } from '../types/exercise'
+import type { ExerciseV2 } from '../types/exercise-v2'
 import type { Session } from '../types/session'
+import { dominantZone, upgradeExercise } from './exercise-v2'
 
 /**
  * Character stage / branch from session history (CONCEPT.md §5).
@@ -33,8 +35,6 @@ export const BRANCH_WINDOW = 30
 const MIN_BRANCH_SESSIONS = 3
 /** The leader must beat the runner-up by this factor, otherwise the branch stays neutral. */
 const BRANCH_LEAD_RATIO = 1.2
-
-const POSTURE_CATEGORIES = new Set(['neck', 'shoulders', 'upperBack', 'lowerBack'])
 
 export interface CharacterProgress {
   stage: CharacterStage
@@ -77,14 +77,26 @@ function doneSessions(sessions: readonly Session[]): Session[] {
     })
 }
 
+/**
+ * Per-session branch rule from Catalog V2 (§1.2): dominant zone/method, first match wins.
+ * 1. dominant zone upper → posture
+ * 2. dominant zone core + mobility → posture
+ * 3. strength or striking → power
+ * 4. mobility or balance → mobility
+ * 5. otherwise → no point
+ */
+export function branchOfV2(exercise: ExerciseV2): Exclude<CharacterBranch, 'neutral'> | null {
+  const zone = dominantZone(exercise.zones)
+  if (zone === 'upper') return 'posture'
+  if (zone === 'core' && exercise.method === 'mobility') return 'posture'
+  if (exercise.method === 'strength' || exercise.method === 'striking') return 'power'
+  if (exercise.method === 'mobility' || exercise.method === 'balance') return 'mobility'
+  return null
+}
+
 /** Primary training direction of one exercise; `null` means it does not move the branch. */
 function branchOf(exercise: Exercise): Exclude<CharacterBranch, 'neutral'> | null {
-  if (POSTURE_CATEGORIES.has(exercise.category)) return 'posture'
-
-  const tags = exercise.focus ?? []
-  if (tags.includes('strength') || tags.includes('striking')) return 'power'
-  if (tags.includes('mobility') || tags.includes('balance')) return 'mobility'
-  return null
+  return branchOfV2(upgradeExercise(exercise))
 }
 
 function branchFor(done: Session[], catalogById: Map<string, Exercise>): CharacterBranch {

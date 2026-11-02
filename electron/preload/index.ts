@@ -30,8 +30,22 @@ import {
   type SessionResultPayload,
   type SessionResultResponse,
   type TraySetStatePayload,
-  type WindowNavigateDashboardPayload
+  type WindowNavigateDashboardPayload,
+  type LlmConfigPayload,
+  type LlmSaveConfigPayload,
+  type LlmSetKeyPayload,
+  type LlmPreviewRequestPayload,
+  type LlmPreviewResponsePayload,
+  type LlmRunPayload,
+  type LlmToggleOpPayload,
+  type LlmChangedPayload,
+  type CatalogListPayload,
+  type CatalogUpdatedPayload,
+  type CatalogSetStatusPayload,
+  type CatalogSetBatchEnabledPayload,
+  type CatalogRenameBatchPayload
 } from '../../shared/types/events'
+import type { Changeset } from '../../shared/domain/changeset'
 
 const api = {
   registerLabHost: (): void => {
@@ -132,6 +146,51 @@ const api = {
     payload: ExerciseRemoveCustomPayload
   ): Promise<{ removed: boolean; exercises: ExerciseListCustomPayload }> =>
     ipcRenderer.invoke(IpcChannels.ExerciseRemoveCustom, payload),
+  getLlmConfig: (): Promise<LlmConfigPayload> => ipcRenderer.invoke(IpcChannels.LlmGetConfig),
+  saveLlmConfig: (payload: LlmSaveConfigPayload): Promise<LlmConfigPayload> =>
+    ipcRenderer.invoke(IpcChannels.LlmSaveConfig, payload),
+  setLlmKey: (payload: LlmSetKeyPayload): Promise<LlmConfigPayload> =>
+    ipcRenderer.invoke(IpcChannels.LlmSetKey, payload),
+  testLlm: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke(IpcChannels.LlmTest),
+  previewLlmRequest: (payload: LlmPreviewRequestPayload): Promise<LlmPreviewResponsePayload> =>
+    ipcRenderer.invoke(IpcChannels.LlmPreviewRequest, payload),
+  runLlm: (payload: LlmRunPayload): Promise<Changeset> => ipcRenderer.invoke(IpcChannels.LlmRun, payload),
+  cancelLlm: (): Promise<{ cancelled: boolean }> => ipcRenderer.invoke(IpcChannels.LlmCancel),
+  getLlmChangeset: (id: string): Promise<Changeset | null> =>
+    ipcRenderer.invoke(IpcChannels.LlmGetChangeset, id),
+  toggleLlmOp: (payload: LlmToggleOpPayload): Promise<Changeset | null> =>
+    ipcRenderer.invoke(IpcChannels.LlmToggleOp, payload),
+  applyLlmChangeset: (changesetId: string): Promise<Changeset | null> =>
+    ipcRenderer.invoke(IpcChannels.LlmApply, changesetId),
+  discardLlmChangeset: (changesetId: string): Promise<Changeset | null> =>
+    ipcRenderer.invoke(IpcChannels.LlmDiscard, changesetId),
+  revertLlmChangeset: (changesetId: string): Promise<Changeset | null> =>
+    ipcRenderer.invoke(IpcChannels.LlmRevert, changesetId),
+  listCatalog: (): Promise<CatalogListPayload> => ipcRenderer.invoke(IpcChannels.CatalogList),
+  setCatalogStatus: (
+    payload: CatalogSetStatusPayload
+  ): Promise<{ ok: boolean } & CatalogListPayload> =>
+    ipcRenderer.invoke(IpcChannels.CatalogSetStatus, payload),
+  setCatalogBatchEnabled: (
+    payload: CatalogSetBatchEnabledPayload
+  ): Promise<{ ok: boolean } & CatalogListPayload> =>
+    ipcRenderer.invoke(IpcChannels.CatalogSetBatchEnabled, payload),
+  renameCatalogBatch: (
+    payload: CatalogRenameBatchPayload
+  ): Promise<{ ok: boolean } & CatalogListPayload> =>
+    ipcRenderer.invoke(IpcChannels.CatalogRenameBatch, payload),
+  onLlmChanged: (handler: (payload: LlmChangedPayload) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: LlmChangedPayload): void =>
+      handler(payload)
+    ipcRenderer.on(IpcChannels.LlmChanged, listener)
+    return () => ipcRenderer.removeListener(IpcChannels.LlmChanged, listener)
+  },
+  onCatalogUpdated: (handler: (payload: CatalogUpdatedPayload) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: CatalogUpdatedPayload): void =>
+      handler(payload)
+    ipcRenderer.on(IpcChannels.CatalogUpdated, listener)
+    return () => ipcRenderer.removeListener(IpcChannels.CatalogUpdated, listener)
+  },
   onLoopStateChanged: (handler: (payload: SessionLoopStatePayload) => void): (() => void) => {
     const listener = (
       _event: Electron.IpcRendererEvent,

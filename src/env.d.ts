@@ -30,8 +30,22 @@ import type {
   SessionResultPayload,
   SessionResultResponse,
   TraySetStatePayload,
-  WindowNavigateDashboardPayload
+  WindowNavigateDashboardPayload,
+  LlmConfigPayload,
+  LlmSaveConfigPayload,
+  LlmSetKeyPayload,
+  LlmPreviewRequestPayload,
+  LlmPreviewResponsePayload,
+  LlmRunPayload,
+  LlmToggleOpPayload,
+  LlmChangedPayload,
+  CatalogListPayload,
+  CatalogUpdatedPayload,
+  CatalogSetStatusPayload,
+  CatalogSetBatchEnabledPayload,
+  CatalogRenameBatchPayload
 } from '@shared/types/events'
+import type { Changeset } from '@shared/domain/changeset'
 
 declare module '*.vue' {
   import type { DefineComponent } from 'vue'
@@ -97,6 +111,30 @@ export interface BodyDebuggerApi {
   onDataUpdated: (handler: (payload: DataUpdatedPayload) => void) => () => void
   onPhotosUpdated: (handler: (payload: PhotosUpdatedPayload) => void) => () => void
   onExercisesUpdated: (handler: (payload: ExercisesUpdatedPayload) => void) => () => void
+  getLlmConfig: () => Promise<LlmConfigPayload>
+  saveLlmConfig: (payload: LlmSaveConfigPayload) => Promise<LlmConfigPayload>
+  setLlmKey: (payload: LlmSetKeyPayload) => Promise<LlmConfigPayload>
+  testLlm: () => Promise<{ ok: boolean; message: string }>
+  previewLlmRequest: (payload: LlmPreviewRequestPayload) => Promise<LlmPreviewResponsePayload>
+  runLlm: (payload: LlmRunPayload) => Promise<Changeset>
+  cancelLlm: () => Promise<{ cancelled: boolean }>
+  getLlmChangeset: (id: string) => Promise<Changeset | null>
+  toggleLlmOp: (payload: LlmToggleOpPayload) => Promise<Changeset | null>
+  applyLlmChangeset: (changesetId: string) => Promise<Changeset | null>
+  discardLlmChangeset: (changesetId: string) => Promise<Changeset | null>
+  revertLlmChangeset: (changesetId: string) => Promise<Changeset | null>
+  listCatalog: () => Promise<CatalogListPayload>
+  setCatalogStatus: (
+    payload: CatalogSetStatusPayload
+  ) => Promise<{ ok: boolean } & CatalogListPayload>
+  setCatalogBatchEnabled: (
+    payload: CatalogSetBatchEnabledPayload
+  ) => Promise<{ ok: boolean } & CatalogListPayload>
+  renameCatalogBatch: (
+    payload: CatalogRenameBatchPayload
+  ) => Promise<{ ok: boolean } & CatalogListPayload>
+  onLlmChanged: (handler: (payload: LlmChangedPayload) => void) => () => void
+  onCatalogUpdated: (handler: (payload: CatalogUpdatedPayload) => void) => () => void
 }
 
 declare global {

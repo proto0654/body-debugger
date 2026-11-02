@@ -19,6 +19,7 @@ interface FakeAudio {
   preload: string
   play: () => Promise<void>
   load: () => void
+  pause?: () => void
 }
 
 function fakeFactory(options: { reject?: boolean } = {}) {
@@ -173,9 +174,9 @@ describe('sound player', () => {
   it('queues a second cue until the first ends instead of cutting it short', async () => {
     vi.useFakeTimers()
     const ended = new Map<SoundAudio, Array<() => void>>()
-    const created: SoundAudio[] = []
+    const created: FakeAudio[] = []
     const createAudio = (src: string): SoundAudio => {
-      const audio: SoundAudio = {
+      const audio: FakeAudio & SoundAudio = {
         src,
         volume: 1,
         preload: 'none',

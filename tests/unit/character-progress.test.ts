@@ -6,15 +6,17 @@ import type { Session } from '@shared/types/session'
 import { daysAgo, makeExercise, makeSession } from '../fixtures'
 
 const catalog: Exercise[] = [
-  makeExercise({ id: 'neck', category: 'neck' }),
-  makeExercise({ id: 'shoulders', category: 'shoulders' }),
-  makeExercise({ id: 'back', category: 'upperBack' }),
-  makeExercise({ id: 'lower-back', category: 'lowerBack' }),
-  makeExercise({ id: 'strength', category: 'chest', focus: ['strength'] }),
-  makeExercise({ id: 'striking', category: 'fullBody', focus: ['striking'] }),
-  makeExercise({ id: 'mobility', category: 'hips', focus: ['mobility'] }),
-  makeExercise({ id: 'balance', category: 'ankles', focus: ['balance'] }),
-  makeExercise({ id: 'untagged', category: 'wrists', focus: undefined })
+  makeExercise({ id: 'neck', category: 'neck', group: 'upper' }),
+  makeExercise({ id: 'shoulders', category: 'shoulders', group: 'upper' }),
+  makeExercise({ id: 'back', category: 'upperBack', group: 'upper' }),
+  makeExercise({ id: 'lower-back', category: 'lowerBack', group: 'lower' }),
+  // Upper-zone strength counts as posture (§1.2 rule 1 before method).
+  makeExercise({ id: 'strength', category: 'legs', group: 'lower', focus: ['strength'] }),
+  makeExercise({ id: 'striking', category: 'fullBody', group: 'full', focus: ['striking'] }),
+  makeExercise({ id: 'mobility', category: 'hips', group: 'lower', focus: ['mobility'] }),
+  makeExercise({ id: 'balance', category: 'legs', group: 'lower', focus: ['balance'] }),
+  // Cardio / full-body with no matching V2 branch rule (§1.2 step 5).
+  makeExercise({ id: 'untagged', category: 'fullBody', group: 'full', focus: ['light_athletics'] })
 ]
 
 function doneSessions(ids: string[]): Session[] {

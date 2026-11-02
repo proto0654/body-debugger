@@ -30,7 +30,17 @@ export function getPhotoDir(): string {
   return join(app.getPath('userData'), 'photos')
 }
 
-/** AI proposals approved by the user (optional layer). */
+/** AI proposals approved by the user (optional layer). Legacy; migrated into catalog.json. */
 export function getCustomExercisesPath(): string {
   return join(getDataDir(), 'custom-exercises.json')
+}
+
+/** Catalog V2 user/llm layer (docs/CATALOG-V2.md §3). */
+export function getCatalogPath(): string {
+  return join(getDataDir(), 'catalog.json')
+}
+
+/** Catalog changeset history (last ~30). */
+export function getChangesetsPath(): string {
+  return join(getDataDir(), 'changesets.json')
 }

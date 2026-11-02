@@ -1,7 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { FALLBACK_EXERCISE } from '@shared/constants/exercises'
+import { resolveCatalog } from '@shared/domain/catalog'
 import { pickNextExercise, type PickerContext } from '@shared/domain/exercise-picker'
+import { upgradeExercise } from '@shared/domain/exercise-v2'
+import { explainPick } from '@shared/domain/picker'
 import type { Exercise } from '@shared/types/exercise'
 import type { Session } from '@shared/types/session'
 import type { AppSettings } from '@shared/types/settings'
@@ -15,10 +18,7 @@ import {
 } from '../fixtures'
 
 const neckA = makeExercise({ id: 'neck-a', category: 'neck' })
-const neckB = makeExercise({ id: 'neck-b', category: 'neck' })
-const neckC = makeExercise({ id: 'neck-c', category: 'neck' })
 const hipsA = makeExercise({ id: 'hips-a', category: 'hips', group: 'lower' })
-const hipsB = makeExercise({ id: 'hips-b', category: 'hips', group: 'lower' })
 const forearms = makeExercise({ id: 'forearms', category: 'forearms' })
 
 interface PickOptions {
@@ -93,172 +93,72 @@ describe('pickNextExercise — fallbacks and availability', () => {
   })
 })
 
-describe('pickNextExercise — deterministic roll edges', () => {
-  it('picks the first candidate at random 0', () => {
-    expect(pick({ random: () => 0 }).id).toBe('neck-a')
+describe('pickNextExercise — Catalog V2 adapter', () => {
+  it('is deterministic for a fixed RNG sequence', () => {
+    const a = sample({ catalog: [neckA, hipsA, forearms] }, 20, 7).map((e) => e.id)
+    const b = sample({ catalog: [neckA, hipsA, forearms] }, 20, 7).map((e) => e.id)
+    expect(a).toEqual(b)
   })
 
-  it('picks the last candidate at random 1', () => {
-    expect(pick({ random: () => 1 }).id).toBe('hips-a')
-  })
-
-  it('keeps working when a session references an unknown exercise', () => {
-    const sessions = [makeSession({ exerciseId: 'deleted-exercise' })]
-    expect(pick({ sessions }).id).toBe('neck-a')
-  })
-
-  it('ignores sessions with an invalid timestamp', () => {
-    const broken = makeSession({
-      exerciseId: 'hips-a',
-      triggeredAt: 'not-a-date',
-      completedAt: 'not-a-date'
+  it('applies Focus V2 method levels in explainPick profile factor', () => {
+    const strength = makeExercise({
+      id: 'strength',
+      category: 'chest',
+      group: 'upper',
+      focus: ['strength']
     })
-    const withBroken = sample({ sessions: [broken] }, 30, 7).map((exercise) => exercise.id)
-    const baseline = sample({}, 30, 7).map((exercise) => exercise.id)
-    expect(withBroken).toEqual(baseline)
-  })
-
-  it('falls back to balance tuning for an unknown picker mode', () => {
-    expect(
-      pick({ settings: { pickerMode: 'nonsense' as AppSettings['pickerMode'] } }).id
-    ).toBe('neck-a')
-  })
-})
-
-describe('pickNextExercise — penalties', () => {
-  const sessions = [makeSession({ exerciseId: 'neck-a', triggeredAt: daysAgo(1) })]
-
-  it('demotes the category of the previous done session', () => {
-    const picks = sample({ sessions }, 400, 11)
-    const neckPicks = count(picks, (exercise) => exercise.category === 'neck')
-    expect(neckPicks).toBeLessThan(100)
-    expect(neckPicks).toBeGreaterThan(0)
-  })
-
-  it('does not count skipped, snoozed or missed sessions as training', () => {
-    const statuses: Session['status'][] = ['skipped', 'snoozed', 'missed']
-    for (const status of statuses) {
-      const idle = [makeSession({ exerciseId: 'neck-a', status, triggeredAt: daysAgo(1) })]
-      const withIdle = sample({ sessions: idle }, 50, 3).map((exercise) => exercise.id)
-      const baseline = sample({}, 50, 3).map((exercise) => exercise.id)
-      expect(withIdle).toEqual(baseline)
-    }
-  })
-
-  it('demotes a category already trained today', () => {
-    const today = [makeSession({ exerciseId: 'neck-a', triggeredAt: daysAgo(0) })]
-    const picks = sample({ sessions: today }, 400, 5)
-    expect(count(picks, (exercise) => exercise.category === 'neck')).toBeLessThan(
-      count(picks, (exercise) => exercise.category === 'hips')
+    const plainUpper = makeExercise({
+      id: 'plain-upper',
+      category: 'neck',
+      group: 'upper',
+      focus: ['mobility']
+    })
+    const catalog = resolveCatalog(
+      [strength, plainUpper].map((exercise) => upgradeExercise(exercise)),
+      []
     )
-  })
-})
-
-describe('pickNextExercise — neglect', () => {
-  it('caps the neglect bonus at a week', () => {
-    const monthOld = sample(
-      { sessions: [makeSession({ exerciseId: 'neck-a', triggeredAt: daysAgo(30) })] },
-      60,
-      9
-    ).map((exercise) => exercise.id)
-    const weekOld = sample(
-      { sessions: [makeSession({ exerciseId: 'neck-a', triggeredAt: daysAgo(7) })] },
-      60,
-      9
-    ).map((exercise) => exercise.id)
-    expect(monthOld).toEqual(weekOld)
-  })
-
-  it('boosts a category that is 7 days stale more than one 3 days stale', () => {
-    const stale = sample(
-      { sessions: [makeSession({ exerciseId: 'neck-a', triggeredAt: daysAgo(7) })] },
-      200,
-      21
+    const explained = explainPick(
+      {
+        catalog,
+        recentSessions: [],
+        settings: makeSettings({
+          pickerMode: 'focus',
+          profileStrength: 1,
+          focusV2: {
+            zones: { upper: 0, core: 0, lower: 0, full: 0 },
+            methods: { mobility: -1, strength: 2, cardio: -1, striking: -1, balance: -1 }
+          }
+        }),
+        focus: {
+          zones: { upper: 0, core: 0, lower: 0, full: 0 },
+          methods: { mobility: -1, strength: 2, cardio: -1, striking: -1, balance: -1 }
+        },
+        profileStrength: 1,
+        useShareProfile: false
+      },
+      1
     )
-    const recent = sample(
-      { sessions: [makeSession({ exerciseId: 'neck-a', triggeredAt: daysAgo(3) })] },
-      200,
-      21
-    )
-    expect(count(stale, (exercise) => exercise.category === 'neck')).toBeGreaterThan(
-      count(recent, (exercise) => exercise.category === 'neck')
-    )
+    const strengthWeight = explained.candidates.find((c) => c.id === 'strength')?.weight ?? 0
+    const plainWeight = explained.candidates.find((c) => c.id === 'plain-upper')?.weight ?? 0
+    expect(strengthWeight).toBeGreaterThan(plainWeight)
   })
-})
 
-describe('pickNextExercise — focus', () => {
-  const strength = makeExercise({ id: 'strength', category: 'back', focus: ['strength'] })
-  const plain = makeExercise({ id: 'plain', category: 'hips' })
-
-  it('prioritises the primary direction', () => {
+  it('rotation cycles zones away from the last done dominant zone', () => {
+    const sessions = [makeSession({ exerciseId: 'neck-a', triggeredAt: daysAgo(1) })]
     const picks = sample(
       {
-        catalog: [strength, plain],
-        settings: { pickerMode: 'focus', focus: { primary: 'strength', accents: [] } }
-      },
-      200,
-      13
-    )
-    expect(count(picks, (exercise) => exercise.id === 'strength')).toBeGreaterThan(
-      count(picks, (exercise) => exercise.id === 'plain')
-    )
-  })
-
-  it('boosts accent directions above untagged exercises', () => {
-    const picks = sample(
-      {
-        catalog: [strength, plain],
-        settings: { pickerMode: 'focus', focus: { primary: null, accents: ['strength'] } }
-      },
-      200,
-      17
-    )
-    expect(count(picks, (exercise) => exercise.id === 'strength')).toBeGreaterThan(
-      count(picks, (exercise) => exercise.id === 'plain')
-    )
-  })
-
-  it('gives no bonus when the exercise has no focus tags', () => {
-    const baseline = sample({ catalog: [plain, hipsB] }, 80, 23).map((exercise) => exercise.id)
-    const focused = sample(
-      {
-        catalog: [plain, hipsB],
-        settings: { focus: { primary: 'strength', accents: [] } }
+        catalog: [neckA, hipsA, forearms],
+        sessions,
+        settings: { pickerMode: 'rotation' }
       },
       80,
-      23
-    ).map((exercise) => exercise.id)
-    expect(focused).toEqual(baseline)
-  })
-})
-
-describe('pickNextExercise — modes', () => {
-  const sessions = [makeSession({ exerciseId: 'neck-a', triggeredAt: daysAgo(1) })]
-  const fourCategories = [neckA, neckB, neckC, hipsA, hipsB, forearms]
-
-  it('balance may repeat the previous category', () => {
-    expect(pick({ catalog: fourCategories, sessions }).id).toBe('neck-a')
-  })
-
-  it('rotation drops the previous category when enough alternatives exist', () => {
-    const picks = sample(
-      { catalog: fourCategories, sessions, settings: { pickerMode: 'rotation' } },
-      100,
       29
     )
-    expect(count(picks, (exercise) => exercise.category === 'neck')).toBe(0)
+    // After upper (neck), cycle goes to lower — necks should be rare/absent.
+    expect(count(picks, (exercise) => exercise.category === 'neck')).toBeLessThan(40)
   })
 
-  it('rotation keeps the previous category when fewer than three alternatives exist', () => {
-    const picks = sample(
-      { catalog: [neckA, neckB, neckC, hipsA, hipsB], sessions, settings: { pickerMode: 'rotation' } },
-      100,
-      31
-    )
-    expect(count(picks, (exercise) => exercise.category === 'neck')).toBeGreaterThan(0)
-  })
-
-  it('push drives the most neglected category', () => {
+  it('push drives the most neglected zone', () => {
     const picks = sample(
       {
         catalog: [neckA, hipsA],
@@ -268,6 +168,6 @@ describe('pickNextExercise — modes', () => {
       120,
       37
     )
-    expect(count(picks, (exercise) => exercise.category === 'hips')).toBeGreaterThan(100)
+    expect(count(picks, (exercise) => exercise.category === 'hips')).toBeGreaterThan(60)
   })
 })

@@ -14,7 +14,7 @@ const error = ref('')
 const busy = ref(false)
 const layers = [
   { key: 'inventory', id: 'inventory-controls', title: 'Инвентарь', hint: 'Подбор учитывает оборудование, которое есть под рукой.' },
-  { key: 'ai', id: 'ai-controls', title: 'Импорт из AI', hint: 'Проверить и лично утвердить новое упражнение.' },
+  { key: 'ai', id: 'ai-controls', title: 'Импорт из AI', hint: 'Управление наборами и генерацией — на вкладке «Упражнения».' },
   { key: 'sound', id: 'sound-controls', title: 'Звуки', hint: 'Короткие сигналы о разминке и достижениях.' },
   { key: 'weight', id: 'weight-controls', title: 'История веса', hint: 'Быстрая запись на «Сегодня», история и цель — в «Прогрессе».' },
   { key: 'photos', id: 'photo-controls', title: 'Фото прогресса', hint: 'Локальная галерея на дашборде.' }
@@ -46,13 +46,20 @@ async function setLayer(key: keyof typeof setters, enabled: boolean): Promise<vo
     if (key === 'photos' && enabled) await usePhotosStore().refresh()
   })
 }
+
+function openExercisesTab(): void {
+  window.location.hash = '?tab=exercises'
+  window.dispatchEvent(new HashChangeEvent('hashchange'))
+}
 </script>
 
 <template>
   <div class="space-y-4">
     <section v-for="layer in visibleLayers" :key="layer.key" :data-testid="layer.id" class="settings-card space-y-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="min-w-0 flex-1"><h2 class="text-sm font-semibold text-white">{{ layer.title }}</h2><p class="mt-1 text-xs leading-relaxed text-slate-400">{{ layer.hint }}</p></div>
+        <div class="min-w-0 flex-1"><h2 class="text-sm font-semibold text-white">{{ layer.title }}</h2><p class="mt-1 text-xs leading-relaxed text-slate-400">{{ layer.hint }}</p>
+          <button v-if="layer.key === 'ai'" type="button" class="mt-2 text-xs text-emerald-400 hover:text-emerald-300" @click="openExercisesTab">Открыть «Упражнения» →</button>
+        </div>
         <div class="flex gap-1"><button v-for="enabled in [false, true]" :key="String(enabled)" type="button" class="setting-chip" :disabled="busy"
           :aria-label="`${layer.title}: ${enabled ? 'включить' : 'выключить'}`" :aria-pressed="settings[layer.key].enabled === enabled"
           @click="setLayer(layer.key, enabled)">{{ enabled ? 'Вкл' : 'Выкл' }}</button></div>

@@ -2,7 +2,6 @@
 import { ref } from 'vue'
 import ComfortSettingsPanel from './ComfortSettingsPanel.vue'
 import { SEVERITY_LABELS, SEVERITY_ORDER } from '@shared/domain/severity'
-import { FOCUS_DIRECTIONS, FOCUS_LABELS } from '@shared/constants/focus'
 import {
   INTERVAL_MINUTES_MAX,
   INTERVAL_MINUTES_MIN,
@@ -12,9 +11,16 @@ import {
   PICKER_MODE_LABELS,
   normalizeIntervalMinutes
 } from '@shared/domain/preferences'
+import {
+  FOCUS_LEVEL_LABELS,
+  METHODS,
+  METHOD_LABELS,
+  ZONES,
+  ZONE_LABELS
+} from '@shared/constants/catalog-axes'
 import { useSettingsStore } from '@/stores/settings'
-import type { FocusDirection } from '@shared/types/progress'
 import type { ExercisePickerMode } from '@shared/types/settings'
+import type { Method, Zone } from '@shared/types/exercise-v2'
 
 const settings = useSettingsStore()
 const saving = ref(false)
@@ -34,7 +40,6 @@ function chipClass(active: boolean): string {
   return active ? 'bg-slate-700 text-white' : 'bg-slate-900 text-slate-400 hover:text-slate-200'
 }
 
-/** Invalid input is rejected by the domain rule; the field snaps back to the stored value. */
 async function onIntervalChange(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement
   const minutes = normalizeIntervalMinutes(input.value)
@@ -51,14 +56,22 @@ async function setMode(mode: ExercisePickerMode): Promise<void> {
   await saveSetting(() => settings.setPickerMode(mode))
 }
 
-async function setPrimary(direction: FocusDirection | null): Promise<void> {
-  await saveSetting(() => settings.setFocusPrimary(direction))
+async function cycleZone(zone: Zone): Promise<void> {
+  await saveSetting(() => settings.cycleZoneLevel(zone))
 }
 
-async function toggleAccent(direction: FocusDirection): Promise<void> {
-  await saveSetting(() => settings.toggleFocusAccent(direction))
+async function cycleMethod(method: Method): Promise<void> {
+  await saveSetting(() => settings.cycleMethodLevel(method))
 }
 
+async function onProfileStrength(event: Event): Promise<void> {
+  const value = Number((event.target as HTMLInputElement).value) / 100
+  await saveSetting(() => settings.setProfileStrength(value))
+}
+
+function focusChipLabel(level: -1 | 0 | 1 | 2): string {
+  return FOCUS_LEVEL_LABELS[level]
+}
 </script>
 
 <template>
@@ -135,50 +148,83 @@ async function toggleAccent(direction: FocusDirection): Promise<void> {
     >
       <h2 class="text-sm font-semibold text-white">Направления</h2>
       <p class="mt-1 text-xs text-slate-500">
-        Основное направление и акценты смещают вероятности, но не отменяют чередование зон.
+        Две оси: зона (где) и метод (как). Нажми на чип, чтобы переключить уровень — / 0 / + / ++.
       </p>
 
-      <div class="mt-3 flex flex-wrap items-center gap-2" data-testid="focus-primary-controls">
-        <span class="text-xs text-slate-500">Основное:</span>
-        <button
-          type="button" :disabled="saving"
-          class="rounded-lg px-2.5 py-1 text-xs transition"
-          :class="chipClass(settings.focus.primary === null)"
-          :aria-pressed="settings.focus.primary === null"
-          data-focus-primary="none"
-          @click="setPrimary(null)"
-        >
-          Нет
-        </button>
-        <button
-          v-for="direction in FOCUS_DIRECTIONS"
-          :key="direction"
-          type="button" :disabled="saving"
-          class="rounded-lg px-2.5 py-1 text-xs transition"
-          :class="chipClass(settings.focus.primary === direction)"
-          :aria-pressed="settings.focus.primary === direction"
-          :data-focus-primary="direction"
-          @click="setPrimary(settings.focus.primary === direction ? null : direction)"
-        >
-          {{ FOCUS_LABELS[direction] }}
-        </button>
+      <div class="mt-4 space-y-2" data-testid="focus-zone-controls">
+        <p class="text-xs font-medium text-slate-400">Зона</p>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="zone in ZONES"
+            :key="zone"
+            type="button"
+            :disabled="saving"
+            class="rounded-lg px-2.5 py-1 text-xs transition min-w-[4.5rem]"
+            :class="chipClass(settings.focusV2.zones[zone] !== 0)"
+            :aria-label="`${ZONE_LABELS[zone]}: ${focusChipLabel(settings.focusV2.zones[zone])}`"
+            @click="cycleZone(zone)"
+          >
+            {{ ZONE_LABELS[zone] }} · {{ focusChipLabel(settings.focusV2.zones[zone]) }}
+          </button>
+        </div>
       </div>
 
-      <div class="mt-2 flex flex-wrap items-center gap-2" data-testid="focus-accent-controls">
-        <span class="text-xs text-slate-500">Акценты:</span>
-        <button
-          v-for="direction in FOCUS_DIRECTIONS"
-          :key="direction"
-          type="button"
-          :disabled="saving || settings.focus.primary === direction"
-          class="rounded-lg px-2.5 py-1 text-xs transition disabled:cursor-not-allowed disabled:opacity-40"
-          :class="chipClass(settings.focus.accents.includes(direction))"
-          :aria-pressed="settings.focus.accents.includes(direction)"
-          :data-focus-accent="direction"
-          @click="toggleAccent(direction)"
-        >
-          {{ FOCUS_LABELS[direction] }}
-        </button>
+      <div class="mt-4 space-y-2" data-testid="focus-method-controls">
+        <p class="text-xs font-medium text-slate-400">Метод</p>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="method in METHODS"
+            :key="method"
+            type="button"
+            :disabled="saving"
+            class="rounded-lg px-2.5 py-1 text-xs transition"
+            :class="chipClass(settings.focusV2.methods[method] !== 0)"
+            :aria-label="`${METHOD_LABELS[method]}: ${focusChipLabel(settings.focusV2.methods[method])}`"
+            @click="cycleMethod(method)"
+          >
+            {{ METHOD_LABELS[method] }} · {{ focusChipLabel(settings.focusV2.methods[method]) }}
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-4 border-t border-slate-800 pt-4">
+        <label class="block text-sm font-semibold text-white">Следовать профилю</label>
+        <p class="mt-1 text-xs text-slate-500">Насколько жёстко подбор следует этим весам (λ).</p>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="5"
+          class="mt-3 w-full accent-emerald-500"
+          :disabled="saving"
+          :value="Math.round(settings.profileStrength * 100)"
+          data-testid="profile-strength"
+          aria-label="Сила следования профилю"
+          @change="onProfileStrength"
+        />
+        <div class="mt-1 flex justify-between text-[11px] text-slate-500">
+          <span>Мягко</span>
+          <span>Обычно</span>
+          <span>Жёстко</span>
+        </div>
+      </div>
+
+      <div class="mt-4 border-t border-slate-800 pt-4" data-testid="auto-tune-controls">
+        <p class="text-sm font-semibold text-white">Подсказки дозы</p>
+        <p class="mt-1 text-xs text-slate-500">Значки в «Упражнения → Наборы»; попап не трогаем.</p>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button
+            v-for="mode in (['suggest', 'auto', 'off'] as const)"
+            :key="mode"
+            type="button"
+            class="setting-chip"
+            :disabled="saving"
+            :aria-pressed="settings.autoTune === mode"
+            @click="saveSetting(() => settings.setAutoTune(mode))"
+          >
+            {{ mode === 'suggest' ? 'Предлагать' : mode === 'auto' ? 'Авто' : 'Выкл' }}
+          </button>
+        </div>
       </div>
     </section>
 

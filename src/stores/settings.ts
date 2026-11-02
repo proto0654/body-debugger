@@ -10,6 +10,16 @@ import type {
   SeverityLevel,
   SoundSettings
 } from '@shared/types/settings'
+import type {
+  AutoTuneMode,
+  ExerciseOverride,
+  FocusV2,
+  Limitation,
+  LlmSettings,
+  Method,
+  ProfileShift,
+  Zone
+} from '@shared/types/exercise-v2'
 import type { FocusDirection, UserFocus } from '@shared/types/progress'
 import type { WeightSettings } from '@shared/types/weight'
 import { normalizeWeightTarget } from '@shared/domain/weight'
@@ -21,6 +31,14 @@ import {
   normalizeFocus,
   normalizeIntervalMinutes
 } from '@shared/domain/preferences'
+import {
+  cycleFocusLevel,
+  emptyFocusV2,
+  migrateFocusV1,
+  normalizeFocusV2,
+  normalizeProfileStrength
+} from '@shared/domain/focus-v2'
+import { PROFILE_STRENGTH_DEFAULT } from '@shared/constants/catalog-tuning'
 import {
   DEFAULT_SOUND_SETTINGS,
   isSoundPackId,
@@ -36,6 +54,18 @@ export const useSettingsStore = defineStore('settings', () => {
   const severity = ref<SeverityLevel>('medium')
   const intervalMinutes = ref(DEFAULT_INTERVAL_MINUTES)
   const focus = ref<UserFocus>({ primary: null, accents: [] })
+  const focusV2 = ref<FocusV2>(emptyFocusV2())
+  const profileStrength = ref(PROFILE_STRENGTH_DEFAULT)
+  const profileShifts = ref<ProfileShift[]>([])
+  const limitations = ref<Limitation[]>([])
+  const overrides = ref<Record<string, ExerciseOverride>>({})
+  const autoTune = ref<AutoTuneMode>('suggest')
+  const llm = ref<LlmSettings>({
+    enabled: false,
+    baseUrl: 'https://api.deepseek.com',
+    model: 'deepseek-chat',
+    shareProgress: false
+  })
   const pickerMode = ref<ExercisePickerMode>(DEFAULT_PICKER_MODE)
   const inventory = ref<InventorySettings>({ enabled: false, items: [] })
   const sessionExtras = ref<SessionExtrasSettings>({ enabled: false })
@@ -56,6 +86,16 @@ export const useSettingsStore = defineStore('settings', () => {
         primary: focus.value.primary,
         accents: [...focus.value.accents]
       },
+      focusV2: {
+        zones: { ...focusV2.value.zones },
+        methods: { ...focusV2.value.methods }
+      },
+      profileStrength: profileStrength.value,
+      profileShifts: profileShifts.value.map((shift) => ({ ...shift })),
+      limitations: [...limitations.value],
+      overrides: { ...overrides.value },
+      autoTune: autoTune.value,
+      llm: { ...llm.value },
       pickerMode: pickerMode.value,
       inventory: {
         enabled: inventory.value.enabled,
@@ -82,6 +122,13 @@ export const useSettingsStore = defineStore('settings', () => {
     severity.value = next.severity
     intervalMinutes.value = normalizeIntervalMinutes(next.intervalMinutes) ?? DEFAULT_INTERVAL_MINUTES
     focus.value = normalizeFocus(next.focus.primary, next.focus.accents)
+    focusV2.value = normalizeFocusV2(next.focusV2, focus.value)
+    profileStrength.value = normalizeProfileStrength(next.profileStrength)
+    profileShifts.value = [...(next.profileShifts ?? [])]
+    limitations.value = [...(next.limitations ?? [])]
+    overrides.value = { ...(next.overrides ?? {}) }
+    autoTune.value = next.autoTune ?? 'suggest'
+    llm.value = { ...(next.llm ?? llm.value) }
     pickerMode.value = isPickerMode(next.pickerMode) ? next.pickerMode : DEFAULT_PICKER_MODE
     inventory.value = {
       enabled: next.inventory.enabled,
@@ -149,6 +196,7 @@ export const useSettingsStore = defineStore('settings', () => {
     const focusNext = normalizeFocus(next, focus.value.accents)
     if (isSameFocus(focus.value, focusNext)) return
     focus.value = focusNext
+    focusV2.value = migrateFocusV1(focusNext)
     await persist()
   }
 
@@ -162,6 +210,58 @@ export const useSettingsStore = defineStore('settings', () => {
     if (isSameFocus(focus.value, focusNext)) return
 
     focus.value = focusNext
+    focusV2.value = migrateFocusV1(focusNext)
+    await persist()
+  }
+
+  async function cycleZoneLevel(zone: Zone): Promise<void> {
+    focusV2.value = {
+      ...focusV2.value,
+      zones: { ...focusV2.value.zones, [zone]: cycleFocusLevel(focusV2.value.zones[zone]) }
+    }
+    await persist()
+  }
+
+  async function cycleMethodLevel(method: Method): Promise<void> {
+    focusV2.value = {
+      ...focusV2.value,
+      methods: { ...focusV2.value.methods, [method]: cycleFocusLevel(focusV2.value.methods[method]) }
+    }
+    await persist()
+  }
+
+  async function setProfileStrength(next: number): Promise<void> {
+    const value = normalizeProfileStrength(next)
+    if (value === profileStrength.value) return
+    profileStrength.value = value
+    await persist()
+  }
+
+  async function setAutoTune(next: AutoTuneMode): Promise<void> {
+    if (next === autoTune.value) return
+    autoTune.value = next
+    await persist()
+  }
+
+  async function setLlmConfig(patch: Partial<LlmSettings>): Promise<void> {
+    llm.value = { ...llm.value, ...patch }
+    await persist()
+  }
+
+  async function setExerciseScale(id: string, scale: number): Promise<void> {
+    overrides.value = {
+      ...overrides.value,
+      [id]: { ...overrides.value[id], scale }
+    }
+    await persist()
+  }
+
+  async function setLimitation(tag: Limitation, enabled: boolean): Promise<void> {
+    const has = limitations.value.includes(tag)
+    if (enabled === has) return
+    limitations.value = enabled
+      ? [...limitations.value, tag]
+      : limitations.value.filter((item) => item !== tag)
     await persist()
   }
 
@@ -265,6 +365,13 @@ export const useSettingsStore = defineStore('settings', () => {
     severity,
     intervalMinutes,
     focus,
+    focusV2,
+    profileStrength,
+    profileShifts,
+    limitations,
+    overrides,
+    autoTune,
+    llm,
     pickerMode,
     inventory,
     sessionExtras,
@@ -286,6 +393,13 @@ export const useSettingsStore = defineStore('settings', () => {
     setPickerMode,
     setFocusPrimary,
     toggleFocusAccent,
+    cycleZoneLevel,
+    cycleMethodLevel,
+    setProfileStrength,
+    setAutoTune,
+    setLlmConfig,
+    setExerciseScale,
+    setLimitation,
     setReduceMotion,
     setSessionExtrasEnabled,
     setTheme,

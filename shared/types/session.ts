@@ -15,13 +15,22 @@ export interface SessionExtras {
   photoIds?: string[]
 }
 
+/** Compact picker explanation for the last N sessions (CATALOG-V2 §4.4). */
+export interface SessionPickTrace {
+  seed: number
+  factors: { key: string; mult: number; note: string }[]
+}
+
 export interface Session extends SessionExtras {
   id: string
   exerciseId: string
   status: SessionStatus
   /** Planned or actual duration in seconds */
   durationSec: number
+  /** Dose shown in the popup (interval-scaled); optional, no migration. */
+  plannedSec?: number
   triggeredAt: string
   completedAt?: string
   skipReason?: string
+  pickTrace?: SessionPickTrace
 }

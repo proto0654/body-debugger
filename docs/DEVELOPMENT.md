@@ -68,7 +68,7 @@ Do **not** download Electron into `%LOCALAPPDATA%\electron` or park the profile 
 - Tray menu: **Дашборд**, **Напоминание сейчас**, **Пауза / Продолжить**, Quit. **Настройки** opens the preferences tab directly, including in an existing dashboard.
 - Two builds can run side by side: prod (`Body Debugger`) and dev (`Body Debugger Dev`). They have separate icons, titles, `appId`, profiles, single-instance locks, updater caches and autostart registry values; the dev tray tooltip is prefixed with `Dev · `.
 - **Настройки → Система** controls autostart. It is available only in an installed Windows build; the login item starts the app with `--hidden`, so only the tray opens. A manual launch opens the dashboard. The uninstaller removes the entry.
-- Dashboard sections: **Сегодня** (character, day totals, next form, quick weight entry), **Персонаж** (**Профиль**: identity/build, preview, evolution; **Хроника**: read-only scrub/play of the real history with calendar and statistics), **Прогресс** (calendar, statistics, weight history, photos), **Настройки** (rhythm/strictness, selection/Focus, inventory/AI, sounds and appearance); the **Лаборатория** entry opens the sandboxed process from any shipped build — see [ARCHITECTURE.md](ARCHITECTURE.md#core-preferences).
+- Dashboard sections: **Сегодня** (character, day totals, next form, quick weight entry), **Персонаж** (**Профиль**: identity/build, preview, evolution; **Хроника**: read-only scrub/play of the real history with calendar and statistics), **Прогресс** (calendar, statistics, weight history, photos), **Упражнения** (coverage, pick explanation, named sets, optional LLM), **Настройки** (rhythm/strictness, Focus V2 / λ / autoTune, inventory, sounds and appearance); the **Лаборатория** entry opens the sandboxed process from any shipped build — see [ARCHITECTURE.md](ARCHITECTURE.md#core-preferences).
 - Renderer routes: `#/dashboard`, `#/popup`, `#/laboratory-preview` (visual popup preview inside the sandbox child); `#/dashboard?tab=settings` or `?tab=laboratory` open those tabs directly. The dashboard has five primary sections including «Лаборатория»; the native laboratory host is the only laboratory UI.
 - After a **Готово** in the popup, streak, sessions and character survive quit/relaunch (check `.userdata/data/`).
 - If the shell exports `ELECTRON_RUN_AS_NODE=1` (some editors/agents do), `electron.exe .` boots as plain Node and crashes on `electron.app`. The npm `dev` script strips it for the Electron child; clear it yourself for a direct `electron.exe .` or a packaged smoke run — it also makes a packaged `Body Debugger.exe` exit instantly with no profile and no log.
@@ -178,9 +178,9 @@ Default cue pack: `src/assets/sounds/default/*.mp3`. Settings (`sound.enabled` /
 
 The popup sends bytes; main validates JPEG/PNG/WebP up to 8 MB and writes `.userdata/photos/<id>.<ext>` plus `data/photos.json`. The renderer loads `<img src="photo://<id>">`; main's protocol resolves only known ids. The photo layer is off by default and never blocks a session result.
 
-## AI proposals
+## AI proposals / Catalog LLM
 
-No network call is made. The dashboard panel accepts pasted AI JSON, validates it as an `Exercise`, and only writes `data/custom-exercises.json` after «Утвердить». The picker merges the shipped catalog with approved entries; shipped ids always win. Rules: `shared/domain/ai-proposal.ts`.
+Paste import still validates a single `Exercise` (`shared/domain/ai-proposal.ts`) and writes into `data/catalog.json` via `catalog-store` (legacy `custom-exercises.json` migrates once). The dashboard **Упражнения → AI** tab can call an OpenAI-compatible provider (key in `safeStorage`); nothing is applied without explicit approval. For offline smoke set `llm.baseUrl` to `mock://local`. Design: [CATALOG-V2.md](CATALOG-V2.md).
 
 ## Themes
 

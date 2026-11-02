@@ -141,7 +141,7 @@ Never publish a stable version from the legacy dev config; never install the leg
 ### Versioning
 
 - **Dev prerelease**: `npm version prerelease --preid dev` from the current version. If the current is `0.2.1`, this yields `0.2.2-dev.0`; repeating yields `0.2.2-dev.1`.
-- **Stable**: `npm version minor` (or `patch`) from the current line. `0.3.0` first shipped the delivery pipeline; `0.4.0` first shipped the laboratory-in-dashboard line; `0.5.0` ships the native laboratory tab and shared playback engine; `0.6.0` ships Catalog V2 (Zone×Method picker, dose, «Упражнения», optional LLM changesets); `0.7.0` ships Catalog UI (library, playground, preference board, next-breaks queue). Current stable: `0.7.0`, published 2026-11-02; previous installer `0.6.0` for rollback.
+- **Stable**: `npm version minor` (or `patch`) from the current line. `0.3.0` first shipped the delivery pipeline; `0.4.0` first shipped the laboratory-in-dashboard line; `0.5.0` ships the native laboratory tab and shared playback engine; `0.6.0` ships Catalog V2 (Zone×Method picker, dose, «Упражнения», optional LLM changesets); `0.7.0` ships Catalog UI (library, playground, preference board, next-breaks queue); `0.7.1` caps empty-cell LLM generate (≤24, 120 s) and surfaces provider errors. Current stable: `0.7.1`, published 2026-11-03; previous installer `0.7.0` for rollback.
 - `npm version` creates a commit and a `v*` tag. Keep the working tree clean; the publish script refuses a dirty tree.
 
 ### Local publish

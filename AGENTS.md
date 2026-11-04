@@ -50,7 +50,7 @@ Project docs and this file override global agent rules when they conflict.
 | Dashboard calendar + stats | `shared/domain/stats.ts`, `src/components/stats/` |
 | Real-history chronicle (read-only timeline, shared playback engine) | `shared/domain/chronicle.ts`, `src/components/character/CharacterChronicle.vue`, `electron/main/chronicle-playback.ts`, `shared/domain/character-context.ts` |
 | Shared session summary / transition text | `shared/domain/character-summary.ts` |
-| Manual character preview (chronicle) | `src/components/character/ManualCharacterControls.vue` |
+| Manual character preview (laboratory) | `src/components/character/ManualCharacterControls.vue` |
 | Native laboratory (dashboard tab, headless sandbox engine) | `src/debug/LaboratoryHost.vue`, `src/debug/LaboratoryPanel.vue`, `src/renderer-api.ts`, `shared/domain/laboratory.ts`, `electron/main/laboratory.ts`, `electron/main/lab-engine.ts`, `electron/main/lab-headless.ts` |
 | Shared playback mutex + reminder deferral | `shared/domain/playback-coordinator.ts`, `electron/main/playback-coordinator.ts` |
 | Manual visual preview | `src/debug/AppearancePanel.vue`, `src/views/LaboratoryPreviewView.vue`, `shared/domain/laboratory-preview.ts` |
@@ -58,6 +58,7 @@ Project docs and this file override global agent rules when they conflict.
 | Application clock / laboratory time | `shared/domain/clock.ts`, `src/stores/runtime.ts` |
 | Preload bridge | `electron/preload/` |
 | Vue renderer | `src/` |
+| Exercise-led navigation, preview/start, fitting and AI review | [Catalog UI](docs/CATALOG-UI.md), `shared/domain/dashboard-navigation.ts`, `shared/domain/exercise-start.ts`, `shared/domain/changeset-review.ts` |
 | Pinia hydrate | `src/bootstrap/hydrate.ts` |
 | Shared types & validation | `shared/` |
 | Exercise catalog + domain rules (picker, character, session extras, weight) | `shared/constants/exercises.ts`, `shared/constants/catalog-axes.ts`, `shared/constants/catalog-tuning.ts`, `shared/domain/` |
@@ -86,7 +87,7 @@ Project docs and this file override global agent rules when they conflict.
 ## Commands
 
 ```bash
-npm run dev          # primary: HMR tray + dashboard; open Лаборатория for the sandbox
+npm run dev          # primary: HMR tray + dashboard; open Settings → developer tools → laboratory for the sandbox
 npm run build:dir    # optional packaged prod smoke
 npm run build:win    # local NSIS + latest.yml (see docs/DELIVERY.md)
 npm run publish:prod # ship stable to GitHub releases (requires GH_TOKEN)

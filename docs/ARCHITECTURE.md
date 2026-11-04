@@ -167,9 +167,11 @@ Skipped / snoozed / missed sessions never count as training. Character branch sc
 
 `#/dashboard?tab=settings` and `?tab=exercises` open those tabs. The tray «Настройки» item still deep-links settings.
 
-The dashboard has six primary sections: «Сегодня», «Персонаж», «Лаборатория», «Прогресс», «Упражнения» and «Настройки». «Упражнения» uses `SectionTabs` for Каталог / Песочница / Покрытие / Наборы / AI (see [CATALOG-UI.md](CATALOG-UI.md)). Today contains the hero, day counts, streak, an optional next-breaks queue hint, a compact journey and optional quick weight entry. «Персонаж» uses `SectionTabs.vue`: «Профиль» and «Хроника». «Лаборатория» mounts via `LaboratoryHost.vue`. `ProgressPanel.vue` groups calendar, statistics, weight and photos. Legacy `tab=calendar` / `tab=stats` select progress subsections; `tab=playground` aliases to laboratory.
+The dashboard has four primary sections: «Сегодня», «Упражнения», «Персонаж», «Прогресс», plus utility settings. `dashboard-navigation` owns hash query navigation, legacy aliases and Back handling. Today shows a main-owned read-only exercise recommendation, the next reminder, daily counts, a compact queue and optional collapsed weight entry. Exercises groups the library, personal selection profile, sets, queue and optional AI assistant. See [CATALOG-UI.md](CATALOG-UI.md) for layouts, launch/review tokens and failure semantics.
 
-`PreferencesPanel.vue` groups interval/strictness, picker mode and Focus V2 + λ + autoTune. Selection still reuses `ComfortSettingsPanel.vue` for inventory; «Импорт из AI» links to «Упражнения». Character identity/build remain on «Персонаж».
+`PreferencesPanel.vue` separates general reminder/confirmation settings from exercise selection preferences. `SettingsPanel.vue` holds comfort, system, AI connection and developer tools. `LaboratoryHost.vue` remains mounted but only activates under settings → laboratory; the isolated profile and playback mutex remain intact. Character uses appearance/development/chronicle subsections, with a Pinia fitting draft and explicit save. The chronicle has no manual state overrides. Progress shows enabled diaries and contextual opt-in actions.
+
+Exercise preview/start IPC is additive: existing `openPopup()` and tray callers retain their behavior. Preview does not consume queue slots; a selected exercise is resolved and hard-filtered in main, with the same dose rules as automatic selection. Review/application of AI proposals uses an additional main-owned comparison token. These tokens and UI drafts are ephemeral; no persisted schema changes are required. Settings, progress and queue publish their new in-memory value only after their atomic JSON write succeeds.
 
 ### Popup severity
 

@@ -328,6 +328,12 @@ export function toExerciseV1(
     ...(exercise.modificationOf ? { modificationOf: exercise.modificationOf } : {}),
     group: derived.group,
     focus: methodToFocus(exercise.method),
+    method: exercise.method,
+    zones: { ...exercise.zones },
+    intensity: exercise.intensity,
+    timer: { ...exercise.timer },
+    context: { ...exercise.context },
+    ...(exercise.avoidIf ? { avoidIf: [...exercise.avoidIf] } : {}),
     ...(exercise.timer.perSide ? { perSide: true } : {})
   }
 }

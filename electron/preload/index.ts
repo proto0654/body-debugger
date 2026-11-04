@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { ExerciseRecommendation, StartExerciseRequest, StartExerciseResult } from '../../shared/domain/exercise-start'
 import type { LabCommand, LabState } from '../../shared/domain/laboratory'
 import type { LabDriverAck, LabDriverCommand } from '../../shared/domain/laboratory-playback'
 import type { LaunchAtLoginState } from '../../shared/domain/launch-at-login'
@@ -52,6 +53,8 @@ import type { Changeset } from '../../shared/domain/changeset'
 import type { CatalogBatch } from '../../shared/types/exercise-v2'
 
 const api = {
+  reviewLlmChangeset: (id: string): Promise<import('../../shared/domain/changeset-review').ChangesetReview | null> => ipcRenderer.invoke(IpcChannels.LlmReview, id),
+  applyReviewedLlmChangeset: (payload: { id: string; token: string }): Promise<import('../../shared/domain/changeset-review').ApplyReviewedResult> => ipcRenderer.invoke(IpcChannels.LlmApplyReviewed, payload),
   registerLabHost: (): void => {
     ipcRenderer.send(IpcChannels.LabViewRegister)
   },
@@ -109,6 +112,8 @@ const api = {
     return () => ipcRenderer.removeListener(IpcChannels.ChronicleChanged, listener)
   },
   openPopup: (): Promise<void> => ipcRenderer.invoke(IpcChannels.WindowOpenPopup),
+  previewNextExercise: (): Promise<ExerciseRecommendation | null> => ipcRenderer.invoke(IpcChannels.SessionPreviewExercise),
+  startExercise: (payload: StartExerciseRequest): Promise<StartExerciseResult> => ipcRenderer.invoke(IpcChannels.SessionStartExercise, payload),
   closePopup: (): Promise<void> => ipcRenderer.invoke(IpcChannels.WindowClosePopup),
   resizePopup: (height: number): Promise<void> =>
     ipcRenderer.invoke(IpcChannels.WindowResizePopup, height),

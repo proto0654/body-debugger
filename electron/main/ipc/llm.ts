@@ -14,6 +14,8 @@ import { broadcastCatalogUpdated } from './catalog'
 import { clearKey, setKey } from '../llm/secrets'
 import {
   applyChangeset,
+  reviewChangeset,
+  applyReviewedChangeset,
   cancelRun,
   discardChangeset,
   getChangesetById,
@@ -71,6 +73,13 @@ export function registerLlmIpc(): void {
     const changeset = applyChangeset(changesetId)
     if (changeset) broadcastCatalogUpdated()
     return changeset
+  })
+
+  ipcMain.handle(IpcChannels.LlmReview, (_event, id: string) => typeof id === 'string' ? reviewChangeset(id) : null)
+  ipcMain.handle(IpcChannels.LlmApplyReviewed, (_event, payload) => {
+    const result = applyReviewedChangeset(payload?.id, payload?.token)
+    if (result.status === 'applied') broadcastCatalogUpdated()
+    return result
   })
 
   ipcMain.handle(IpcChannels.LlmDiscard, (_event, changesetId: string) => discardChangeset(changesetId))

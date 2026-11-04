@@ -40,13 +40,14 @@ const defaultFilters = (): CatalogViewFilters => ({
   equipmentMode: 'any',
   equipmentIds: [],
   batchId: null,
-  status: 'all',
+  status: 'active',
   source: 'all',
   hintsOnly: false,
-  availableNow: false
+  availableNow: true
 })
 
 export const useCatalogViewStore = defineStore('catalogView', () => {
+  const scrollTop = ref(0)
   const filters = ref(defaultFilters())
   const sort = ref<CatalogSort>('title')
   const groupBy = ref<CatalogGroupBy>('none')
@@ -69,6 +70,7 @@ export const useCatalogViewStore = defineStore('catalogView', () => {
   }
 
   return {
+    scrollTop,
     filters,
     sort,
     groupBy,

@@ -15,6 +15,9 @@ import type { CatalogBatch, ExerciseV2, Method, Zone } from '@shared/types/exerc
 import type { PickExplanation } from '@shared/domain/picker'
 import { useSettingsStore } from '@/stores/settings'
 import { useSessionsStore } from '@/stores/sessions'
+import { resolveExercise } from '@shared/domain/exercise-v2'
+import { exerciseUnavailableReason } from '@shared/domain/exercise-start'
+import { useDashboardNavigation } from './dashboard-navigation'
 
 export type ExercisesSection = 'library' | 'sandbox' | 'coverage' | 'sets' | 'ai'
 
@@ -46,6 +49,15 @@ export const useCatalogStore = defineStore('catalog', () => {
       batches.value
     )
   })
+  const library = computed(() => {
+    const effective = new Map(resolved.value.map(exercise => [exercise.id, exercise]))
+    return [...shippedCatalogV2(), ...userExercises.value].map(exercise => effective.get(exercise.id) ?? resolveExercise(exercise))
+  })
+  function unavailableReason(id: string): string | null {
+    const exercise = resolved.value.find(entry => entry.id === id)
+    if (!exercise) return 'Упражнение в архиве, отключено или заменено своим вариантом.'
+    return exerciseUnavailableReason(exercise, useSettingsStore().asSettings())
+  }
 
   const coverage = computed((): CoverageCell[] => coverageMatrix(resolved.value))
 
@@ -90,6 +102,7 @@ export const useCatalogStore = defineStore('catalog', () => {
   function openAiForCell(cell: SelectedCoverageCell): void {
     selectedCell.value = cell
     section.value = 'ai'
+    useDashboardNavigation().navigate('exercises', 'ai', { task: 'generate' })
   }
 
   function clearSelectedCell(): void {
@@ -103,6 +116,7 @@ export const useCatalogStore = defineStore('catalog', () => {
   function openManualEdit(id: string): void {
     editExerciseId.value = id
     section.value = 'sandbox'
+    useDashboardNavigation().navigate('exercises', 'edit', { exerciseId: id })
   }
 
   function clearManualEdit(): void {
@@ -117,6 +131,8 @@ export const useCatalogStore = defineStore('catalog', () => {
     selectedCell,
     editExerciseId,
     resolved,
+    library,
+    unavailableReason,
     coverage,
     hints,
     refresh,

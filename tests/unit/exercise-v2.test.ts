@@ -8,10 +8,20 @@ import {
   isValidExerciseV2,
   normalizeExerciseV2,
   round5,
-  upgradeExercise
+  upgradeExercise,
+  toExerciseV1
 } from '@shared/domain/exercise-v2'
 
 describe('exercise-v2 upgrade', () => {
+  it('retains timer, intensity, conditions and physical limitations through the legacy popup adapter', () => {
+    const source = upgradeExercise(EXERCISE_CATALOG.find(exercise => exercise.id === 'neck-tilts')!)
+    const roundTrip = upgradeExercise(toExerciseV1(source))
+    expect(roundTrip.timer).toEqual(source.timer)
+    expect(roundTrip.avoidIf).toEqual(['neck'])
+    expect(roundTrip.context).toEqual(source.context)
+    expect(roundTrip.zones).toEqual(source.zones)
+    expect(roundTrip.intensity).toBe(source.intensity)
+  })
   it('upgrades all 34 shipped exercises to valid ExerciseV2', () => {
     expect(EXERCISE_CATALOG).toHaveLength(34)
     for (const v1 of EXERCISE_CATALOG) {

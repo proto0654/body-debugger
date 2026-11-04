@@ -2,32 +2,58 @@
 
 Status: **implemented** (phases 4a–8b). Companion to [CATALOG-V2.md](CATALOG-V2.md). Every function and field referenced here is defined there unless listed in §9. This file describes the dashboard side only.
 
-Goal: a person can click through every exercise in the pool, see each number with an explanation, try combinations without touching real settings, and arrange upcoming breaks by dragging.
+Goal: choose an exercise, understand the movement, start a break, and review its effect without opening diagnostic tools. Demonstrations use existing text instructions; illustrations and video are future work.
 
 ## 0. Principles
 
-1. **Every number explains itself.** Values show unit + `?` popover from `shared/constants/field-docs.ts`.
-2. **Effects in words and multipliers** (e.g. `×0.2 — вы только что делали верх`).
-3. **Read-only by default.** Playground writes real settings only on «Применить».
-4. **No duplicated logic.** UI calls pure `shared/domain/` functions (`pickExercise`, `explainPick`, `dose`, `coverageMatrix`, `targetVsActual`, plus sandbox helpers below).
-5. **Keyboard path for every drag.**
-6. **Color carries meaning, never alone** (boost / penalty / filtered + sign or icon).
+1. Put the action and instruction before algorithm details.
+2. Use shared picker hard filters and dose rules in both manual and automatic paths.
+3. Keep previews read-only: no session writes, queue consumption or earned-character changes.
+4. Reveal probabilities, coefficients and raw payloads only on request.
+5. Preserve keyboard navigation, visible focus and list context on return.
+6. Optional AI and diaries must not block the core cycle.
 
-## 1. Tab structure
+## 1. Navigation
 
-«Упражнения» subtabs:
+Primary sections: «Сегодня», «Упражнения», «Персонаж», «Прогресс». Settings are a separate utility entry. Navigation uses `#/dashboard?tab=...&section=...`, with optional `exercise` and AI `task` parameters; browser Back restores the selected location. Legacy calendar/stats and laboratory/playground links remain supported.
 
-| Subtab | Purpose |
+| Exercise subsection | Purpose |
 |---|---|
-| **Каталог** | browse and inspect every exercise |
-| **Песочница** | try settings, pool, simulate, plan next breaks (replaces «Выбор») |
-| **Покрытие** | Zone × Method matrix + target vs actual |
-| **Наборы** | sets, hints, revert |
-| **AI** | provider, changesets, progress advisor |
+| **Каталог** | Search, basic zone/availability filters, text instruction and explicit exercise start |
+| **Подбор под меня** | Mode, priorities, temporary accents, dose hints, equipment and physical limitations |
+| **Наборы** | Existing set management and dose-hint approval/revert |
+| **Следующие перерывы** | Keyboard-accessible queue editing |
+| **ИИ-помощник** | Task → request preview → proposals → reviewed application |
 
-## 2–5. Surfaces
+JSON import and manual editing are catalog actions. Settings → developer tools retains the native laboratory, picker sandbox and coverage matrix. Their data/profile isolation remains unchanged.
 
-See implementation under `src/components/catalog/`: library (filter / list / drawer), number explainer + «Как это работает», sandbox (controls + Пул / матрица / симуляция / неделя / что если), preference board, next-breaks queue strip.
+## 2. Library and exercise preview
+
+At 960px window width the list and selected exercise appear side by side. Below 880px the selected exercise replaces the list; returning retains search, filters and list scroll. The library includes archived, disabled and shadowed entries for inspection, while the default view contains only active available entries. Hard filters are enforced again in main before launch.
+
+Rows show title, calculated duration, direction and equipment. The preview contains the existing instruction, duration, posture, conditions, start and pin actions. History, selection explanations and technical parameters are disclosure sections. Archived/unavailable entries explain why launch is disabled.
+
+## 3. Main-owned preview and launch
+
+`previewNextExercise` computes the normal picker result without side effects and returns an ephemeral token, or null when there is no eligible recommendation. The token is invalidated by relevant state changes and the next minute. Previewing does not reserve the future automatic pick.
+
+`startExercise` distinguishes recommendation and catalog sources. A recommendation must match its current token; stale requests require review and another click. Only its successful popup creation consumes the corresponding queue slot. An explicit catalog start leaves the queue untouched, resolves the exercise in main and calculates the current dose. Existing popups are focused; playback/grace blocks new launches; manual starts remain available while paused.
+
+V2 metadata (timer, intensity, zones, conditions and physical limitations) survives the legacy popup adapter. A failed queue write or popup creation does not consume the queued exercise. The existing tray/openPopup path remains available.
+
+## 4. AI assistant
+
+Connection configuration belongs to settings. The assistant supports generating selected zone/method variants or thin coverage cells, editing a user set, and analysing progress. Retagging is an additional tool. Only progress analysis requires the existing aggregate-sharing opt-in; weight, photos and physical limitations are not added to requests.
+
+Before sending, users inspect the task, target set and actual payload. If it changes before dispatch, the assistant refreshes the preview and requires another confirmation. Pinia retains pending requests, instructions and drafts across navigation; stored drafts can be reopened after restart.
+
+Main computes proposal titles, actions and field comparisons from the actual apply input. A review token covers operations, catalog, profile shifts, overrides and model; applying stale comparisons requires re-review. Rejected operations cannot be selected; an empty selection cannot be applied. Historical entries without saved before-values show the stored operations without fabricated comparisons. Existing discard/revert semantics remain in place.
+
+## 5. Character fitting and progress
+
+Appearance drafts live in Pinia and do not write until Apply. Pack and build use the existing independent persistence operations; partial failure retains the remaining draft and shows saved values. Cancel restores the saved appearance. Earned form/branch and temporary condition are distinct from cosmetic choices. Voice preview lives with the character; global audio remains in settings. The chronicle is read-only, with manual state controls confined to the laboratory.
+
+Progress keeps the calendar/statistics and enabled diaries. Disabled weight/photo diaries have compact opt-in actions. The contextual AI entry opens the same assistant with the tune task.
 
 ## 6. Pure helpers (`shared/domain/catalog-sandbox.ts`, `queue.ts`)
 
@@ -49,7 +75,7 @@ Pool too small (effective size &lt; 8) → warning + generate / import. Sandbox 
 
 | # | Phase | Acceptance |
 |---|---|---|
-| 4a | `field-docs`, «Как это работает», read-only «Каталог» | every drawer number has a popover; probs match `explainPick` |
+| 4a | `field-docs`, «Как это работает», read-only «Каталог» | instruction/action first; technical explanation uses `explainPick` |
 | 4b | Playground + Пул + `poolSnapshot` / baseline A | level change re-ranks; Apply writes after diff |
 | 4c | Combo matrix | dead cells marked; click loads combination |
 | 7a | Simulation + Week | same seed → identical; λ moves shares toward targets |

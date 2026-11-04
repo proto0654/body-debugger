@@ -8,11 +8,13 @@ import type { ExerciseV2, Intensity, Method, Zone } from '@shared/types/exercise
 import { useCatalogStore } from '@/stores/catalog'
 import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsStore } from '@/stores/settings'
+import { useDashboardNavigation } from '@/stores/dashboard-navigation'
 import FieldHelp from '@/components/catalog/FieldHelp.vue'
 
 const catalog = useCatalogStore()
 const sessions = useSessionsStore()
 const settings = useSettingsStore()
+const navigation = useDashboardNavigation()
 
 const exercise = computed(() =>
   catalog.editExerciseId
@@ -103,6 +105,7 @@ async function save(): Promise<void> {
   })
   await catalog.refresh()
   catalog.clearManualEdit()
+  navigation.navigate('exercises', 'library')
 }
 </script>
 
@@ -110,7 +113,7 @@ async function save(): Promise<void> {
   <section v-if="exercise" class="settings-card space-y-4" data-testid="manual-edit-panel">
     <div class="flex items-center justify-between gap-2">
       <h2 class="text-sm font-semibold text-white">Изменить · {{ exercise.title }}</h2>
-      <button type="button" class="setting-chip text-[11px]" @click="catalog.clearManualEdit()">Отмена</button>
+      <button type="button" class="setting-chip text-[11px]" @click="catalog.clearManualEdit(); navigation.navigate('exercises', 'library')">Отмена</button>
     </div>
 
     <div class="grid gap-3 sm:grid-cols-2 text-xs">

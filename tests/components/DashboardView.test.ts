@@ -11,6 +11,8 @@ import { makeSession, makeSettings } from '../fixtures'
 import { REACTION_TIMING_MS } from '@shared/domain/reaction-timing'
 import type { DataSnapshot } from '@shared/types/persistence'
 import type { AppSettings } from '@shared/types/settings'
+import { useDashboardNavigation } from '@/stores/dashboard-navigation'
+import { EXERCISE_CATALOG } from '@shared/constants/exercises'
 import type { Session } from '@shared/types/session'
 
 const progress = {
@@ -41,7 +43,10 @@ function mountDashboard(history: Session[] = []): VueWrapper {
 
 async function clickIn(wrapper: VueWrapper, testId: string, label: string): Promise<void> {
   if (!wrapper.find(`[data-testid="${testId}"]`).exists()) {
-    await wrapper.findAll('nav button').find(button => button.text() === 'Настройки')!.trigger('click')
+    const nav = useDashboardNavigation()
+    if (testId === 'inventory-controls') nav.navigate('exercises', 'profile')
+    else nav.navigate('settings', 'comfort')
+    await nextTick()
   }
   const controls = wrapper.get(`[data-testid="${testId}"]`)
   const button = controls
@@ -65,6 +70,8 @@ beforeEach(() => {
     value: {
       saveSettings,
       openPopup,
+      previewNextExercise: async () => ({ exercise: EXERCISE_CATALOG[0], token: 'test-recommendation' }),
+      startExercise: async () => ({ status: 'started' }),
       listPhotos,
       listCustomExercises,
       getLaunchAtLogin: async () => ({ supported: true, enabled: false, willLaunch: false }),
@@ -84,25 +91,27 @@ describe('DashboardView — optional layers', () => {
   it('keeps the primary sections and groups identity and build in the character section', async () => {
     wrapper = mountDashboard()
     expect(wrapper.get('nav[aria-label="Разделы приложения"]').findAll('button').map(button => button.text()))
-      .toEqual(['Сегодня', 'Персонаж', 'Лаборатория', 'Прогресс', 'Упражнения', 'Настройки'])
+      .toEqual(['Сегодня', 'Упражнения', 'Персонаж', 'Прогресс'])
     await wrapper.findAll('nav button').find(button => button.text() === 'Персонаж')!.trigger('click')
     expect(wrapper.findAll('[data-character-pack]')).toHaveLength(10)
     expect(wrapper.findAll('[data-build]')).toHaveLength(3)
+    await wrapper.findAll('button').find(button => button.text() === 'Развитие')!.trigger('click')
     expect(wrapper.find('[data-testid="character-journey"] .journey-stages').exists()).toBe(true)
   })
 
-  it('keeps manual controls with the chronicle inside the character section', async () => {
+  it('keeps the real-history chronicle free of manual state overrides', async () => {
     wrapper = mountDashboard([makeSession({ exerciseId: 'neck-tilts' })])
     await wrapper.findAll('nav button').find(button => button.text() === 'Персонаж')!.trigger('click')
     await wrapper.findAll('button').find(button => button.text() === 'Хроника')!.trigger('click')
-    expect(wrapper.find('[data-testid="manual-character-controls"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="manual-character-controls"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="chronicle"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="chronicle-transport"]').exists()).toBe(true)
   })
 
   it('opens the laboratory host tab', async () => {
     wrapper = mountDashboard()
-    await wrapper.findAll('nav button').find(button => button.text() === 'Лаборатория')!.trigger('click')
+    useDashboardNavigation().navigate('settings', 'laboratory')
+    await nextTick()
     expect(wrapper.find('[data-testid="laboratory-host"]').exists()).toBe(true)
   })
 
@@ -120,15 +129,11 @@ describe('DashboardView — optional layers', () => {
     await nextTick()
     const scene = wrapper.get('[data-testid="character-scene"]')
     expect(scene.get('img').attributes('src')).toMatch(/neglect-3-stocky/)
-    expect(scene.get('.character-badge').text()).toContain('6 / 6')
-    expect(wrapper.get('[data-testid="character-condition"]').text()).toContain('Скуф · 10 / 10')
-    expect(wrapper.get('[data-testid="character-condition"]').text()).toContain('восстановления: 5')
     useSessionsStore().hydrate([...skips, makeSession({ exerciseId: 'neck-tilts' })])
     await nextTick()
     vi.advanceTimersByTime(REACTION_TIMING_MS.milestone)
     await nextTick()
     expect(scene.get('img').attributes('src')).toMatch(/neglect-2-stocky/)
-    expect(wrapper.get('[data-testid="character-condition"]').text()).toContain('8 / 10')
     useSessionsStore().hydrate([...skips, ...Array.from({ length: 5 }, () => makeSession({ exerciseId: 'neck-tilts' }))])
     await nextTick()
     vi.advanceTimersByTime(REACTION_TIMING_MS.milestone)
@@ -176,10 +181,11 @@ describe('DashboardView — optional layers', () => {
     expect(wrapper.get('[data-testid="character-scene"] img').attributes('src')).toMatch(/stage-0-average/)
   })
 
-  it('keeps today focused on the character and the next attainable form', () => {
+  it('keeps today focused on an exercise instead of profile and technical panels', () => {
     wrapper = mountDashboard()
     expect(wrapper.find('[data-testid="today-hero"]').exists()).toBe(true)
-    expect(wrapper.get('[data-testid="character-journey"]').text()).toContain('Ещё 3 разминки')
+    expect(wrapper.find('[data-testid="character-journey"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Размяться сейчас')
     expect(wrapper.find('[data-testid="inventory-controls"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('JSON')
   })
@@ -238,14 +244,14 @@ describe('DashboardView — optional layers', () => {
     expect(wrapper.get('[data-testid="photo-gallery"]').text()).toContain('Фото пока нет')
   })
 
-  it('turns AI proposals on and mounts the panel', async () => {
+  it('keeps JSON import with the exercise catalog', async () => {
     wrapper = mountDashboard()
-
-    await clickIn(wrapper, 'ai-controls', 'Вкл')
-
-    expect(saveSettings.mock.calls[0][0].ai.enabled).toBe(true)
+    useDashboardNavigation().navigate('exercises', 'import')
+    await nextTick()
+    expect(wrapper.find('[data-testid="ai-panel"]').exists()).toBe(false)
+    await wrapper.get('input[type="checkbox"]').setValue(true)
     expect(wrapper.find('[data-testid="ai-panel"]').exists()).toBe(true)
-    expect(listCustomExercises).toHaveBeenCalled()
+    expect(saveSettings.mock.calls.at(-1)![0].ai.enabled).toBe(true)
   })
 
   it('renders the calendar heatmap and the stats panel', async () => {
@@ -261,9 +267,7 @@ describe('DashboardView — optional layers', () => {
 
   it('opens the preferences tab', async () => {
     wrapper = mountDashboard()
-    const nav = wrapper.findAll('nav button')
-
-    await nav.find((button) => button.text() === 'Настройки')!.trigger('click')
+    await wrapper.get('.dashboard-settings-link').trigger('click')
 
     expect(wrapper.find('[data-testid="preferences-panel"]').exists()).toBe(true)
   })

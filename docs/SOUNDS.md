@@ -77,7 +77,7 @@ Defaults for new or explicitly reset profiles: on, volume `0.4`, pack `default`,
 
 The generated voice package plays through the same gate and the same player:
 
-- `sound.voiceEnabled` is **on** by default; the toggle is in «Настройки → Звуки». Only an explicit opt-out keeps a
+- `sound.voiceEnabled` is **on** by default; the toggle and explicit voice audition are in «Персонаж → Образ»; master mute, volume and effect audition remain in utility settings. Only an explicit opt-out keeps a
   profile silent. The voice is keyed by `settings.characterPackId`, so the character identity owns the voice.
 - `VOICE_CUE_EVENTS` maps a cue to a spoken event: `popup → ready`, `done → done`, `skip → skipped`,
   `snooze → snoozed`, `stage-up → stage-up`, `streak → streak`, `alert → alert`, `error → error`. Two moments are

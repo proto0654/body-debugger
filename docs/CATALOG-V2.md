@@ -461,18 +461,11 @@ Derived from `done` / `skipped` per exercise. `skipped` and `missed` count as sk
 
 ## 10. Dashboard tab «Упражнения»
 
-New top-level tab using `SectionTabs.vue`. Core Catalog V2 shipped **Покрытие · Выбор · Наборы · AI**. Deeper library / playground / preference board / next-breaks queue continue in [CATALOG-UI.md](CATALOG-UI.md) (phases 4a–8b; «Выбор» becomes «Песочница», «Каталог» is added). The «Импорт из AI» block on «Настройки» becomes a link to this tab.
+The exercise-led dashboard groups the library, personal selection profile, sets, next-breaks queue and optional AI assistant. The library supports text preview and main-validated direct exercise launch. Technical coverage/simulation tools live under Settings → developer tools; provider connection lives in settings. JSON import is a catalog action. Current presentation and token contracts are described in [CATALOG-UI.md](CATALOG-UI.md).
 
-| Subtab | Content | Data |
-|---|---|---|
-| Покрытие | Zone × Method matrix with counts; cells under a threshold (start at 6) highlighted with a "сгенерировать" action | `coverageMatrix(catalog)` → `{ zone, method, count, avgIntensity }[]`, cell = dominant zone, tooltip shows share breakdown |
-| Выбор | target vs actual bars per axis (14 days); "Почему это" for the next candidate and the last shown exercise; profile simulator (200 seeded runs vs targets) with the λ slider | `targetVsActual`, `explainPick`, simulator reuses the pure picker; can also be mounted in «Лаборатория» |
-| Наборы | sets (named batches) with badge `shipped / user / llm`, date, model, count, "включён" toggle, "откатить пакет", rename / create set; per-exercise hint marks (`ready_to_progress`, `often_skipped`) with «Принять» | `catalog.json`, inverse ops |
-| AI | provider config, «Проанализировать прогресс» (needs `llm.shareProgress`), payload preview + token estimate, target-set picker, current changeset with diff (`+5 / ~3 / −2`) and per-op checkboxes, changeset history with revert | `changesets.json` |
+The personal selection profile exposes zone/method frequency, temporary accents, equipment, limitations and dose hints; the exact profile-strength slider is an additional disclosure. The underlying picker weights and dose rules remain shared. V2 metadata survives the legacy Exercise adapter, so main can enforce the same limits as the catalog.
 
-Settings UI («Направления» block): one row per axis (Зона, Метод), each chip cycles `— / + / ++` (and `−` for "реже"); a **«Следовать профилю»** slider (λ, 0–1, default 0.7, labelled Мягко / Обычно / Жёстко). It is a single setting that the picker already consumes, so it ships together with the two-axis UI in phase 2. Primary/accent rows disappear.
-
-State: the changeset lives in main and arrives through `llm:changed`. Pinia keeps only UI filters and the selected cell.
+Changesets remain main-owned and arrive through `llm:changed`; Pinia retains request preparation, selected task inputs and drafts across navigation. Proposal reviews compare against current main-owned catalog/profile data; a stale review token cannot be applied. No additional persisted review schema is introduced.
 
 ## 11. Tests (Vitest, pure functions first)
 

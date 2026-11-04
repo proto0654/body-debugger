@@ -4,7 +4,7 @@ import type { Exercise } from '../types/exercise'
 /**
  * AI proposal boundary (CONCEPT.md §9).
  *
- * The app does not call a model itself: the user pastes an AI answer, which must
+ * This legacy importer does not call a model: the user pastes an AI answer, which must
  * decode to one valid Exercise. Nothing enters the catalog until the user
  * explicitly approves it, and a shipped id can never be replaced.
  */

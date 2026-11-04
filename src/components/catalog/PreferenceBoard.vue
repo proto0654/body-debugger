@@ -18,6 +18,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useSandboxStore } from '@/stores/sandbox'
 
 type Scope = 'permanent' | 'today' | 'days'
+const props = withDefaults(defineProps<{ live?: boolean }>(), { live: false })
 
 const settings = useSettingsStore()
 const catalog = useCatalogStore()
@@ -27,6 +28,7 @@ const sandbox = useSandboxStore()
 const scope = ref<Scope>('permanent')
 const days = ref(3)
 const deltaText = ref('')
+const error = ref('')
 
 const columns: { level: FocusLevel; label: string }[] = [
   { level: 2, label: `${FOCUS_LEVEL_LABELS[2]} Чаще` },
@@ -35,7 +37,7 @@ const columns: { level: FocusLevel; label: string }[] = [
   { level: -1, label: `${FOCUS_LEVEL_LABELS[-1]} Реже` }
 ]
 
-const focus = computed(() => sandbox.controls?.focus ?? settings.focusV2)
+const focus = computed(() => props.live ? settings.focusV2 : sandbox.controls?.focus ?? settings.focusV2)
 
 function chipsFor(level: FocusLevel) {
   const zones = ZONES.filter((z) => focus.value.zones[z] === level).map((z) => ({
@@ -71,6 +73,13 @@ async function moveChip(
 ): Promise<void> {
   const beforeInput = sandbox.pickInput
   if (scope.value === 'permanent') {
+    if (props.live) {
+      const next = { zones: { ...settings.focusV2.zones }, methods: { ...settings.focusV2.methods } }
+      if (axis === 'zone') next.zones[key as Zone] = level
+      else next.methods[key as Method] = level
+      await settings.setFocusV2(next)
+      return
+    }
     if (!sandbox.controls) sandbox.resetFromReal()
     if (axis === 'zone') sandbox.setZoneLevel(key as Zone, level)
     else sandbox.setMethodLevel(key as Method, level)
@@ -114,12 +123,15 @@ async function moveChip(
 }
 
 async function menuMove(axis: 'zone' | 'method', key: string, level: FocusLevel): Promise<void> {
-  await moveChip(axis, key, level)
+  error.value = ''
+  try { await moveChip(axis, key, level) }
+  catch (cause) { console.warn('[preference-board] save failed', cause); error.value = 'Не удалось сохранить приоритет. Попробуйте ещё раз.' }
 }
 </script>
 
 <template>
   <section class="space-y-3" data-testid="preference-board" aria-live="polite">
+    <p v-if="error" role="alert" class="text-sm text-red-300">{{ error }}</p>
     <div class="flex flex-wrap items-center gap-2 text-xs">
       <span class="text-slate-500">Срок</span>
       <button
@@ -165,9 +177,8 @@ async function menuMove(axis: 'zone' | 'method', key: string, level: FocusLevel)
         <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ col.label }}</p>
         <div class="flex flex-wrap gap-1">
           <div v-for="chip in chipsFor(col.level)" :key="`${chip.axis}-${chip.key}`" class="relative">
-            <button type="button" class="setting-chip text-[11px]">{{ chip.label }}</button>
-            <details class="absolute right-0 top-0">
-              <summary class="sr-only">Переместить {{ chip.label }}</summary>
+            <details>
+              <summary class="setting-chip">{{ chip.label }}</summary>
               <div class="absolute z-10 mt-6 w-28 rounded border border-slate-700 bg-slate-950 p-1 shadow-lg">
                 <button
                   v-for="level in FOCUS_LEVELS"

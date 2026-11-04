@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { METHOD_LABELS, ZONE_LABELS } from '@shared/constants/catalog-axes'
+import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { METHOD_LABELS, ZONE_LABELS, ZONES } from '@shared/constants/catalog-axes'
 import { explainPick } from '@shared/domain/picker'
 import type { ExerciseV2Resolved } from '@shared/types/exercise-v2'
 import FilterRail from '@/components/catalog/FilterRail.vue'
 import ExerciseRow from '@/components/catalog/ExerciseRow.vue'
 import ExerciseDrawer from '@/components/catalog/ExerciseDrawer.vue'
 import HowItWorks from '@/components/catalog/HowItWorks.vue'
-import QueueStrip from '@/components/catalog/QueueStrip.vue'
+import { useDashboardNavigation } from '@/stores/dashboard-navigation'
 import { useCatalogStore } from '@/stores/catalog'
 import { useCatalogViewStore } from '@/stores/catalog-view'
 import { useSessionsStore } from '@/stores/sessions'
@@ -19,6 +19,14 @@ const view = useCatalogViewStore()
 const sessions = useSessionsStore()
 const settings = useSettingsStore()
 const queue = useQueueStore()
+const navigation = useDashboardNavigation()
+const listElement = ref<HTMLElement | null>(null)
+const message = ref('')
+const error = ref('')
+watch(() => navigation.location.exerciseId, id => view.selectExercise(id ?? null), { immediate: true })
+watch(() => view.filters.status, status => { if (status === 'archived') view.filters.availableNow = false })
+onMounted(async () => { await nextTick(); if (listElement.value) listElement.value.scrollTop = view.scrollTop })
+onBeforeUnmount(() => { if (listElement.value) view.scrollTop = listElement.value.scrollTop })
 
 const pickInput = computed(() => ({
   catalog: catalog.resolved,
@@ -51,7 +59,7 @@ const hintMap = computed(() => {
 const filtered = computed(() => {
   const f = view.filters
   const inventory = settings.asSettings().inventory
-  let list = [...catalog.resolved]
+  let list = [...catalog.library]
 
   if (f.query.trim()) {
     const q = f.query.trim().toLowerCase()
@@ -83,7 +91,7 @@ const filtered = computed(() => {
     })
   }
   if (f.availableNow) {
-    list = list.filter((ex) => !candidateById.value.get(ex.id)?.filteredBy)
+    list = list.filter((ex) => !catalog.unavailableReason(ex.id))
   }
 
   const skipStats = (id: string) => {
@@ -145,98 +153,50 @@ const groups = computed(() => {
 })
 
 const selected = computed(() =>
-  view.selectedId ? catalog.resolved.find((ex) => ex.id === view.selectedId) : undefined
+  view.selectedId ? catalog.library.find((ex) => ex.id === view.selectedId) : undefined
 )
 
-async function onArchive(): Promise<void> {
-  if (!selected.value) return
-  await window.api?.setCatalogStatus?.({ id: selected.value.id, status: 'archived' })
-  await catalog.refresh()
-  view.closeDrawer()
+async function perform(action: () => Promise<void>): Promise<void> {
+  error.value = ''
+  try { await action() }
+  catch (cause) { console.warn('[catalog-library] action failed', cause); error.value = 'Не удалось сохранить изменение. Попробуйте ещё раз.' }
 }
-
+async function onArchive(): Promise<void> {
+  const exercise = selected.value
+  if (!exercise) return
+  await perform(async () => { const result = await window.api.setCatalogStatus({ id: exercise.id, status: 'archived' }); if (!result.ok) throw new Error('Archive rejected'); await catalog.refresh(); navigation.navigate('exercises', 'library') })
+}
 async function onPin(): Promise<void> {
   if (!selected.value) return
-  await queue.pinExercise(selected.value.id, 0)
+  await perform(async () => { await queue.pinExercise(selected.value!.id, 0); message.value = 'Закреплено на следующий перерыв.' })
 }
-
 async function onExcludeToday(): Promise<void> {
   if (!selected.value) return
-  await queue.excludeToday(selected.value.id)
+  await perform(async () => { await queue.excludeToday(selected.value!.id); message.value = 'Упражнение исключено из подбора до конца дня.' })
 }
 </script>
 
 <template>
-  <section class="space-y-3" data-testid="catalog-library">
-    <QueueStrip />
-
-    <div v-if="view.showHowItWorks" class="space-y-2">
-      <button type="button" class="setting-chip text-[11px]" @click="view.showHowItWorks = false">← К каталогу</button>
-      <HowItWorks />
-    </div>
-
-    <div v-else class="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)_minmax(280px,360px)]">
-      <FilterRail />
-
-      <div class="space-y-3">
-        <div class="flex flex-wrap items-center gap-2 text-xs">
-          <label class="text-slate-500">
-            Сортировка
-            <select v-model="view.sort" class="ml-1 rounded border border-slate-700 bg-slate-950 px-2 py-1">
-              <option value="title">название</option>
-              <option value="intensity">интенсивность</option>
-              <option value="timer">таймер</option>
-              <option value="probability">шанс сейчас</option>
-              <option value="lastShown">последний показ</option>
-              <option value="skipRate">пропуски</option>
-            </select>
-          </label>
-          <label class="text-slate-500">
-            Группы
-            <select v-model="view.groupBy" class="ml-1 rounded border border-slate-700 bg-slate-950 px-2 py-1">
-              <option value="none">нет</option>
-              <option value="zone">зона</option>
-              <option value="method">метод</option>
-              <option value="set">набор</option>
-            </select>
-          </label>
-          <button type="button" class="setting-chip text-[11px]" @click="view.showHowItWorks = true">
-            Как это работает
-          </button>
-          <span class="text-slate-500">{{ filtered.length }} упр.</span>
-        </div>
-
-        <div class="space-y-4">
-          <div v-for="group in groups" :key="group.key" class="space-y-2">
-            <h3 v-if="group.label" class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {{ group.label }}
-            </h3>
-            <ExerciseRow
-              v-for="exercise in group.items"
-              :key="exercise.id"
-              :exercise="exercise"
-              :candidate="candidateById.get(exercise.id)"
-              :batch-name="catalog.batches.find((b) => b.id === exercise.source.batchId)?.name"
-              :hints="hintMap.get(exercise.id)"
-              :selected="view.selectedId === exercise.id"
-              @select="view.selectExercise(exercise.id)"
-            />
+  <section class="space-y-4" data-testid="catalog-library">
+    <p v-if="message" role="status" class="text-sm text-emerald-400">{{ message }}</p>
+    <p v-if="error" role="alert" class="text-sm text-red-300">{{ error }}</p>
+    <p v-if="navigation.location.exerciseId && !selected" role="status" class="text-sm text-amber-300">Упражнение больше не найдено в каталоге. Выберите другое.</p>
+    <div v-if="view.showHowItWorks" class="space-y-3"><button type="button" class="setting-chip" @click="view.showHowItWorks = false">← К каталогу</button><HowItWorks /></div>
+    <template v-else>
+      <div class="flex flex-wrap items-center gap-2"><button v-for="zone in ZONES" :key="zone" type="button" class="setting-chip" :aria-pressed="view.filters.zones.includes(zone)" @click="view.filters.zones = view.filters.zones.includes(zone) ? view.filters.zones.filter(item => item !== zone) : [...view.filters.zones, zone]">{{ ZONE_LABELS[zone] }}</button><label class="ml-auto flex items-center gap-2 text-sm"><input v-model="view.filters.availableNow" type="checkbox">Только доступные</label></div>
+      <details class="settings-card catalog-filters"><summary>Поиск и фильтры · {{ filtered.length }} упражнений</summary><FilterRail /></details>
+      <div class="catalog-browser" :class="{ 'catalog-browser--selected': selected }">
+        <div class="catalog-browser-list space-y-3">
+          <label class="block text-sm text-slate-300">Найти упражнение<input v-model="view.filters.query" type="search" placeholder="Название или описание" class="profile-select mt-2 w-full"></label>
+          <div class="flex flex-wrap gap-2 text-sm"><label>Порядок <select v-model="view.sort" class="profile-select"><option value="title">По названию</option><option value="timer">По длительности</option><option value="lastShown">Недавние</option></select></label><span class="text-slate-400">{{ filtered.length }} упражнений</span></div>
+          <div ref="listElement" class="catalog-scroll space-y-2" @scroll="view.scrollTop = ($event.target as HTMLElement).scrollTop">
+            <template v-for="group in groups" :key="group.key"><h3 v-if="group.label" class="text-sm text-slate-400">{{ group.label }}</h3><ExerciseRow v-for="exercise in group.items" :key="exercise.id" :exercise="exercise" :candidate="candidateById.get(exercise.id)" :selected="selected?.id === exercise.id" @select="navigation.navigate('exercises', 'library', { exerciseId: exercise.id })" /></template>
+            <p v-if="!filtered.length" class="py-8 text-sm text-slate-400">Нет подходящих упражнений. Измените поиск или раскройте фильтры. Ограничения профиля сохраняются.</p>
           </div>
         </div>
+        <ExerciseDrawer v-if="selected" :exercise="selected" :pick-input="pickInput" @close="navigation.navigate('exercises', 'library')" @edit="catalog.openManualEdit(selected.id)" @archive="onArchive" @pin="onPin" @exclude-today="onExcludeToday" @how-it-works="view.showHowItWorks = true" />
+        <div v-else class="catalog-empty-preview settings-card"><h2 class="text-lg font-semibold">Как выполнять упражнение</h2><p class="mt-3 text-sm text-slate-400">Выберите упражнение: здесь появятся инструкция, длительность и запуск разминки.</p></div>
       </div>
-
-      <div v-if="view.drawerOpen && selected" class="min-h-[420px]">
-        <ExerciseDrawer
-          :exercise="selected"
-          :pick-input="pickInput"
-          @close="view.closeDrawer()"
-          @edit="catalog.openManualEdit(selected.id)"
-          @archive="onArchive"
-          @pin="onPin"
-          @exclude-today="onExcludeToday"
-          @how-it-works="view.showHowItWorks = true"
-        />
-      </div>
-    </div>
+    </template>
   </section>
 </template>

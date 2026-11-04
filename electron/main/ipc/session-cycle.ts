@@ -12,6 +12,8 @@ import {
   getLoopState,
   handleSessionResult,
   refreshTrayPortrait,
+  previewNextExercise,
+  startExercise,
   triggerNow
 } from '../trigger-loop'
 import { acknowledgeChronicleDriver } from '../chronicle-playback'
@@ -25,6 +27,8 @@ import { isLabProcess } from '../lab-environment'
  * exposes it to renderers over IPC.
  */
 export function registerSessionCycleIpc(): void {
+  ipcMain.handle(IpcChannels.SessionPreviewExercise, () => previewNextExercise())
+  ipcMain.handle(IpcChannels.SessionStartExercise, (_event, payload) => startExercise(payload))
   ipcMain.handle(IpcChannels.WindowOpenPopup, async () => {
     triggerNow('manual')
   })

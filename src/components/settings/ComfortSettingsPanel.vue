@@ -20,7 +20,7 @@ const layers = [
   { key: 'photos', id: 'photo-controls', title: 'Фото прогресса', hint: 'Локальная галерея на дашборде.' }
 ] as const
 const visibleLayers = computed(() => layers.filter(layer => props.group === 'all'
-  || (props.group === 'selection' ? ['inventory', 'ai'].includes(layer.key)
+  || (props.group === 'selection' ? ['inventory'].includes(layer.key)
     : props.group === 'data' ? ['weight', 'photos', 'ai'].includes(layer.key)
       : !['inventory', 'ai'].includes(layer.key))))
 const setters = {
@@ -69,12 +69,12 @@ function openExercisesTab(): void {
           <input type="range" min="0" max="100" step="5" :value="Math.round(settings.sound.volume * 100)" :disabled="busy"
             aria-label="Громкость звуков" data-testid="sound-volume" class="w-40 accent-emerald-500" @change="save(() => settings.setSoundVolume(Number(($event.target as HTMLInputElement).value) / 100))" />
         </label>
-        <label class="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-300">Голос персонажа
+        <label v-if="group === 'all'" class="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-300">Голос персонажа
           <button type="button" class="setting-chip" data-testid="sound-voice" :disabled="busy"
             :aria-label="`Голос персонажа: ${settings.sound.voiceEnabled ? 'выключить' : 'включить'}`" :aria-pressed="settings.sound.voiceEnabled"
             @click="save(() => settings.setVoiceEnabled(!settings.sound.voiceEnabled))">{{ settings.sound.voiceEnabled ? 'Вкл' : 'Выкл' }}</button>
         </label>
-        <p class="text-xs leading-relaxed text-slate-400">Реплики выбранного персонажа звучат вместе с короткими сигналами тех же событий. Пакет ещё не прошёл прослушивание — если голос мешает, его можно выключить.</p>
+        <p class="text-xs leading-relaxed text-slate-400">Голос и прослушивание реплик выбранного образа — в разделе «Персонаж». Общие сигналы и их громкость настраиваются здесь.</p>
         <details><summary class="text-xs text-slate-400 cursor-pointer">Прослушать сигналы</summary>
           <div class="mt-3 flex flex-wrap gap-2"><button v-for="cue in SOUND_CUES" :key="cue" type="button" class="setting-chip" @click="preview.play(cue)">{{ SOUND_CUE_LABELS[cue] }}</button></div>
           <p class="mt-2 text-xs text-slate-400">Прослушивание использует минимум 10% громкости, даже при нулевом уровне.</p>

@@ -1,4 +1,6 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { exerciseUnavailableReason, type ExerciseRecommendation, type StartExerciseRequest, type StartExerciseResult } from '../../shared/domain/exercise-start'
+import type { PickedExercise } from '../../shared/domain/exercise-picker'
 import { getLaboratoryClock, nowDate, nowMs } from '../../shared/domain/clock'
 import { computeCharacterCondition } from '../../shared/domain/character-condition'
 import { ringProgress } from '../../shared/domain/tray-countdown'
@@ -13,7 +15,7 @@ import {
 } from './queue-store'
 import type { PickTrace } from '../../shared/domain/picker'
 import { dose } from '../../shared/domain/dose'
-import { upgradeExercise } from '../../shared/domain/exercise-v2'
+import { upgradeExercise, resolveExercise } from '../../shared/domain/exercise-v2'
 import { applyAutoTuneHints } from '../../shared/domain/tune'
 import { getResolvedCatalogV2, setCatalogOverrides } from './catalog-store'
 import { normalizeSessionExtras } from '../../shared/domain/session-extras'
@@ -450,7 +452,7 @@ export function missActivePopup(): void {
 }
 
 /** Pick the next exercise from stored history + settings (CONCEPT §7 / CATALOG-V2). */
-function pickForCycle(): { exercise: Exercise; pickTrace: PickTrace } {
+function pickForCycle(): PickedExercise {
   const settings = getSettings()
   const picked = pickNextExerciseDetailed({
     catalog: getAvailableCatalog(),
@@ -459,19 +461,18 @@ function pickForCycle(): { exercise: Exercise; pickTrace: PickTrace } {
     now: nowDate(),
     queue: getBreakQueue()
   })
-  if (picked.queueNotes?.length) setLastQueueNotes(picked.queueNotes)
-  if (picked.consumeQueueSlot) consumeQueueSlot()
   const v2 = upgradeExercise(picked.exercise)
   const scale = settings.overrides?.[picked.exercise.id]?.scale ?? 1
   const plannedSec = dose(v2.timer, settings.intervalMinutes, scale)
   return {
+    ...picked,
     exercise: { ...picked.exercise, durationSec: plannedSec },
     pickTrace: picked.pickTrace
   }
 }
 
 /** Show the popup for one exercise and start the answer timeout. */
-function trigger(reason: SessionTriggerReason, exercise?: Exercise): void {
+function trigger(reason: SessionTriggerReason, exercise?: Exercise, cyclePick?: PickedExercise): void {
   if (awaiting) return
   if (!previewMode && isReminderDeferred() && (reason === 'timer' || reason === 'idle' || reason === 'manual')) {
     if (reason === 'timer' || reason === 'idle') deferredTimerDue = true
@@ -480,7 +481,7 @@ function trigger(reason: SessionTriggerReason, exercise?: Exercise): void {
 
   const sessionId = randomUUID()
   const triggeredAt = nowDate().toISOString()
-  const picked = exercise ? { exercise, pickTrace: undefined as PickTrace | undefined } : pickForCycle()
+  const picked = cyclePick ?? (exercise ? { exercise, pickTrace: undefined as PickTrace | undefined } : pickForCycle())
 
   awaiting = {
     sessionId,
@@ -490,11 +491,15 @@ function trigger(reason: SessionTriggerReason, exercise?: Exercise): void {
     timeout: undefined,
     ...(picked.pickTrace ? { pickTrace: picked.pickTrace } : {})
   }
+  let win: ReturnType<typeof createPopupWindow>
+  try { win = createPopupWindow() }
+  catch (cause) { awaiting = null; throw cause }
+  if ('queueNotes' in picked && picked.queueNotes?.length) setLastQueueNotes(picked.queueNotes)
+  try { if ('consumeQueueSlot' in picked && picked.consumeQueueSlot) consumeQueueSlot() }
+  catch (cause) { awaiting = null; closePopupWindow(); throw cause }
   clearCountdown()
   awayStartedAt = null
   setTrayState('standup')
-
-  const win = createPopupWindow()
   armResultDeadline()
   win.once('closed', () => handlePopupClosed(sessionId))
 
@@ -512,6 +517,53 @@ export function triggerNow(reason: SessionTriggerReason = 'manual'): void {
   }
   if (isReminderDeferred()) return
   trigger(reason)
+}
+
+let recommendation: { fingerprint: string; token: string; picked: PickedExercise } | null = null
+
+function recommendationFingerprint(): string {
+  return createHash('sha256').update(JSON.stringify({
+    settings: getSettings(), catalog: getAvailableCatalog(), sessions: getSnapshot().sessions,
+    queue: getBreakQueue(), minute: Math.floor(nowMs() / 60_000)
+  })).digest('hex')
+}
+
+/** Read-only: calculating a recommendation must never consume the next-breaks queue. */
+export function previewNextExercise(): ExerciseRecommendation | null {
+  const fingerprint = recommendationFingerprint()
+  if (!recommendation || recommendation.fingerprint !== fingerprint) {
+    recommendation = { fingerprint, token: randomUUID(), picked: pickForCycle() }
+  }
+  const exercise = getResolvedCatalogV2().find(entry => entry.id === recommendation!.picked.exercise.id)
+  if (!exercise || exerciseUnavailableReason(exercise, getSettings())) { recommendation = null; return null }
+  return { exercise: recommendation.picked.exercise, token: recommendation.token }
+}
+
+export function startExercise(request: StartExerciseRequest): StartExerciseResult {
+  if (awaiting || getPopupWindow()) {
+    getPopupWindow()?.focus()
+    return { status: 'focused' }
+  }
+  if (isReminderDeferred()) return { status: 'blocked', message: 'Дождитесь завершения просмотра хроники или лаборатории и короткой паузы после него.' }
+  if (request?.source === 'recommendation') {
+    if (!recommendation || request.token !== recommendation.token || recommendation.fingerprint !== recommendationFingerprint()) {
+      return { status: 'stale', message: 'Рекомендация обновилась. Проверьте упражнение и нажмите ещё раз.' }
+    }
+    trigger('manual', undefined, recommendation.picked)
+    recommendation = null
+    return { status: 'started' }
+  }
+  if (request?.source !== 'catalog' || typeof request.exerciseId !== 'string' || !request.exerciseId.trim() || request.exerciseId.length > 200) {
+    return { status: 'unavailable', message: 'Не удалось определить упражнение.' }
+  }
+  const exercise = getAvailableCatalog().find(entry => entry.id === request.exerciseId)
+  if (!exercise) return { status: 'unavailable', message: 'Упражнение удалено, отключено или находится в архиве.' }
+  const v2 = upgradeExercise(exercise)
+  const reason = exerciseUnavailableReason(resolveExercise(v2), getSettings())
+  if (reason) return { status: 'unavailable', message: reason }
+  const durationSec = dose(v2.timer, getSettings().intervalMinutes, getSettings().overrides[v2.id]?.scale ?? 1)
+  trigger('manual', { ...exercise, durationSec })
+  return { status: 'started' }
 }
 
 /** The isolated controller may choose a resolved exercise, but never write its outcome. */
@@ -607,6 +659,7 @@ export function startTriggerLoop(): void {
 }
 
 export function stopTriggerLoop(): void {
+  recommendation = null
   if (ticker) clearInterval(ticker)
   ticker = null
   if (awaiting) clearTimeout(awaiting.timeout)

@@ -1,45 +1,33 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import SectionTabs from '@/components/SectionTabs.vue'
-import CatalogLibrary from '@/components/catalog/CatalogLibrary.vue'
-import SandboxPanel from '@/components/catalog/SandboxPanel.vue'
-import CoveragePanel from '@/components/catalog/CoveragePanel.vue'
-import SetsPanel from '@/components/catalog/SetsPanel.vue'
-import AiPanel from '@/components/catalog/AiPanel.vue'
-import { useCatalogStore, type ExercisesSection } from '@/stores/catalog'
-import { useSandboxStore } from '@/stores/sandbox'
-
+import CatalogLibrary from './CatalogLibrary.vue'
+import SetsPanel from './SetsPanel.vue'
+import AiPanel from './AiPanel.vue'
+import QueueStrip from './QueueStrip.vue'
+import ManualEditPanel from './ManualEditPanel.vue'
+import AiProposalPanel from '@/components/ai/AiProposalPanel.vue'
+import PreferencesPanel from '@/components/settings/PreferencesPanel.vue'
+import { useCatalogStore } from '@/stores/catalog'
+import { useSettingsStore } from '@/stores/settings'
+import { useDashboardNavigation } from '@/stores/dashboard-navigation'
 const catalog = useCatalogStore()
-const sandbox = useSandboxStore()
-let unsubscribe: (() => void) | undefined
-
-const items: { id: ExercisesSection; label: string }[] = [
-  { id: 'library', label: 'Каталог' },
-  { id: 'sandbox', label: 'Песочница' },
-  { id: 'coverage', label: 'Покрытие' },
-  { id: 'sets', label: 'Наборы' },
-  { id: 'ai', label: 'AI' }
-]
-
-onMounted(() => {
-  void catalog.refresh()
-  if (!sandbox.controls) sandbox.resetFromReal()
-  unsubscribe = window.api?.onCatalogUpdated?.((payload) => {
-    catalog.applyCatalogFile(payload.catalog)
-  })
-})
-
-onUnmounted(() => {
-  unsubscribe?.()
-})
+const settings = useSettingsStore()
+const navigation = useDashboardNavigation()
+const section = computed({ get: () => navigation.location.section, set: value => navigation.navigate('exercises', value) })
+const items = [{ id: 'library', label: 'Каталог' }, { id: 'profile', label: 'Подбор под меня' }, { id: 'sets', label: 'Наборы' }, { id: 'queue', label: 'Следующие перерывы' }, { id: 'ai', label: 'ИИ-помощник' }]
+watch(() => navigation.location.exerciseId, id => { if (section.value === 'edit') catalog.editExerciseId = id ?? null }, { immediate: true })
+onMounted(() => { void catalog.refresh() })
 </script>
-
 <template>
-  <SectionTabs v-model="catalog.section" :items="items" label="Каталог упражнений">
-    <CatalogLibrary v-if="catalog.section === 'library'" />
-    <SandboxPanel v-else-if="catalog.section === 'sandbox'" />
-    <CoveragePanel v-else-if="catalog.section === 'coverage'" />
-    <SetsPanel v-else-if="catalog.section === 'sets'" />
+  <div class="flex flex-wrap items-center justify-between gap-3"><h1 class="text-2xl font-semibold">Упражнения</h1><button type="button" class="setting-chip" @click="navigation.navigate('exercises', 'import')">Импорт JSON</button></div>
+  <SectionTabs v-if="section !== 'import' && section !== 'edit'" v-model="section" :items="items" label="Упражнения и подбор">
+    <CatalogLibrary v-if="section === 'library'" />
+    <PreferencesPanel v-else-if="section === 'profile'" group="selection" />
+    <SetsPanel v-else-if="section === 'sets'" />
+    <QueueStrip v-else-if="section === 'queue'" />
     <AiPanel v-else />
   </SectionTabs>
+  <template v-else-if="section === 'import'"><button type="button" class="setting-chip" @click="navigation.navigate('exercises')">← Каталог</button><section class="settings-card space-y-4"><label class="flex items-center gap-2"><input type="checkbox" :checked="settings.ai.enabled" @change="settings.setAiEnabled(($event.target as HTMLInputElement).checked)">Разрешить импорт упражнений</label><AiProposalPanel :enabled="settings.ai.enabled" /></section></template>
+  <template v-else><button type="button" class="setting-chip" @click="navigation.navigate('exercises', 'library', { exerciseId: navigation.location.exerciseId })">← К упражнению</button><ManualEditPanel /></template>
 </template>

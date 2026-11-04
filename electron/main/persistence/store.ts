@@ -116,14 +116,16 @@ export function getSnapshot(): DataSnapshot {
 export function updateSettings(next: AppSettings): DataSnapshot {
   // IPC payload: re-normalize so an older renderer or a hand-edited value cannot
   // write an invalid switch / theme / sound block.
-  state.settings = cloneSettings(normalizeSettings(next))
-  writeJsonEnvelope(getSettingsPath(), state.settings)
+  const settings = cloneSettings(normalizeSettings(next))
+  writeJsonEnvelope(getSettingsPath(), settings)
+  state.settings = settings
   return getSnapshot()
 }
 
 export function updateProgress(next: UserProgress): DataSnapshot {
-  state.progress = cloneProgress(normalizeProgress(next))
-  writeJsonEnvelope(getProgressPath(), state.progress)
+  const progress = cloneProgress(normalizeProgress(next))
+  writeJsonEnvelope(getProgressPath(), progress)
+  state.progress = progress
   return getSnapshot()
 }
 

@@ -5,10 +5,12 @@ import { useSettingsStore } from '@/stores/settings'
 import { resolveFrameUrl } from './frames'
 
 const settings = useSettingsStore()
-withDefaults(defineProps<{ compact?: boolean }>(), { compact: false })
+const props = withDefaults(defineProps<{ compact?: boolean; modelValue?: string }>(), { compact: false })
+const emit = defineEmits<{ 'update:modelValue': [id: string] }>()
 const pending = ref(false)
 const error = ref('')
 async function select(id: string): Promise<void> {
+  if (props.modelValue !== undefined) { emit('update:modelValue', id); return }
   if (pending.value) return
   pending.value = true
   error.value = ''
@@ -29,8 +31,8 @@ async function select(id: string): Promise<void> {
     <div v-else class="character-picker-grid">
       <button v-for="pack in CHARACTER_PACKS" :key="pack.id" type="button"
         class="flex min-w-0 flex-col items-center rounded-xl border p-1 text-[11px] text-slate-300"
-        :class="settings.characterPackId === pack.id ? 'border-emerald-400 bg-emerald-950' : 'border-slate-700 bg-slate-950'"
-        :aria-pressed="settings.characterPackId === pack.id" :data-character-pack="pack.id" @click="select(pack.id)">
+        :class="(modelValue ?? settings.characterPackId) === pack.id ? 'border-emerald-400 bg-emerald-950' : 'border-slate-700 bg-slate-950'"
+        :aria-pressed="(modelValue ?? settings.characterPackId) === pack.id" :data-character-pack="pack.id" @click="select(pack.id)">
         <img :src="resolveFrameUrl(['emotion-neutral-average', 'emoji'], pack.id)" alt="" class="h-12 w-12 object-contain" />
         <span class="w-full text-center leading-snug">{{ pack.label }}</span>
       </button>

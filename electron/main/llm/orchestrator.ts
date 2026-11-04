@@ -1,4 +1,5 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { changesetReviewRows, type ChangesetReview, type ApplyReviewedResult } from '../../../shared/domain/changeset-review'
 import type { GenerateCell } from '../../../shared/domain/llm-prompt'
 import {
   LLM_SYSTEM_PROMPT,
@@ -465,6 +466,23 @@ export function applyChangeset(changesetId: string): Changeset | null {
   }
   emitChangeset(applied)
   return applied
+}
+
+export function reviewChangeset(changesetId: string): ChangesetReview | null {
+  const current = getChangeset(changesetId)
+  if (!current || current.status !== 'awaiting_approval') return null
+  const state = catalogStateFromStore()
+  const token = createHash('sha256').update(JSON.stringify({ current, state, catalog: getCatalogFile(), overrides: getSettings().overrides, model: getSettings().llm.model })).digest('hex')
+  return { token, rows: changesetReviewRows(current, state, shippedCatalogV2()) }
+}
+
+export function applyReviewedChangeset(id: string, token: string): ApplyReviewedResult {
+  const current = typeof id === 'string' ? reviewChangeset(id) : null
+  if (!current) return { status: 'unavailable', message: 'Черновик уже применён, отклонён или недоступен.' }
+  if (typeof token !== 'string' || token !== current.token) return { status: 'stale', message: 'Исходные данные изменились. Проверьте обновлённое сравнение и примените ещё раз.' }
+  const changeset = applyChangeset(id)
+  if (!changeset) return { status: 'unavailable', message: 'Выберите хотя бы одно допустимое предложение.' }
+  return { status: 'applied', changeset }
 }
 
 export function discardChangeset(changesetId: string): Changeset | null {

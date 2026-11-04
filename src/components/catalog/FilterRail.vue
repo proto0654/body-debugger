@@ -164,6 +164,8 @@ function toggleEquipment(id: string): void {
       Доступно сейчас
     </label>
 
+    <label class="block text-slate-400">Группировать<select v-model="view.groupBy" class="profile-select mt-1 w-full"><option value="none">Не группировать</option><option value="zone">По зоне</option><option value="method">По направлению</option><option value="set">По набору</option></select></label>
+    <label class="block text-slate-400">Подробная сортировка<select v-model="view.sort" class="profile-select mt-1 w-full"><option value="title">Название</option><option value="timer">Длительность</option><option value="intensity">Нагрузка</option><option value="lastShown">Последний показ</option><option value="skipRate">Доля пропусков</option><option value="probability">Вероятность подбора</option></select></label>
     <button type="button" class="setting-chip text-[11px]" @click="view.resetFilters()">Сбросить фильтры</button>
   </aside>
 </template>

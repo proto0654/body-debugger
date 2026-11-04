@@ -1107,3 +1107,54 @@ html[data-window-visible='false'] [data-idle]::after, html[data-reduce-motion='t
 .preview-close { position: absolute; top: 2px; right: 4px; z-index: 40; width: 20px; height: 20px; color: var(--color-slate-300); border-radius: 4px; background: var(--color-slate-950); }
 
 @media (max-width: 760px) { .lab-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* Exercise-led dashboard: keep primary actions visible at the default 960px window. */
+.dashboard-app { max-width: 1440px; margin-inline: auto; padding: 20px; }
+.dashboard-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 20px; }
+.dashboard-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.dashboard-navigation { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.dashboard-navigation nav { display: flex; flex-wrap: wrap; gap: 4px; }
+.dashboard-navigation button { padding: 10px 14px; border-radius: 10px; color: var(--color-slate-300); font-size: 14px; text-align: left; }
+.dashboard-navigation button[aria-current='page'] { color: var(--color-emerald-300); background: color-mix(in srgb, var(--color-emerald-500) 12%, var(--color-slate-950)); }
+.dashboard-settings-link { border: 1px solid var(--color-slate-700); }
+.dashboard-content { min-width: 0; }
+.dashboard-content .today-hero { grid-template-columns: minmax(0, 1fr) 210px; }
+.dashboard-content .hero-copy { padding: 26px; }
+.dashboard-content .hero-character .comic-bubble { font-size: 14px; }
+.dashboard-content .hero-character .character-portrait { max-height: 190px; }
+.catalog-browser { display: grid; grid-template-columns: minmax(230px, .85fr) minmax(0, 1.35fr); align-items: start; gap: 18px; }
+.catalog-browser-list { min-width: 0; }
+.catalog-scroll { max-height: 580px; overflow-y: auto; scrollbar-gutter: stable; padding-right: 5px; }
+.exercise-list-item { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 14px; border: 1px solid var(--color-slate-800); border-radius: 12px; background: var(--color-slate-900); text-align: left; }
+.exercise-list-item[aria-pressed='true'] { border-color: var(--color-emerald-400); background: color-mix(in srgb, var(--color-emerald-500) 8%, var(--color-slate-950)); }
+.exercise-list-item strong { overflow-wrap: anywhere; }
+.exercise-preview { min-width: 0; }
+.exercise-instruction { padding: 18px; border-radius: 12px; background: color-mix(in srgb, var(--color-emerald-500) 7%, var(--color-slate-950)); }
+.catalog-filters[open] > aside { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+.ai-payload { max-height: 300px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.ai-field-diff { min-width: 0; overflow-wrap: anywhere; }
+.ai-field-diff dd { margin-top: 4px; }
+.dashboard-app summary { cursor: pointer; font-size: 14px; color: var(--color-slate-300); }
+.dashboard-app button:disabled { opacity: .5; cursor: not-allowed; }
+.dashboard-app :is(button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--color-emerald-400); outline-offset: 3px; }
+.dashboard-app .settings-card { min-width: 0; }
+.dashboard-app .dashboard-tabs { flex-wrap: wrap; }
+@media (min-width: 1100px) {
+  .dashboard-layout { grid-template-columns: 150px minmax(0, 1fr); }
+  .dashboard-navigation { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; }
+  .dashboard-navigation nav { flex-direction: column; }
+  .dashboard-settings-link { margin-top: 24px; }
+}
+@media (max-width: 879px) {
+  .catalog-browser { grid-template-columns: minmax(0, 1fr); }
+  .catalog-browser--selected .catalog-browser-list, .catalog-empty-preview { display: none; }
+  .dashboard-content .today-hero { grid-template-columns: minmax(0, 1fr) 170px; }
+  .dashboard-content .hero-copy { padding: 20px; }
+}
+@media (max-width: 600px) {
+  .dashboard-app { padding: 12px; }
+  .dashboard-header .brand-label span { display: none; }
+  .dashboard-content .today-hero { grid-template-columns: minmax(0, 1fr); }
+  .dashboard-content .hero-character { padding-top: 0; }
+  .catalog-filters[open] > aside { grid-template-columns: minmax(0, 1fr); }
+}

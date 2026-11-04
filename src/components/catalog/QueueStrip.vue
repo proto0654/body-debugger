@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { ZONE_LABELS, METHOD_LABELS, ZONES, METHODS } from '@shared/constants/catalog-axes'
 import type { Method, Zone } from '@shared/types/exercise-v2'
 import { useCatalogStore } from '@/stores/catalog'
@@ -7,6 +7,16 @@ import { useQueueStore } from '@/stores/queue'
 
 const catalog = useCatalogStore()
 const queue = useQueueStore()
+const error = ref('')
+const busy = ref(false)
+async function save(action: () => Promise<void>): Promise<void> {
+  if (busy.value) return
+  busy.value = true
+  error.value = ''
+  try { await action() }
+  catch (cause) { console.warn('[queue-strip] save failed', cause); error.value = 'Не удалось сохранить план. Предыдущее состояние восстановлено.' }
+  finally { busy.value = false }
+}
 
 onMounted(() => {
   void queue.refresh()
@@ -18,7 +28,7 @@ function titleOf(id: string): string {
 
 function slotLabel(index: number): string {
   const slot = queue.queue.slots[index]
-  if (!slot || slot.kind === 'empty') return 'обычный пик'
+  if (!slot || slot.kind === 'empty') return 'Автоподбор'
   if (slot.kind === 'pin') {
     const ex = catalog.resolved.find((e) => e.id === slot.exerciseId)
     if (!ex || ex.status !== 'active') return 'недоступно'
@@ -29,16 +39,17 @@ function slotLabel(index: number): string {
 }
 
 async function moveToSlot(exerciseId: string, index: number): Promise<void> {
-  await queue.pinExercise(exerciseId, index)
+  await save(() => queue.pinExercise(exerciseId, index))
 }
 
 async function setConstraint(index: number, axis: 'zone' | 'method', key: string): Promise<void> {
-  await queue.setSlot(index, { kind: 'constraint', axis, key: key as Zone | Method })
+  await save(() => queue.setSlot(index, { kind: 'constraint', axis, key: key as Zone | Method }))
 }
 </script>
 
 <template>
   <section class="settings-card space-y-2" data-testid="queue-strip" aria-label="Очередь следующих перерывов">
+    <p v-if="error" role="alert" class="text-sm text-red-300">{{ error }}</p>
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-sm font-semibold text-white">Следующие перерывы</h2>
       <p v-if="queue.summary" class="text-[11px] text-slate-400">План: {{ queue.summary }}</p>
@@ -52,7 +63,7 @@ async function setConstraint(index: number, axis: 'zone' | 'method', key: string
         <p class="text-[10px] uppercase tracking-wide text-slate-500">Слот {{ index + 1 }}</p>
         <p class="mt-1 text-slate-200">{{ slotLabel(index) }}</p>
         <div class="mt-2 flex flex-wrap gap-1">
-          <button type="button" class="setting-chip text-[10px]" @click="queue.clearSlot(index)">Очистить</button>
+          <button type="button" class="setting-chip text-[10px]" :disabled="busy" @click="save(() => queue.clearSlot(index))">Очистить</button>
           <details class="relative">
             <summary class="setting-chip cursor-pointer text-[10px]">В очередь</summary>
             <div class="absolute z-20 mt-1 max-h-48 w-56 overflow-y-auto rounded border border-slate-700 bg-slate-950 p-1 shadow-lg">

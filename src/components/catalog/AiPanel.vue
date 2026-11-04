@@ -1,607 +1,100 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { COVERAGE_THRESHOLD, LLM_MAX_EXERCISES } from '@shared/constants/catalog-tuning'
-import { METHOD_LABELS, ZONE_LABELS } from '@shared/constants/catalog-axes'
-import { summarize, type Changeset, type ChangesetKind } from '@shared/domain/changeset'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { ZONES, ZONE_LABELS, METHODS, METHOD_LABELS } from '@shared/constants/catalog-axes'
+import { COVERAGE_THRESHOLD } from '@shared/constants/catalog-tuning'
 import { capGenerateCells } from '@shared/domain/llm-prompt'
-import type { LlmPreviewResponsePayload } from '@shared/types/events'
+import { changesetReviewRows } from '@shared/domain/changeset-review'
+import type { ChangesetKind } from '@shared/domain/changeset'
+import type { Zone, Method } from '@shared/types/exercise-v2'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSettingsStore } from '@/stores/settings'
+import { useDashboardNavigation } from '@/stores/dashboard-navigation'
+import { useAiAssistantStore } from '@/stores/ai-assistant'
 
 const catalog = useCatalogStore()
 const settings = useSettingsStore()
-const busy = ref(false)
-const status = ref('')
-const error = ref('')
-const hasKey = ref(false)
-const keyDraft = ref('')
-const instruction = ref('')
-const preview = ref<LlmPreviewResponsePayload | null>(null)
-const changeset = ref<Changeset | null>(null)
-const history = ref<Changeset[]>([])
-const targetSetId = ref('user-main')
-const showPreviewJson = ref(false)
+const navigation = useDashboardNavigation()
+const ai = useAiAssistantStore()
+const zone = ref<Zone>(catalog.selectedCell?.zone ?? 'upper')
+const method = ref<Method>(catalog.selectedCell?.method ?? 'mobility')
+const allThinCells = ref(false)
+const task = computed<ChangesetKind>({ get: () => navigation.location.task ?? 'generate', set: value => navigation.navigate('exercises', 'ai', { task: value }) })
+const connectionReady = computed(() => settings.llm.enabled && (ai.hasKey || settings.llm.baseUrl === 'mock://local'))
+const targetSets = computed(() => catalog.batches.filter(batch => batch.kind !== 'shipped'))
+const validSelection = computed(() => ai.changeset?.ops.some(record => record.enabled && record.state !== 'rejected') ?? false)
+const rows = computed(() => ai.review?.rows ?? (ai.changeset ? changesetReviewRows(ai.changeset, { exercises: catalog.library, profileShifts: [] }, []) .map(row => ({ ...row, fields: row.fields.map(field => ({ ...field, before: 'Не сохранено в истории' })) })) : []))
+const taskLabels: Record<ChangesetKind, string> = { generate: 'Добавить варианты упражнений', edit: 'Изменить свой набор', tune: 'Проанализировать прогресс', retag: 'Переразметить набор' }
+const stateLabels: Record<string, string> = { requested: 'Подготовка', generating: 'Запрос выполняется', parsed: 'Проверка ответа', awaiting_approval: 'Черновик · ещё не применён', applied: 'Применено', reverted: 'Применение отменено', discarded: 'Отклонено', failed: 'Ошибка запроса' }
 let unsubscribe: (() => void) | undefined
 
-const selectedCellLabel = computed(() => {
-  const cell = catalog.selectedCell
-  if (!cell) return null
-  return `${ZONE_LABELS[cell.zone]} · ${METHOD_LABELS[cell.method]}`
-})
-
-const emptyCells = computed(() => catalog.coverage.filter((cell) => cell.belowThreshold))
-
-const summary = computed(() => (changeset.value ? summarize(changeset.value) : null))
-
-const editableBatches = computed(() =>
-  catalog.batches.filter((batch) => batch.kind !== 'shipped')
-)
-
-async function saveLlm(patch: Parameters<typeof settings.setLlmConfig>[0]): Promise<void> {
-  if (busy.value) return
-  busy.value = true
-  error.value = ''
-  try {
-    await settings.setLlmConfig(patch)
-    await window.api?.saveLlmConfig?.({ llm: patch })
-  } catch (cause) {
-    console.error('[catalog-ai] save llm failed', cause)
-    error.value = 'Не удалось сохранить настройки провайдера.'
-  } finally {
-    busy.value = false
-  }
-}
-
-async function saveKey(): Promise<void> {
-  if (!keyDraft.value.trim()) return
-  busy.value = true
-  try {
-    const result = await window.api?.setLlmKey?.({ key: keyDraft.value.trim() })
-    hasKey.value = result?.hasKey === true
-    keyDraft.value = ''
-    status.value = hasKey.value ? 'Ключ сохранён.' : 'Ключ не сохранился.'
-  } catch (cause) {
-    console.error('[catalog-ai] set key failed', cause)
-    error.value = 'Не удалось сохранить ключ.'
-  } finally {
-    busy.value = false
-  }
-}
-
-async function testConnection(): Promise<void> {
-  busy.value = true
-  error.value = ''
-  try {
-    const result = await window.api?.testLlm?.()
-    status.value = result?.ok ? `Связь ок: ${result.message}` : `Связь не удалась: ${result?.message ?? 'нет ответа'}`
-  } catch (cause) {
-    console.warn('[catalog-ai] testLlm', cause)
-    error.value = 'Тест провайдера недоступен.'
-  } finally {
-    busy.value = false
-  }
-}
-
-async function cancelRun(): Promise<void> {
-  try {
-    const result = await window.api?.cancelLlm?.()
-    status.value = result?.cancelled ? 'Запрос отменён.' : 'Нечего отменять.'
-  } catch {
-    error.value = 'Не удалось отменить запрос.'
-  }
-}
-
-async function refreshHistory(): Promise<void> {
-  try {
-    history.value = (await window.api?.listLlmChangesets?.()) ?? []
-  } catch {
-    history.value = []
-  }
-}
-
-function emptyCoverageCells() {
-  return capGenerateCells(
-    emptyCells.value.map((cell) => ({
-      zone: cell.zone,
-      method: cell.method,
-      count: Math.max(1, COVERAGE_THRESHOLD - cell.count)
-    }))
-  )
-}
-
-function selectedCoverageCell() {
-  const cell = catalog.selectedCell
-  if (!cell) return []
-  const coverage = catalog.coverage.find(
-    (entry) => entry.zone === cell.zone && entry.method === cell.method
-  )
-  return capGenerateCells([
-    {
-      zone: cell.zone,
-      method: cell.method,
-      count: Math.max(1, COVERAGE_THRESHOLD - (coverage?.count ?? 0))
-    }
-  ])
-}
-
-function requestedExerciseCount(cells: ReturnType<typeof emptyCoverageCells>): number {
-  return cells.reduce((sum, cell) => sum + cell.count, 0)
-}
-
-function clearSelectedCell(): void {
-  catalog.clearSelectedCell()
-}
-
-async function showPreview(kind: ChangesetKind, cells = emptyCoverageCells()): Promise<void> {
-  try {
-    const payload =
-      kind === 'generate'
-        ? {
-            kind,
-            cells,
-            targetSetId: targetSetId.value
-          }
-        : {
-            kind,
-            instruction: instruction.value.trim() || undefined,
-            targetSetId: targetSetId.value
-          }
-    const next = await window.api?.previewLlmRequest?.(payload)
-    preview.value = next ?? null
-    showPreviewJson.value = true
-  } catch {
-    preview.value = null
-  }
-}
-
-async function runGenerate(cells: ReturnType<typeof emptyCoverageCells>, label: string): Promise<void> {
-  status.value = ''
-  error.value = ''
-  if (cells.length === 0) {
-    error.value = 'Нет клеток ниже порога для генерации.'
-    return
-  }
-  const exerciseCount = requestedExerciseCount(cells)
-  busy.value = true
-  try {
-    await showPreview('generate', cells)
-    const next = await window.api?.runLlm?.({
-      kind: 'generate',
-      cells,
-      targetSetId: targetSetId.value
-    })
-    if (next) changeset.value = next
-    if (next?.status === 'failed') {
-      error.value = next.error || 'Генерация завершилась с ошибкой.'
-      status.value = ''
-    } else {
-      status.value = next
-        ? `Черновик готов (${label}, ≤${exerciseCount} упр. / лимит ${LLM_MAX_EXERCISES}) — проверьте и примените.`
-        : 'Все клетки уже выше порога или IPC недоступен.'
-    }
-    await refreshHistory()
-  } catch (cause) {
-    console.warn('[catalog-ai] runLlm generate', cause)
-    const detail = cause instanceof Error ? cause.message : ''
-    error.value = detail
-      ? `Генерация не удалась: ${detail}`
-      : 'Генерация недоступна — проверьте провайдер и ключ.'
-  } finally {
-    busy.value = false
-  }
-}
-
-async function runGenerateEmpty(): Promise<void> {
-  // Always all below-threshold cells — selection must not shrink the request.
-  clearSelectedCell()
-  await runGenerate(emptyCoverageCells(), 'все пустые')
-}
-
-async function runGenerateSelected(): Promise<void> {
-  await runGenerate(selectedCoverageCell(), 'выбранная клетка')
-}
-
-async function runInstruction(kind: 'edit' | 'retag'): Promise<void> {
-  const text = instruction.value.trim()
-  if (!text) {
-    error.value = 'Введите инструкцию для изменения или retag.'
-    return
-  }
-  status.value = ''
-  error.value = ''
-  busy.value = true
-  try {
-    await showPreview(kind)
-    const next = await window.api?.runLlm?.({
-      kind,
-      instruction: text,
-      targetSetId: targetSetId.value
-    })
-    if (next) changeset.value = next
-    status.value =
-      kind === 'retag'
-        ? 'Черновик retag готов.'
-        : 'Черновик правок готов — проверьте операции и примените.'
-    await refreshHistory()
-  } catch (cause) {
-    console.warn(`[catalog-ai] runLlm ${kind}`, cause)
-    error.value = kind === 'retag' ? 'Retag недоступен.' : 'Изменение набора недоступно.'
-  } finally {
-    busy.value = false
-  }
-}
-
-async function runAnalyzeProgress(): Promise<void> {
-  status.value = ''
-  error.value = ''
-  busy.value = true
-  try {
-    await showPreview('tune')
-    const next = await window.api?.runLlm?.({
-      kind: 'tune',
-      targetSetId: targetSetId.value
-    })
-    if (next) changeset.value = next
-    status.value = 'Черновик анализа прогресса готов.'
-    await refreshHistory()
-  } catch (cause) {
-    console.warn('[catalog-ai] runLlm tune', cause)
-    error.value = 'Анализ прогресса недоступен.'
-  } finally {
-    busy.value = false
-  }
-}
-
-async function toggleOp(index: number): Promise<void> {
-  if (!changeset.value) return
-  const next = await window.api?.toggleLlmOp?.({
-    changesetId: changeset.value.id,
-    index
-  })
-  if (next) changeset.value = next
-}
-
-async function applyChangeset(): Promise<void> {
-  if (!changeset.value) return
-  busy.value = true
-  try {
-    const next = await window.api?.applyLlmChangeset?.(changeset.value.id)
-    if (next) changeset.value = next
-    await catalog.refresh()
-    await refreshHistory()
-    status.value = 'Изменения применены.'
-  } catch (cause) {
-    console.error('[catalog-ai] apply failed', cause)
-    error.value = 'Не удалось применить changeset.'
-  } finally {
-    busy.value = false
-  }
-}
-
-async function discardChangeset(): Promise<void> {
-  if (!changeset.value) return
-  const next = await window.api?.discardLlmChangeset?.(changeset.value.id)
-  if (next) changeset.value = next
-  await refreshHistory()
-  status.value = 'Черновик отброшен.'
-}
-
-async function revertChangeset(id?: string): Promise<void> {
-  const targetId = id ?? changeset.value?.id
-  if (!targetId) return
-  busy.value = true
-  try {
-    const next = await window.api?.revertLlmChangeset?.(targetId)
-    if (next) changeset.value = next
-    await catalog.refresh()
-    await refreshHistory()
-    status.value = 'Изменения откатены.'
-  } finally {
-    busy.value = false
-  }
-}
-
-async function loadHistoryItem(id: string): Promise<void> {
-  const next = await window.api?.getLlmChangeset?.(id)
-  if (next) changeset.value = next
-}
-
-async function refreshLlmFromMain(): Promise<void> {
-  try {
-    const config = await window.api?.getLlmConfig?.()
-    if (config?.llm) {
-      await settings.setLlmConfig(config.llm)
-      hasKey.value = config.hasKey
-    }
-  } catch {
-    /* optional */
-  }
-}
-
+watch(() => [task.value, zone.value, method.value, allThinCells.value, ai.instruction, ai.targetSetId], () => ai.invalidatePreview())
 onMounted(() => {
-  void refreshLlmFromMain()
-  void refreshHistory()
-  unsubscribe = window.api?.onLlmChanged?.((payload) => {
-    changeset.value = payload.changeset
-    void refreshHistory()
+  void ai.execute(async () => {
+    const config = await window.api.getLlmConfig()
+    settings.llm = config.llm
+    ai.hasKey = config.hasKey
+    await ai.refreshHistory()
+    if (!ai.changeset) ai.changeset = ai.history.find(entry => entry.status === 'awaiting_approval') ?? null
+    else ai.changeset = await window.api.getLlmChangeset(ai.changeset.id)
+    await ai.refreshReview()
+  })
+  unsubscribe = window.api?.onLlmChanged?.(payload => {
+    if (ai.changeset && payload.changeset.id !== ai.changeset.id && !ai.busy) return
+    ai.changeset = payload.changeset
+    void ai.refreshReview().catch(() => { ai.review = null; ai.error = 'Не удалось обновить сравнение. Откройте черновик ещё раз.' })
   })
 })
-
-onUnmounted(() => {
-  unsubscribe?.()
-})
+onBeforeUnmount(() => unsubscribe?.())
+async function prepare(): Promise<void> {
+  const kind = task.value
+  if (kind === 'tune' && !settings.llm.shareProgress) { ai.error = 'Сначала разрешите отправку агрегатов прогресса.'; return }
+  if ((kind === 'edit' || kind === 'retag') && !ai.instruction.trim()) { ai.error = 'Опишите желаемое изменение.'; return }
+  if (kind === 'generate') {
+    const cells = allThinCells.value
+      ? catalog.coverage.filter(cell => cell.belowThreshold).map(cell => ({ zone: cell.zone, method: cell.method, count: Math.max(1, COVERAGE_THRESHOLD - cell.count) }))
+      : [{ zone: zone.value, method: method.value, count: 3 }]
+    if (!cells.length) { ai.error = 'Для выбранного запроса нет незаполненных направлений.'; return }
+    await ai.prepare({ kind, targetSetId: ai.targetSetId, cells: capGenerateCells(cells) })
+  } else await ai.prepare({ kind, targetSetId: ai.targetSetId, instruction: ai.instruction.trim() || undefined })
+}
+async function shareProgress(enabled: boolean): Promise<void> {
+  await ai.execute(async () => { await settings.setLlmConfig({ shareProgress: enabled }); ai.invalidatePreview() })
+}
 </script>
 
 <template>
-  <section class="settings-card space-y-4" data-testid="catalog-ai">
-    <div>
-      <h2 class="text-sm font-semibold text-white">Провайдер LLM</h2>
-      <p class="mt-1 text-xs text-slate-400">
-        Ключ хранится только в main. Для локальной проверки укажите base URL
-        <code class="text-slate-300">mock://local</code>.
-      </p>
-    </div>
-
-    <label class="flex items-center justify-between gap-3 text-sm text-slate-300">
-      Включить слой
-      <input
-        type="checkbox"
-        class="h-4 w-4 accent-emerald-500"
-        :checked="settings.llm.enabled"
-        :disabled="busy"
-        @change="saveLlm({ enabled: ($event.target as HTMLInputElement).checked })"
-      />
-    </label>
-
-    <label class="block text-xs text-slate-400">
-      Базовый URL
-      <input
-        type="url"
-        class="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-emerald-500"
-        :value="settings.llm.baseUrl"
-        :disabled="busy || !settings.llm.enabled"
-        @change="saveLlm({ baseUrl: ($event.target as HTMLInputElement).value.trim() })"
-      />
-    </label>
-
-    <label class="block text-xs text-slate-400">
-      Модель
-      <input
-        type="text"
-        class="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-emerald-500"
-        :value="settings.llm.model"
-        :disabled="busy || !settings.llm.enabled"
-        @change="saveLlm({ model: ($event.target as HTMLInputElement).value.trim() })"
-      />
-    </label>
-
-    <label class="block text-xs text-slate-400">
-      API-ключ {{ hasKey ? '(сохранён)' : '(нет)' }}
-      <div class="mt-1 flex gap-2">
-        <input
-          type="password"
-          class="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-emerald-500"
-          v-model="keyDraft"
-          :disabled="busy || !settings.llm.enabled"
-          placeholder="вставьте ключ"
-        />
-        <button type="button" class="setting-chip" :disabled="busy || !keyDraft.trim()" @click="saveKey">
-          Сохранить
-        </button>
-      </div>
-    </label>
-
-    <div class="flex flex-wrap gap-2">
-      <button type="button" class="setting-chip" :disabled="busy || !settings.llm.enabled" @click="testConnection">
-        Проверить связь
-      </button>
-      <button type="button" class="setting-chip" :disabled="!busy" @click="cancelRun">
-        Отменить запрос
-      </button>
-    </div>
-
-    <label class="flex items-center justify-between gap-3 text-sm text-slate-300">
-      Делиться агрегатами прогресса
-      <input
-        type="checkbox"
-        class="h-4 w-4 accent-emerald-500"
-        :checked="settings.llm.shareProgress"
-        :disabled="busy || !settings.llm.enabled"
-        @change="saveLlm({ shareProgress: ($event.target as HTMLInputElement).checked })"
-      />
-    </label>
-
-    <label class="block text-xs text-slate-400">
-      Целевой набор
-      <select
-        class="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100"
-        v-model="targetSetId"
-        :disabled="busy"
-      >
-        <option v-for="batch in editableBatches" :key="batch.id" :value="batch.id">
-          {{ batch.name }}
-        </option>
-      </select>
-    </label>
-
-    <label class="block text-xs text-slate-400">
-      Инструкция (edit / retag)
-      <textarea
-        v-model="instruction"
-        rows="3"
-        class="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-emerald-500"
-        :disabled="busy || !settings.llm.enabled"
-        placeholder="например: сделай растяжки длиннее, добавь для запястий"
-      />
-    </label>
-
-    <p
-      v-if="selectedCellLabel"
-      class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-200"
-    >
-      <span>Выбранная клетка: {{ selectedCellLabel }}</span>
-      <button type="button" class="setting-chip text-[11px]" :disabled="busy" @click="clearSelectedCell">
-        Сбросить
-      </button>
-    </p>
-    <p v-else-if="emptyCells.length > 0" class="text-xs text-slate-500">
-      Пустых клеток: {{ emptyCells.length }} — запрос ограничен
-      {{ LLM_MAX_EXERCISES }} упражнениями (по клеткам по кругу), чтобы провайдер не уходил в таймаут.
-    </p>
-
-    <div v-if="preview" class="rounded-xl border border-slate-800 bg-slate-950/50 p-3 space-y-2">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <p class="text-xs text-slate-400">
-          Preview · ~{{ preview.estimatedTokens }} ток.
-        </p>
-        <button type="button" class="setting-chip" @click="showPreviewJson = !showPreviewJson">
-          {{ showPreviewJson ? 'Скрыть JSON' : 'Показать JSON' }}
-        </button>
-      </div>
-      <pre
-        v-if="showPreviewJson"
-        class="max-h-48 overflow-auto rounded-lg bg-slate-950 p-2 text-[11px] leading-relaxed text-slate-300"
-      >{{ JSON.stringify(preview.payload, null, 2) }}</pre>
-    </div>
-
-    <div class="flex flex-wrap gap-2">
-      <button
-        type="button"
-        class="setting-chip"
-        :disabled="busy || !settings.llm.enabled || emptyCells.length === 0"
-        @click="runGenerateEmpty"
-      >
-        Сгенерировать для пустых клеток
-      </button>
-      <button
-        type="button"
-        class="setting-chip"
-        :disabled="busy || !settings.llm.enabled || !selectedCellLabel"
-        @click="runGenerateSelected"
-      >
-        Только выбранная клетка
-      </button>
-      <button
-        type="button"
-        class="setting-chip"
-        :disabled="busy || !settings.llm.enabled || !instruction.trim()"
-        @click="runInstruction('edit')"
-      >
-        Изменить набор
-      </button>
-      <button
-        type="button"
-        class="setting-chip"
-        :disabled="busy || !settings.llm.enabled || !instruction.trim()"
-        @click="runInstruction('retag')"
-      >
-        Retag
-      </button>
-      <button
-        type="button"
-        class="setting-chip"
-        :disabled="busy || !settings.llm.enabled || !settings.llm.shareProgress"
-        @click="runAnalyzeProgress"
-      >
-        Проанализировать прогресс
-      </button>
-    </div>
-
-    <div v-if="changeset" class="rounded-xl border border-slate-700 bg-slate-950/40 p-4 space-y-3">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <p class="text-sm text-slate-200">
-          Changeset
-          <span v-if="summary" class="text-slate-500">
-            (+{{ summary.add }} / ~{{ summary.update }} / −{{ summary.archive }})
-          </span>
-          · {{ changeset.status }}
-        </p>
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-if="changeset.status === 'awaiting_approval'"
-            type="button"
-            class="setting-chip"
-            :disabled="busy"
-            @click="applyChangeset"
-          >
-            Применить
-          </button>
-          <button
-            v-if="changeset.status === 'awaiting_approval'"
-            type="button"
-            class="setting-chip"
-            :disabled="busy"
-            @click="discardChangeset"
-          >
-            Отбросить
-          </button>
-          <button
-            v-if="changeset.status === 'applied'"
-            type="button"
-            class="setting-chip"
-            :disabled="busy"
-            @click="revertChangeset()"
-          >
-            Откатить
-          </button>
-        </div>
-      </div>
-      <p
-        v-if="changeset.status === 'failed' && changeset.error"
-        class="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200"
-        role="alert"
-      >
-        {{ changeset.error }}
-      </p>
-      <ul class="space-y-2">
-        <li
-          v-for="(record, index) in changeset.ops"
-          :key="index"
-          class="flex items-start gap-2 rounded-lg border border-slate-800 px-3 py-2 text-xs"
-        >
-          <input
-            type="checkbox"
-            class="mt-0.5 accent-emerald-500"
-            :checked="record.enabled"
-            :disabled="record.state === 'rejected' || changeset.status !== 'awaiting_approval'"
-            @change="toggleOp(index)"
-          />
-          <div>
-            <p class="text-slate-200">{{ record.op.op }} <span class="text-slate-500">· {{ record.state }}</span></p>
-            <p v-if="record.reason" class="mt-1 text-slate-400">{{ record.reason }}</p>
-            <p v-for="issue in record.issues" :key="issue" class="mt-1 text-amber-300">{{ issue }}</p>
-          </div>
-        </li>
-      </ul>
-    </div>
-
-    <div v-if="history.length > 0" class="border-t border-slate-800 pt-4 space-y-2">
-      <h3 class="text-sm font-semibold text-white">История changesets</h3>
-      <ul class="space-y-2">
-        <li
-          v-for="entry in history"
-          :key="entry.id"
-          class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 px-3 py-2 text-xs"
-        >
-          <button type="button" class="text-left text-slate-300 hover:text-white" @click="loadHistoryItem(entry.id)">
-            <span class="font-medium text-slate-200">{{ entry.kind }}</span>
-            · {{ entry.status }}
-            · {{ new Date(entry.createdAt).toLocaleString('ru-RU') }}
-          </button>
-          <button
-            v-if="entry.status === 'applied'"
-            type="button"
-            class="setting-chip"
-            :disabled="busy"
-            @click="revertChangeset(entry.id)"
-          >
-            Откатить
-          </button>
-        </li>
-      </ul>
-    </div>
-
-    <p v-if="status" class="text-xs text-emerald-400" role="status">{{ status }}</p>
-    <p v-if="error" class="text-xs text-red-300" role="alert">{{ error }}</p>
+  <section class="space-y-5" data-testid="catalog-ai">
+    <div><h2 class="text-xl font-semibold text-white">ИИ-помощник</h2><p class="mt-2 text-sm text-slate-400">Предложения сначала становятся черновиками. Ты выбираешь, что применить.</p></div>
+    <div v-if="!connectionReady" class="settings-card space-y-3"><p>Подключите сервис, чтобы получать предложения. Каталог и обычные разминки доступны без ИИ.</p><button type="button" class="setting-chip" @click="navigation.navigate('settings', 'ai')">Настроить подключение →</button></div>
+    <fieldset :disabled="ai.busy" class="settings-card space-y-4">
+      <label class="block text-sm">Чем помочь?<select v-model="task" class="profile-select mt-2 w-full"><option value="generate">Добавить варианты упражнений</option><option value="edit">Изменить свой набор</option><option value="tune">Проанализировать прогресс</option><option v-if="task === 'retag'" value="retag">Техническая переразметка</option></select></label>
+      <div v-if="task === 'generate'" class="space-y-3"><div class="grid grid-cols-2 gap-3"><label class="text-sm">Зона<select v-model="zone" class="profile-select mt-1 w-full" :disabled="allThinCells"><option v-for="item in ZONES" :key="item" :value="item">{{ ZONE_LABELS[item] }}</option></select></label><label class="text-sm">Направление<select v-model="method" class="profile-select mt-1 w-full" :disabled="allThinCells"><option v-for="item in METHODS" :key="item" :value="item">{{ METHOD_LABELS[item] }}</option></select></label></div><label class="flex items-center gap-2 text-sm"><input v-model="allThinCells" type="checkbox">Дополнить все направления, где мало вариантов</label></div>
+      <label v-if="task === 'edit' || task === 'retag'" class="block text-sm">Что изменить?<textarea v-model="ai.instruction" rows="3" class="profile-select mt-2 w-full" placeholder="Например: уточни инструкции в моём наборе"></textarea></label>
+      <div v-if="task === 'tune'" class="space-y-3 text-sm"><p class="text-slate-300">Для анализа нужны агрегаты выполнения упражнений. Вес, фотографии и личные ограничения не отправляются.</p><label class="flex items-center gap-2"><input type="checkbox" :checked="settings.llm.shareProgress" @change="shareProgress(($event.target as HTMLInputElement).checked)">Разрешить отправку агрегатов прогресса</label></div>
+      <label class="block text-sm">Сохранить предложения в набор<select v-model="ai.targetSetId" class="profile-select mt-2 w-full"><option v-for="batch in targetSets" :key="batch.id" :value="batch.id">{{ batch.name }}</option></select></label>
+      <button type="button" class="primary-action" :disabled="!connectionReady || !targetSets.length || (task === 'tune' && !settings.llm.shareProgress)" @click="prepare">Проверить запрос</button>
+      <details><summary>Дополнительные инструменты</summary><button type="button" class="setting-chip mt-3" @click="task = 'retag'">Переразметить свой набор</button></details>
+    </fieldset>
+    <section v-if="ai.preview" class="settings-card space-y-4" data-testid="ai-request-preview">
+      <h3 class="font-semibold">Проверка перед отправкой</h3><p class="text-sm">{{ taskLabels[ai.preparedInput!.kind] }} · {{ targetSets.find(batch => batch.id === ai.targetSetId)?.name }}</p>
+      <p class="text-sm text-slate-300">Будут отправлены параметры задачи{{ ai.preparedInput?.kind === 'tune' ? ', каталог и агрегаты выполнения' : ', данные каталога и необходимого инвентаря' }}. Оценка размера: {{ ai.preview.estimatedTokens }} токенов.</p>
+      <details><summary>Состав отправляемых данных</summary><pre class="ai-payload mt-3">{{ JSON.stringify(ai.preview.payload, null, 2) }}</pre></details>
+      <button type="button" class="primary-action" :disabled="ai.busy || !connectionReady" @click="ai.run">Отправить запрос</button>
+    </section>
+    <div v-if="ai.busy" class="flex flex-wrap items-center gap-3" role="status"><span>Выполняется запрос…</span><button type="button" class="setting-chip" @click="ai.cancel">Отменить запрос</button></div>
+    <section v-if="ai.changeset" class="space-y-4" data-testid="ai-draft">
+      <h3 class="text-lg font-semibold">{{ stateLabels[ai.changeset.status] }}</h3>
+      <article v-for="row in rows" :key="row.index" class="settings-card space-y-3">
+        <label class="flex items-start gap-3"><input type="checkbox" class="mt-1" :checked="ai.changeset.ops[row.index]?.enabled" :disabled="ai.busy || ai.changeset.status !== 'awaiting_approval' || ai.changeset.ops[row.index]?.state === 'rejected'" @change="ai.toggle(row.index)"><span><strong class="block">{{ row.title }}</strong><span class="text-sm text-slate-400">{{ row.action }}</span></span></label>
+        <dl v-for="field in row.fields" :key="field.label" class="ai-field-diff"><dt class="text-xs text-slate-400">{{ field.label }}</dt><dd class="text-sm"><span v-if="ai.review" class="text-slate-400">{{ field.before }} → </span>{{ field.after }}</dd></dl>
+        <p v-if="ai.changeset.ops[row.index]?.reason" class="text-sm text-slate-300">{{ ai.changeset.ops[row.index]?.reason }}</p>
+        <p v-for="issue in ai.changeset.ops[row.index]?.issues" :key="issue" class="text-sm text-amber-300">{{ issue }}</p>
+        <p v-if="ai.changeset.ops[row.index]?.state === 'rejected'" class="text-sm text-red-300">Проверка не пройдена — применить нельзя.</p>
+      </article>
+      <p v-if="ai.changeset.error" role="alert" class="text-sm text-red-300">{{ ai.changeset.error }}</p>
+      <div class="flex flex-wrap gap-3"><button v-if="ai.changeset.status === 'awaiting_approval'" type="button" class="primary-action" :disabled="ai.busy || !ai.review || !validSelection" @click="ai.apply">Применить выбранное</button><button v-if="ai.changeset.status === 'awaiting_approval'" type="button" class="setting-chip" :disabled="ai.busy" @click="ai.discard">Отклонить черновик</button><button v-if="ai.changeset.status === 'applied'" type="button" class="setting-chip" :disabled="ai.busy" @click="ai.revert(ai.changeset.id)">Отменить применение</button></div>
+    </section>
+    <p v-if="ai.error" role="alert" class="text-sm text-red-300">{{ ai.error }}</p><p v-if="ai.status" role="status" class="text-sm text-emerald-400">{{ ai.status }}</p>
+    <details v-if="ai.history.length"><summary>История предложений · {{ ai.history.length }}</summary><div class="mt-3 space-y-2"><button v-for="entry in ai.history" :key="entry.id" type="button" class="setting-chip block" :disabled="ai.busy" @click="ai.load(entry.id)">{{ taskLabels[entry.kind] }} · {{ stateLabels[entry.status] }} · {{ new Date(entry.createdAt).toLocaleString('ru-RU') }}</button></div></details>
   </section>
 </template>

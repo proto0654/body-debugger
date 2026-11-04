@@ -32,8 +32,9 @@ export function getBreakQueue(): BreakQueue {
 }
 
 export function saveBreakQueue(next: BreakQueue): BreakQueue {
-  queue = normalizeQueue(next, todayIso())
-  writeJsonEnvelope(getQueuePath(), queue)
+  const normalized = normalizeQueue(next, todayIso())
+  writeJsonEnvelope(getQueuePath(), normalized)
+  queue = normalized
   return getBreakQueue()
 }
 
@@ -46,7 +47,8 @@ export function setLastQueueNotes(notes: QueueSkipNote[]): void {
 }
 
 export function consumeQueueSlot(): BreakQueue {
-  queue = shiftQueue(queue)
-  writeJsonEnvelope(getQueuePath(), queue)
+  const shifted = shiftQueue(queue)
+  writeJsonEnvelope(getQueuePath(), shifted)
+  queue = shifted
   return getBreakQueue()
 }

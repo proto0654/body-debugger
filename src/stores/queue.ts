@@ -40,11 +40,16 @@ export const useQueueStore = defineStore('breakQueue', () => {
   }
 
   async function persist(next: BreakQueue): Promise<void> {
+    const previous = queue.value
     queue.value = next
     try {
-      await window.api?.saveBreakQueue?.(next)
+      const saved = await window.api?.saveBreakQueue?.(next)
+      if (!saved) throw new Error('Queue bridge unavailable')
+      queue.value = normalizeQueue(saved, todayIso())
     } catch (cause) {
+      queue.value = previous
       console.warn('[queue] saveBreakQueue failed', cause)
+      throw cause
     }
   }
 

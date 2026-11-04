@@ -84,6 +84,8 @@ export interface BodyDebuggerApi {
   chronicleCommand?: (command: ChronicleCommand) => Promise<ChroniclePlaybackState>
   onChronicleChanged?: (handler: (state: ChroniclePlaybackState) => void) => () => void
   openPopup: () => Promise<void>
+  previewNextExercise?: () => Promise<import('@shared/domain/exercise-start').ExerciseRecommendation | null>
+  startExercise?: (payload: import('@shared/domain/exercise-start').StartExerciseRequest) => Promise<import('@shared/domain/exercise-start').StartExerciseResult>
   closePopup: () => Promise<void>
   resizePopup: (height: number) => Promise<void>
   sessionResult: (payload: SessionResultPayload) => Promise<SessionResultResponse>
@@ -126,6 +128,8 @@ export interface BodyDebuggerApi {
   listLlmChangesets: () => Promise<Changeset[]>
   toggleLlmOp: (payload: LlmToggleOpPayload) => Promise<Changeset | null>
   applyLlmChangeset: (changesetId: string) => Promise<Changeset | null>
+  reviewLlmChangeset?: (id: string) => Promise<import('@shared/domain/changeset-review').ChangesetReview | null>
+  applyReviewedLlmChangeset?: (payload: { id: string; token: string }) => Promise<import('@shared/domain/changeset-review').ApplyReviewedResult>
   discardLlmChangeset: (changesetId: string) => Promise<Changeset | null>
   revertLlmChangeset: (changesetId: string) => Promise<Changeset | null>
   listCatalog: () => Promise<CatalogListPayload>

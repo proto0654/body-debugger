@@ -12,7 +12,6 @@ import {
   normalizeIntervalMinutes
 } from '@shared/domain/preferences'
 import {
-  FOCUS_LEVEL_LABELS,
   LIMITATIONS,
   LIMITATION_LABELS,
   METHODS,
@@ -23,6 +22,9 @@ import {
 import { useSettingsStore } from '@/stores/settings'
 import type { ExercisePickerMode } from '@shared/types/settings'
 import type { Limitation, Method, Zone } from '@shared/types/exercise-v2'
+import PreferenceBoard from '@/components/catalog/PreferenceBoard.vue'
+
+withDefaults(defineProps<{ group?: 'all' | 'general' | 'selection' }>(), { group: 'all' })
 
 const settings = useSettingsStore()
 const saving = ref(false)
@@ -97,7 +99,7 @@ async function onProfileStrength(event: Event): Promise<void> {
 }
 
 function focusChipLabel(level: -1 | 0 | 1 | 2): string {
-  return FOCUS_LEVEL_LABELS[level]
+  return ({ '-1': 'Реже', '0': 'Обычно', '1': 'Чаще', '2': 'Значительно чаще' })[level]
 }
 </script>
 
@@ -106,6 +108,7 @@ function focusChipLabel(level: -1 | 0 | 1 | 2): string {
     <section
       class="rounded-2xl border border-slate-800 bg-slate-900/40 p-4"
       data-testid="interval-control"
+      v-if="group !== 'selection'"
     >
       <h2 class="text-sm font-semibold text-white">Интервал напоминаний</h2>
       <p class="mt-1 text-xs text-slate-500">
@@ -150,6 +153,7 @@ function focusChipLabel(level: -1 | 0 | 1 | 2): string {
     <section
       class="rounded-2xl border border-slate-800 bg-slate-900/40 p-4"
       data-testid="picker-mode-controls"
+      v-if="group !== 'general'"
     >
       <h2 class="text-sm font-semibold text-white">Режим подбора</h2>
       <p class="mt-1 text-xs text-slate-500">{{ PICKER_MODE_HINTS[settings.pickerMode] }}</p>
@@ -172,10 +176,11 @@ function focusChipLabel(level: -1 | 0 | 1 | 2): string {
     <section
       class="rounded-2xl border border-slate-800 bg-slate-900/40 p-4"
       data-testid="focus-controls"
+      v-if="group !== 'general'"
     >
       <h2 class="text-sm font-semibold text-white">Направления</h2>
       <p class="mt-1 text-xs text-slate-500">
-        Две оси: зона (где) и метод (как). Нажми на чип, чтобы переключить уровень — / 0 / + / ++.
+        Выбери, каким зонам и направлениям уделять больше внимания. Повторное нажатие меняет частоту.
       </p>
 
       <div class="mt-4 space-y-2" data-testid="focus-zone-controls">
@@ -214,9 +219,9 @@ function focusChipLabel(level: -1 | 0 | 1 | 2): string {
         </div>
       </div>
 
-      <div class="mt-4 border-t border-slate-800 pt-4">
-        <label class="block text-sm font-semibold text-white">Следовать профилю</label>
-        <p class="mt-1 text-xs text-slate-500">Насколько жёстко подбор следует этим весам (λ).</p>
+      <details class="mt-4 border-t border-slate-800 pt-4"><summary>Точная настройка приоритетов</summary>
+        <label class="mt-3 block text-sm font-semibold text-white">Следовать профилю</label>
+        <p class="mt-1 text-xs text-slate-500">Насколько строго подбор следует выбранным приоритетам.</p>
         <input
           type="range"
           min="0"
@@ -234,7 +239,7 @@ function focusChipLabel(level: -1 | 0 | 1 | 2): string {
           <span>Обычно</span>
           <span>Жёстко</span>
         </div>
-      </div>
+      </details>
 
       <div
         v-if="activeProfileShifts.length > 0"
@@ -293,6 +298,7 @@ function focusChipLabel(level: -1 | 0 | 1 | 2): string {
     </section>
 
     <p v-if="error" role="alert" class="text-xs text-red-300">{{ error }}</p>
-    <ComfortSettingsPanel group="selection" />
+    <details v-if="group !== 'general'" class="settings-card"><summary>Временные акценты и приоритеты</summary><PreferenceBoard live /></details>
+    <ComfortSettingsPanel v-if="group !== 'general'" group="selection" />
   </div>
 </template>

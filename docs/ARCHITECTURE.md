@@ -83,7 +83,7 @@ Hydrate: `src/bootstrap/hydrate.ts` loads the core snapshot and subscribes befor
 timer / idle / manual (trigger-loop)  →  tray:set-state(standup)
                                       →  popup window (main holds the active session)
 renderer pulls session:get-current-popup → { sessionId, exercise }
-[Начать] → local countdown; [Готово | Отложить | Пропустить] →  session:result (+ optional reps / feeling / weight / photoIds)
+[Начать] → preparation → local working countdown(s); [Готово | Отложить | Пропустить] → session:result (+ optional reps / feeling / weight / photoIds)
                                       →  append session JSON (+ day-based streak and character recompute on done;
                                          a done weight lands in weights.json; photo ids must exist in main)
                                       →  data:updated + session:updated + session:loop-changed
@@ -96,6 +96,8 @@ no answer for 5 minutes               →  missed (popup closed by main)
 Main accepts only the active session's matching session/exercise identity. Replaying the same stored result returns `{ saved: true }` without appending, rewarding or rescheduling again; a conflicting replay returns false. A failed session write leaves the active session retryable and never emits success. Optional weight/progress write failures are logged separately after the session is durable. A popup still showing its saved confirmation prevents opening another session in that window.
 
 The persisted JSON schema stays at version 1: no migration is needed. Character stage/branch are recovered from sessions on load, even if a progress checkpoint previously failed. Reverting this code does not require rewriting the profile; rollback preserves `sessions.json`, with derived progress recalculated by the current code.
+
+`shared/domain/exercise-timer.ts` resolves the local popup timeline from one application-clock anchor: ready → 5 s preparation → first working stage → (per-side only: 5 s switching → second working stage) → finished. The final working stage owns the Medium/Hardcore 80% gate. UI totals include transitions; persisted dose fields retain their existing per-side meaning. Separate effect playback keeps timed `alert` signals independent of queued character speech. Arcade start skips preparation, waits for the active line, then completion commands advance directly to the final state without replaying skipped timer cues.
 
 ### Trigger loop
 
@@ -175,16 +177,15 @@ Exercise preview/start IPC is additive: existing `openPopup()` and tray callers 
 
 ### Popup severity
 
-`shared/domain/severity.ts` — rules only; the popup enforces the timer/hold; main validates session identity and durable persistence. The timer is a self-report aid, not proof of physical activity.
+`shared/domain/severity.ts` owns the working-time threshold and hold rules; `shared/domain/exercise-timer.ts` applies them to the final working stage. The popup enforces the timer/hold; main validates session identity and durable persistence. The timer is a self-report aid, not proof of physical activity.
 
 | Level | «Готово» |
 |-------|----------|
 | `soft` | enabled immediately after «Начать», timer is only a hint |
-| `medium` (default) | unlocks at 80% of the exercise timer |
+| `medium` (default) | unlocks at 80% of the final working stage; the first side must finish in full |
 | `hardcore` | same unlock + press-and-hold for 1.5 s |
 
-The popup shows a countdown (`mm:ss`), a progress bar and a one-line hint for the
-current level. It stays at full duration until «Начать». Keyboard hold uses Space/Enter, ignores repeat keydowns and cancels on blur/release. A durable result enters a separate readable scene: done 4500 ms, stage-up 6000 ms, skip/snooze 2500 ms, followed by a 180 ms exit. Reduced motion keeps the reading time and removes the animated exit. Every saved scene has an early-close button; unmount/early close cancels its timer. A failed save shows a retryable error without optimistic history or a reward. Closing the popup without an answer is `skipped` at every level.
+The popup shows the current stage and its countdown: `5…1` for preparation/switching and `mm:ss` for work. Per-side progress uses two segments. The ready screen shows the assigned dose and total time including transitions; no time is consumed before «Начать». See [the session cycle](#session-cycle-events) for the timeline. Keyboard hold uses Space/Enter, ignores repeat keydowns and cancels on blur/release. A durable result enters a separate readable scene: done 4500 ms, stage-up 6000 ms, skip/snooze 2500 ms, followed by a 180 ms exit. Reduced motion keeps the reading time and removes the animated exit. Every saved scene has an early-close button; unmount/early close cancels its timer. A failed save shows a retryable error without optimistic history or a reward. Closing the popup without an answer is `skipped` at every level.
 Extra hardcore checks (CONCEPT §3) are not implemented yet.
 
 ### Optional session details
@@ -248,7 +249,7 @@ Main stores it on `done` and recomputes it when reading a snapshot; the historic
 | Gate | Master switch, audible volume, paused reminders and quiet/DND context suppress playback |
 | Cues | `popup`, `done`, `skip`, `snooze`, `stage-up`, `streak`, `alert`, `error` map to the generated `system/` effect takes, with `default/*.mp3` as fallback |
 | Voice | `VOICE_CUE_EVENTS` maps a cue to a spoken event plus direct `active` / `first-done` calls; variants rotate without immediate repeats (last take survives popup recreation; chronicle preview uses a separate namespace via `SessionPopupPayload.preview`) and the line replaces the signal, which stays as the fallback |
-| Popup | Line on mount (`ready`), `active` on timer start, result voice after the durable acknowledgement with the generated cue as fallback; a done session that raises the stage speaks `stage-up` instead of `done`; `error/01` only after a rejected save |
+| Popup | Line on mount (`ready`), `active` once at the first working stage after preparation; independent `alert` effects on side-switch/finish; result voice after the durable acknowledgement with the generated cue as fallback; a done session that raises the stage speaks `stage-up` instead of `done`; `error/01` only after a rejected save |
 | Failure | A rejected `audio.play()` is logged and swallowed; audio never breaks the core cycle |
 
 Stage-up is automatic; `streak` has a generated effect and a debug preview but no automatic milestone trigger yet. The generated voice is authored in [Audio production](AUDIO-PRODUCTION.md), on by default, and auditioned in the laboratory «Звуки» tab.
@@ -289,6 +290,8 @@ Provider path (dashboard «Упражнения → AI»): OpenAI-compatible cha
 The laboratory is no longer a separate window or a `dev:lab` entry. Main spawns a headless Electron child with `--body-debugger-lab --body-debugger-lab-headless` and an isolated profile: `.userdata/laboratory/` when unpackaged, `<userData>/laboratory` when packaged. The child runs the reminder loop, owns the laboratory plan, native popup/preview windows and settings/data; it opens no tray or dashboard. The normal dashboard stays open the whole time.
 
 The embedded lab is a native Vue host (`LaboratoryHost`) with a nested Pinia and a lab-facing renderer API stack (`rendererApi`). `electron/main/lab-engine.ts` is the parent half of the bridge: the host sends `lab:view-register`, then `lab:bridge-request` calls; the engine pre-warms/spawns the child, forwards requests over Node IPC and relays only `LabChanged` (with sandbox snapshot) back. `electron/main/lab-headless.ts` dispatches those requests in the child. Only the registered dashboard host is accepted by the bridge; the real profile never receives laboratory mutations. The sandbox does not initialize the updater. Leaving the tab pauses the run but leaves the headless engine alive for the app session. Chronicle and laboratory share `playback-coordinator` (mutex + 30 s reminder grace).
+
+Snapshot callbacks and asynchronous laboratory initialization target their owning Pinia explicitly: the active Pinia can change while a request is pending or while the lab panel is hidden.
 
 | Part | Owner |
 |------|-------|
@@ -446,7 +449,7 @@ Gotcha: sandbox `DataUpdated` is **not** forwarded to the dashboard host — onl
 - `electron/main/app-identity.ts` derives the channel from `app.getName()`/`app.isPackaged`: prod `Body Debugger`/`com.bodydebugger.app`, dev `Body Debugger Dev`/`com.bodydebugger.app.dev`. `index.ts` applies the AUMID, the dashboard window uses the title/icon, and the tray tooltip gets a `Dev · ` prefix.
 - `electron/main/windows/update-prompt.ts` owns a separate 420×232 always-on-top window at `#/update-prompt`. It is not a session popup: it has no session IPC, reads `app:update-state`/`app:update-changed`, and hides while the exercise popup is open.
 - `electron/main/launch-at-login.ts` reads/writes the Windows login item with `name = product title`, `path = process.execPath`, `args = ['--hidden']`. `index.ts` skips the dashboard when that argument is present, while a manual second launch still opens it. No profile field stores this state.
-- `electron/main/updater.ts` selects `dev` channel + prerelease for the dev build and stable `latest` for prod; the prompt gate and dismissal live in `shared/domain/update.ts`.
+- `electron/main/updater.ts` selects `dev` channel + prerelease for the dev build and stable `latest` for prod; the prompt gate and dismissal live in `shared/domain/update.ts`. On macOS, `autoInstallOnAppQuit` stays off and `electron/main/mac-update-install.ts` swaps the `.app` from the downloaded zip after click or quit (`shared/domain/mac-update.ts` decides whether the running bundle is replaceable).
 
 ## Already in code
 

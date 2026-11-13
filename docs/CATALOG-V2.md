@@ -265,9 +265,9 @@ Rationale: short intervals mean many reminders per hour, so each one is a micro-
 
 Rules
 
-- `perSide: true` means the timer is per side; the popup must say so.
-- Severity `medium` unlocks "Готово" at 80% of the timer, so the effective minimum is `0.8 · minSec`; validation of `minSec` accounts for it.
-- `Session` stores `plannedSec` (the dose actually shown) so stats stay interpretable after the interval changes. Optional field; no migration needed.
+- `perSide: true` means the assigned dose is per side. The popup runs two working stages separated by a 5 s switch countdown; either side can go first. Every exercise starts with 5 s preparation after an explicit start. The ready screen includes the total wall time; preparation/switching do not fill working progress.
+- Severity `medium`/`hardcore` unlocks "Готово" at 80% of the final working stage: the whole first side plus 80% of the second for `perSide`. Soft allows confirmation immediately after start. Preparation and switching never count toward the gate.
+- `Session` stores `plannedSec` (the assigned dose, per side for `perSide`) so stats stay interpretable after the interval changes. `durationSec` keeps the same dose convention; preparation/switching and doubled total time are presentation-only, not added to history. Optional field; no migration needed.
 
 Timer floors (validator, starting values, tune by feel)
 

@@ -76,7 +76,7 @@ Project docs and this file override global agent rules when they conflict.
 | Dev launcher (strips `ELECTRON_RUN_AS_NODE`) | `scripts/run-electron-vite.cjs` |
 | Release script + CI | `scripts/publish-build.mjs`, `.github/workflows/release.yml` |
 | Build identity / profiles | `shared/domain/app-identity.ts`, `electron/main/app-identity.ts`, `electron/main/lab-environment.ts` |
-| Update feed, install gating, update UI | `electron/main/updater.ts`, `electron/main/ipc/updates.ts`, `shared/domain/update.ts`, `src/components/settings/AboutPanel.vue` |
+| Update feed, install gating, update UI | `electron/main/updater.ts`, `electron/main/ipc/updates.ts`, `shared/domain/update.ts`, `shared/domain/mac-update.ts`, `electron/main/mac-update-install.ts`, `src/components/settings/AboutPanel.vue` |
 | Update prompt window | `electron/main/windows/update-prompt.ts`, `src/views/UpdatePromptView.vue` |
 | Launch at login / system settings | `shared/domain/launch-at-login.ts`, `electron/main/launch-at-login.ts`, `src/components/settings/SystemPanel.vue` |
 | Main-process log, build stamp, app info IPC | `electron/main/logger.ts`, `electron/main/build-info.ts`, `electron/main/ipc/app.ts`, `src/components/settings/AboutPanel.vue` |
@@ -90,7 +90,8 @@ Project docs and this file override global agent rules when they conflict.
 npm run dev          # primary: HMR tray + dashboard; open Settings → developer tools → laboratory for the sandbox
 npm run build:dir    # optional packaged prod smoke
 npm run build:win    # local NSIS + latest.yml (see docs/DELIVERY.md)
-npm run publish:prod # ship stable to GitHub releases (requires GH_TOKEN)
+npm run build:mac    # Apple Silicon zip + latest-mac.yml (macOS host)
+npm run publish:prod # ship stable Windows assets (requires GH_TOKEN); CI adds Mac after
 npm run typecheck    # main + renderer + tests
 npm test             # Vitest suite
 # Legacy until ROADMAP #18: build:dev / publish:dev

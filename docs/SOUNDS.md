@@ -14,7 +14,8 @@ Optional feedback layer. Product rule: sounds must not affect the core cycle (re
 | Event | Cue file | Voice event | Priority |
 |-------|----------|-------------|----------|
 | Popup appears | `system__popup__01` | `ready` | Recommended |
-| Timer start | *(no cue; the `active` line plays)* | `active` | Optional |
+| First working stage (after preparation) | *(no cue; the `active` line plays once)* | `active` | Optional |
+| Side-switch countdown / timer finished | `system__alert__01` (effect only) | — | Optional |
 | Result `done` | `system__done__01` | `done` / `first-done` | Recommended |
 | Result `skipped` / dismiss | `system__skip__01` | `skipped` | Optional |
 | Result `snoozed` | `system__snooze__01` | `snoozed` | Optional |
@@ -67,11 +68,13 @@ Defaults for new or explicitly reset profiles: on, volume `0.4`, pack `default`,
 - Playback is gated by the master switch, volume > 0, `settings.paused` and a `quiet` context
   (DND/call). The app does not detect OS DND yet; the gate is ready for it.
 - Event → cue map: `shared/domain/sounds.ts`; `missed` has no cue.
-- Popup: the selected character speaks `ready` on mount, `active` when the timer starts, `first-done` / `done` / `skipped` / `snoozed` / `stage-up` after a durable result acknowledgement, and `error/01` after a rejected save. The generated cue is the fallback when the layer is off or the take is missing.
+- Popup: the selected character speaks `ready` on mount, `active` once when the first working stage begins after preparation, `first-done` / `done` / `skipped` / `snoozed` / `stage-up` after a durable result acknowledgement, and `error/01` after a rejected save. The generated cue is the fallback when the layer is off or the take is missing.
 - Laboratory «Попап и цикл»: every cue has a preview button that ignores the master switch — see [TESTING.md](TESTING.md).
 - The native popup is the sole owner of popup/result audio; laboratory controls never replay those cues on snapshot changes. Explicit cue previews remain available in sound settings and the laboratory and use at least 10% volume.
 - `streak` has a generated effect and a preview button; no automatic milestone trigger yet.
 - Theme packs are future work: keep cue keys stable and swap the URL map by `packId`.
+
+Timed side-switch and finish effects use a separate player with the same settings gate, so they never wait behind character narration. Each observed transition emits at most one effect; jumping over past stages does not replay their signals or first-stage narration. Closing, saving or aborting stops timer effects. A timer finish does not trigger a success voice or save a result.
 
 ## Character voice layer (default on)
 
@@ -81,7 +84,7 @@ The generated voice package plays through the same gate and the same player:
   profile silent. The voice is keyed by `settings.characterPackId`, so the character identity owns the voice.
 - `VOICE_CUE_EVENTS` maps a cue to a spoken event: `popup → ready`, `done → done`, `skip → skipped`,
   `snooze → snoozed`, `stage-up → stage-up`, `streak → streak`, `alert → alert`, `error → error`. Two moments are
-  spoken outside the cue map: `active` when the timer starts and `first-done` for the first completion of a day
+  spoken outside the cue map: `active` at the first working stage after preparation and `first-done` for the first completion of a day
   (`playVoiceEvent`).
 - One principal voice clip per event. Variants of that event (lines and vocal reactions) rotate through
   `pickVoiceVariant`, which never repeats the previous take; the rotation state is per character and event

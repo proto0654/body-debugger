@@ -73,6 +73,8 @@ The additional character art library has static completeness/PNG/build checks in
 These also check real transparency and nonempty foreground in all 432 delivered frames. `tests/unit/character-resolver.test.ts` checks every identity/build, six-stage resolution, branch/condition/emotion frames and unknown IDs; portrait tests cover image-load fallback within the selected identity.
 Source mapping and regeneration: [character art library](../src/assets/character/README.md).
 
+Staged timer boundaries and clock jumps are covered by `tests/unit/exercise-timer.test.ts`; `tests/components/PopupView.test.ts` covers automatic side switching, final-side gating, signals, frozen laboratory time, unmount cancellation and retrying a failed save with the original dose.
+
 ## Not covered yet
 
 - **Main-process windows, tray and IPC wiring** — needs a real Electron session; keep the manual smoke run (`npm run dev`).
@@ -85,7 +87,7 @@ Source mapping and regeneration: [character art library](../src/assets/character
 ## Manual checklist
 
 - Tray: right-click menu, «Напоминание сейчас», pause / resume, animations (and «Уменьшить анимации» off / on).
-- Popup: one exercise; wait before «Начать» and confirm the timer stays full. Start, verify Medium at 80% and Hardcore with pointer/Space/Enter hold. Saved confirmation lasts 4.5 s (6 s for stage-up, 2.5 s for skip/snooze), followed by a 180 ms exit; «Закрыть» can end it early; closing without an answer = `skipped`.
+- Popup: one exercise; wait before «Начать» and confirm the timer stays full. Check total time, 5 s preparation, then the working countdown. For per-side exercises check two progress segments, a full first side, the automatic 5 s switch and second countdown; either side can go first. Medium unlocks at 80% of the final working stage; Hardcore adds pointer/Space/Enter hold; Soft permits early confirmation. Check switch/finish signals with sound on/off; a finished timer must not save automatically. Test a long title/instruction at Windows scaling 100%, 125%, 150%. Saved confirmation lasts 4.5 s (6 s for stage-up, 2.5 s for skip/snooze), followed by a 180 ms exit; «Закрыть» can end it early; closing without an answer = `skipped`.
 - Reliability: failed save offers retry without a success reaction; repeated delivery cannot add another result or close a different session. Photo/AI loading failures must not block the core renderer.
 - Comic dialogue: ready/start/saved captions, a large happy/proud portrait after a real result, body restored after 4.5 s for completion or 6 s for a milestone; calm skips/pause, all themes and reduced motion. Confirm a two-line title plus a long instruction still fit 360 px, and an error still fits 460 px.
 - Character condition: open the laboratory and choose «Форма → спад → восстановление». Seek to the neglect milestones, check the three build variants and the 10/10 indicator. Step through completions to see 8/6/4/2/0 points and restoration of the earned body. Snooze and pause alone must not worsen condition; relaunch must preserve it. Check transparent sprite edges on all themes.

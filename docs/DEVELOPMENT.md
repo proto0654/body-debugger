@@ -6,7 +6,8 @@
 npm run dev          # primary: HMR tray + dashboard; Лаборатория starts the sandbox
 npm run build:dir    # optional packaged prod smoke in dist/win-unpacked
 npm run build:win    # local NSIS + latest.yml in dist/ (no upload)
-npm run publish:prod # ship stable to the release repo (GH_TOKEN) — client updates from here
+npm run build:mac    # Apple Silicon zip + latest-mac.yml (must run on macOS)
+npm run publish:prod # ship stable Windows assets to the release repo (GH_TOKEN)
 npm run typecheck    # main + preload + shared (tsc), renderer and tests (vue-tsc)
 npm test             # Vitest suite (see TESTING.md)
 npm run test:watch
@@ -14,7 +15,7 @@ npm run test:watch
 # npm run build:dev / build:dev:dir / publish:dev
 ```
 
-**Mental model:** develop with `npm run dev`; ship and update only through the stable GitHub prod installer. See [DELIVERY.md](DELIVERY.md).
+**Mental model:** develop with `npm run dev`; ship Windows from this machine and Mac from CI/`publish-build.mjs … mac`. See [DELIVERY.md](DELIVERY.md).
 
 ## First run
 
@@ -75,7 +76,7 @@ Do **not** download Electron into `%LOCALAPPDATA%\electron` or park the profile 
 
 ## Packaging
 
-`electron-builder` produces a per-user NSIS one-click installer. The production config and publish target live in [electron-builder.yml](../electron-builder.yml); the side-by-side dev build is described by [electron-builder.dev.yml](../electron-builder.dev.yml). Full flow: [DELIVERY.md](DELIVERY.md).
+`electron-builder` produces a per-user NSIS one-click installer on Windows and an Apple Silicon zip on macOS. The production config and publish target live in [electron-builder.yml](../electron-builder.yml); the side-by-side dev build is described by [electron-builder.dev.yml](../electron-builder.dev.yml). Full flow: [DELIVERY.md](DELIVERY.md).
 
 ```powershell
 $env:ELECTRON_BUILDER_CACHE = "E:\Electron\.cache\electron-builder"
@@ -83,6 +84,8 @@ npm run build:win      # dist\Body-Debugger-Setup-<version>.exe, .blockmap, late
 npm run build:dir      # dist\win-unpacked\Body Debugger.exe
 npm run build:dev      # dist-dev\Body-Debugger-Dev-Setup-<version>.exe, .blockmap, dev.yml for -dev.N
 npm run build:dev:dir  # dist-dev\win-unpacked\Body Debugger Dev.exe
+# On macOS only:
+npm run build:mac      # dist/Body-Debugger-<version>-mac-arm64.zip, latest-mac.yml
 ```
 
 These scripts rebuild `out/` themselves; a packaged run never uses a stale bundle. The dev config sets `extraMetadata.name` and `extraMetadata.productName`: the first separates the updater cache, the second the profile and window identity. Keep both in sync with `shared/domain/app-identity.ts`.
@@ -112,13 +115,15 @@ The popup pulls its exercise from main (`session:get-current-popup`), so **На�
 
 ## Popup severity
 
-Rules live in [shared/domain/severity.ts](../shared/domain/severity.ts); switch on the dashboard.
+Working-time/hold rules live in [shared/domain/severity.ts](../shared/domain/severity.ts); [shared/domain/exercise-timer.ts](../shared/domain/exercise-timer.ts) applies them to the popup stages. Switch the level on the dashboard.
 
 | Level | «Готово» |
 |-------|----------|
 | Мягкая | Enabled after «Начать», timer is a hint |
-| Средняя (default) | Unlocks at 80% of the exercise timer |
+| Средняя (default) | Unlocks at 80% of the final working stage; the first side must finish in full |
 | Жёсткая | Same unlock + hold the button for 1.5 s |
+
+Start a single exercise and a per-side exercise using the [popup checklist](TESTING.md#manual-checklist): preparation and switching never count toward the unlock threshold. The assigned dose in history remains per side; the displayed total includes preparation and switching.
 
 The popup window is transparent and frameless: the corner comic HUD paints
 opaque controls and plates (`html.window-popup` / `.popup-hud` in

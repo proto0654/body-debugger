@@ -8,7 +8,7 @@ Post-skeleton milestones. Product detail: [CONCEPT.md](../CONCEPT.md).
 | 2 | Trigger loop | **Done** — interval from last completion, idle hold/reset, snooze, pause (tray + dashboard), `missed` timeout |
 | 3 | Exercise picker | **Done** — superseded in depth by #19; originally 34-exercise catalog + AI additions, zone/group penalties, neglect, Focus, inventory, four modes |
 | 4 | Character progress | **Done** — earned stage/branch plus temporary neglect/recovery from saved results; see [Architecture](ARCHITECTURE.md#temporary-character-condition) |
-| 5 | Severity + timer | **Done** — countdown + progress in popup; explicit «Начать»; Soft unlocks after starting, Medium at 80%, Hardcore adds a 1.5 s hold |
+| 5 | Severity + timer | **Done** — explicit «Начать», 5 s preparation, automatic per-side stages with 5 s switching and segmented progress; Soft unlocks after starting, Medium at 80% of the final working stage, Hardcore adds a 1.5 s hold |
 | 6 | Sprite cut | **Done** — Desk Hulk body/pose/emotion/neglect frames and runtime fallback; nine additional packs have 432 frames across three builds, available through runtime selection — [Art library](../src/assets/character/README.md) |
 | 7 | Micro-animations | **Done** — popup entrance/exit, urgent timer, emotion crossfade + bounce; tray frame animation; «Анимации» switch |
 | 8 | Optional layers | **Done** — session details, weight history, photos, inventory UI, AI proposals, themes |

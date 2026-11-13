@@ -7,8 +7,9 @@ How the production app receives new versions, and how a build is identified. Dai
 | Mode | Command / action | Updates |
 |------|------------------|---------|
 | Develop | `npm run dev` | Disabled (HMR only; `.userdata/`) |
-| Ship | `npm run publish:prod` or CI on a stable `v*` tag | Writes `latest.yml` to [body-debugger-releases](https://github.com/proto0654/body-debugger-releases) |
-| Use | Install `Body-Debugger-Setup-<version>.exe`, then update from the client | Background check ~25 s after start and every 1 h |
+| Ship | `npm run publish:prod` or CI on a stable `v*` tag | Writes Windows `latest.yml` then Mac `latest-mac.yml` + zip to [body-debugger-releases](https://github.com/proto0654/body-debugger-releases) |
+| Use (Windows) | Install `Body-Debugger-Setup-<version>.exe`, then update from the client | Background check ~25 s after start and every 1 h |
+| Use (Mac) | Download `Body-Debugger-<version>-mac-arm64.zip`, clear quarantine once, then update from the client | Same prompt; install swaps the `.app` (no Apple Developer ID) |
 
 Do **not** use the side-by-side Dev product for ordinary work. Removing `Body Debugger Dev` / `publish:dev` / `dev.yml` is the next delivery wave — [ROADMAP.md](ROADMAP.md) #18.
 
@@ -16,15 +17,15 @@ Do **not** use the side-by-side Dev product for ordinary work. Removing `Body De
 
 | Topic | Decision |
 |-------|----------|
-| Target | Windows, per-user NSIS installer (`oneClick`, no admin rights) |
+| Target | Windows per-user NSIS (`oneClick`, no admin) and macOS Apple Silicon zip (ad-hoc signed, not notarized) |
 | Feed | Public GitHub release repository: [proto0654/body-debugger-releases](https://github.com/proto0654/body-debugger-releases); holds artifacts and channel manifests only |
 | Source | Public source repository: [proto0654/body-debugger](https://github.com/proto0654/body-debugger) |
-| Primary channel | `latest.yml` for stable prod |
-| Legacy channel (to remove in #18) | `dev.yml` for prerelease `Body Debugger Dev` builds (`x.y.z-dev.N`) |
-| Update model | `electron-updater` downloads in the background, shows a small prompt with progress and asks for a restart; it never restarts on its own |
-| Restart gating | A restart is refused while an exercise popup is open; a downloaded update also installs on a normal quit |
-| Autostart | Off by default; a settings toggle registers a per-user login item that launches the app hidden in the tray |
-| Signing | Unsigned for the beta; `publisherName` stays unset until a certificate exists, otherwise updates reject themselves |
+| Primary channel | `latest.yml` (Windows) and `latest-mac.yml` (Mac) for stable prod |
+| Legacy channel (to remove in #18) | `dev.yml` / `dev-mac.yml` for prerelease `Body Debugger Dev` builds (`x.y.z-dev.N`) |
+| Update model | `electron-updater` downloads in the background, shows a small prompt with progress and asks for a restart; it never restarts on its own. Windows installs via NSIS; Mac swaps the `.app` after quit because Squirrel.Mac requires a Developer ID |
+| Restart gating | A restart is refused while an exercise popup is open; a downloaded update also installs on a normal quit. Mac refuses the swap when the app still lives under App Translocation or a read-only folder |
+| Autostart | Off by default; a settings toggle registers a per-user login item that launches the app hidden in the tray (Windows only today) |
+| Signing | Unsigned Windows beta (`publisherName` unset). Mac uses ad-hoc `identity: "-"` so arm64 launches; Gatekeeper needs a one-time `xattr` clear on first open |
 
 A public release repository is required: a private one would force an access token into the client. The repository holds only artifacts, channel manifests (`latest.yml`, and legacy `dev.yml`) and a short README; issues and wiki are disabled.
 
@@ -38,13 +39,14 @@ A public release repository is required: a private one would force an access tok
 |---|------|-----|
 | Product name / window title | `Body Debugger` | `Body Debugger Dev` |
 | `appId` (AppUserModelId) | `com.bodydebugger.app` | `com.bodydebugger.app.dev` |
-| Installer | `Body-Debugger-Setup-<version>.exe` | `Body-Debugger-Dev-Setup-<version>.exe` |
-| Icon | `electron/resources/icon.ico` (emerald) | `electron/resources/icon-dev.ico` (amber + DEV tag) |
-| Profile | `%APPDATA%\Body Debugger` | `%APPDATA%\Body Debugger Dev` |
+| Windows installer | `Body-Debugger-Setup-<version>.exe` | `Body-Debugger-Dev-Setup-<version>.exe` |
+| Mac zip | `Body-Debugger-<version>-mac-arm64.zip` | `Body-Debugger-Dev-<version>-mac-arm64.zip` |
+| Icon | `electron/resources/icon.ico` / `icon.png` (emerald) | `electron/resources/icon-dev.ico` / `icon-dev.png` (amber + DEV tag) |
+| Profile | `%APPDATA%\Body Debugger` / `~/Library/Application Support/Body Debugger` | `%APPDATA%\Body Debugger Dev` / `~/Library/Application Support/Body Debugger Dev` |
 | Laboratory sandbox | `%APPDATA%\Body Debugger\laboratory` | `%APPDATA%\Body Debugger Dev\laboratory` |
 | Updater cache | `body-debugger-updater` | `body-debugger-dev-updater` |
-| Feed | stable `latest.yml` | `dev.yml` from a `-dev.N` prerelease |
-| Build command | `npm run build:win` / `publish:prod` | `npm run build:dev` / `publish:dev` |
+| Feed | stable `latest.yml` + `latest-mac.yml` | `dev.yml` + `dev-mac.yml` from a `-dev.N` prerelease |
+| Build command | `npm run build:win` / `build:mac` / `publish:prod` | `npm run build:dev` / `publish:dev` |
 | Config | [electron-builder.yml](../electron-builder.yml) | [electron-builder.dev.yml](../electron-builder.dev.yml) |
 
 `electron-builder.dev.yml` extends the base config and overrides `appId`, `productName`, output directory, icon and artifact names. It also sets `extraMetadata.name: body-debugger-dev` and `extraMetadata.productName: Body Debugger Dev`:
@@ -152,27 +154,38 @@ Never publish a stable version from the legacy dev config; never install the leg
 $env:ELECTRON_BUILDER_CACHE = "E:\Electron\.cache\electron-builder"
 $env:GH_TOKEN = "<token with contents:write on body-debugger-releases>"
 
-npm run publish:dev    # dev.yml + prerelease release
-npm run publish:prod   # latest.yml + normal release
+npm run publish:dev    # Windows: dev.yml + prerelease release
+npm run publish:prod   # Windows: latest.yml + normal release
+# On macOS, after the Windows assets exist for the same tag:
+node scripts/publish-build.mjs prod mac
 ```
 
-`scripts/publish-build.mjs` validates the channel against the version, requires `GH_TOKEN`/`GITHUB_TOKEN`, rebuilds `out/`, runs electron-builder with `--publish never` and uploads one complete asset set (`installer`, `.blockmap`, `dev.yml`/`latest.yml`) with `gh release create`/`gh release upload`. The config `publish` block still defines the updater feed written into `app-update.yml`. electron-builder's own GitHub publisher is intentionally not used: it created the same release twice from concurrent artifact tasks, which left `dev.yml` and the blockmap out of the release.
+`scripts/publish-build.mjs <channel> [win|mac]` validates the channel against the version, requires `GH_TOKEN`/`GITHUB_TOKEN`, rebuilds `out/`, runs electron-builder with `--publish never` and uploads assets with `gh release create`/`gh release upload`. `win` (default) creates the release when needed. `mac` only uploads onto an existing tag and appends the first-launch Gatekeeper note. The config `publish` block still defines the updater feed written into `app-update.yml`. electron-builder's own GitHub publisher is intentionally not used: it created the same release twice from concurrent artifact tasks, which left `dev.yml` and the blockmap out of the release.
 
-The stable command produces `dist\Body-Debugger-Setup-<version>.exe`, `.blockmap` and `latest.yml`. The dev command produces the same set in `dist-dev\` and `dev.yml` **when the version contains `-dev.N`**; a stable-version dev build is only a local identity smoke and is rejected by `publish:dev`. `npm run build:win` and `npm run build:dev` build installers without publishing.
+The stable Windows command produces `dist\Body-Debugger-Setup-<version>.exe`, `.blockmap` and `latest.yml`. The Mac command produces `dist/Body-Debugger-<version>-mac-arm64.zip` and `latest-mac.yml`. The dev channel produces the same sets in `dist-dev\` with `dev.yml` / `dev-mac.yml` **when the version contains `-dev.N`**. `npm run build:win`, `npm run build:mac` and `npm run build:dev` build without publishing.
 
 The dev config also pins `publish.releaseType: prerelease` and `publish.channel: dev`, so even a manual publish cannot create a normal stable release from the dev product.
 
+### First Mac install
+
+1. Download `Body-Debugger-<version>-mac-arm64.zip` from the release.
+2. Unzip and move `Body Debugger.app` into `/Applications`.
+3. Clear quarantine once:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Body Debugger.app"
+```
+
+4. Open the app. Later versions install from the same update prompt as Windows; the client swaps the `.app` after «Перезапустить» or on quit. If the app was never moved out of Downloads (App Translocation), the prompt asks to move it into Applications first.
+
 ### CI
 
-`.github/workflows/release.yml` runs on a `v*` tag on `windows-latest`:
+`.github/workflows/release.yml` runs on a `v*` tag:
 
-1. `npm ci`, `npm run typecheck`, `npm test`;
-2. verifies that the tag equals `v${package.json.version}`;
-3. chooses `dev` when the tag contains `-`, otherwise `prod`;
-4. runs `node scripts/publish-build.mjs <channel>` with `GH_TOKEN` from `secrets.RELEASE_TOKEN`;
-5. uploads `dist/` / `dist-dev/` as artifacts.
+1. **windows-latest** — `npm ci`, typecheck, test; verifies the tag equals `v${package.json.version}`; chooses `dev` when the tag contains `-`, otherwise `prod`; runs `node scripts/publish-build.mjs <channel> win` with `GH_TOKEN` from `secrets.RELEASE_TOKEN`; uploads Windows artifacts.
+2. **macos-latest** (after the Windows job) — `npm ci`; runs `node scripts/publish-build.mjs <channel> mac`; uploads the arm64 zip and `*-mac.yml`. A Mac failure leaves the Windows release in place.
 
-CI runs from the public source repository [proto0654/body-debugger](https://github.com/proto0654/body-debugger) and needs a `RELEASE_TOKEN` secret: a fine-grained PAT with `Contents: Read and write` on `proto0654/body-debugger-releases`. Until the secret exists, it is dormant; the local `publish:*` commands are the primary path. The CI job overrides the repo-local `E:` npm cache with a workspace-local `.npm-cache`; `scripts/ensure-electron.js` also falls back to the temp directory when `E:` is unavailable.
+CI runs from the public source repository [proto0654/body-debugger](https://github.com/proto0654/body-debugger) and needs a `RELEASE_TOKEN` secret: a fine-grained PAT with `Contents: Read and write` on `proto0654/body-debugger-releases`. Until the secret exists, it is dormant; the local `publish:*` commands are the primary path. The Windows job overrides the repo-local `E:` npm cache with a workspace-local `.npm-cache`; `scripts/ensure-electron.js` also falls back to the temp directory when `E:` is unavailable.
 
 Publish the release as a normal release (stable) or a prerelease (dev), never as a draft for the `latest` channel. Release notes should name the previous installer for a manual rollback.
 

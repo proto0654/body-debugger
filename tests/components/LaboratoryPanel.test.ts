@@ -9,6 +9,7 @@ import { setLaboratoryClock } from '@shared/domain/clock'
 import { defaultProgress, defaultSettings } from '../../electron/main/persistence/defaults'
 import { useCharacterStore } from '@/stores/character'
 import { useSettingsStore } from '@/stores/settings'
+import { useSessionsStore } from '@/stores/sessions'
 import { makeSession } from '../fixtures'
 
 const preview = vi.hoisted(() => ({ play: vi.fn(), stop: vi.fn(), playVoiceEvent: vi.fn() }))
@@ -43,6 +44,21 @@ async function panel() {
 }
 
 describe('laboratory controls', () => {
+  it('keeps laboratory updates out of the main profile after switching away', async () => {
+    const laboratoryPinia = createPinia()
+    setActivePinia(laboratoryPinia)
+    await panel()
+    const mainPinia = createPinia()
+    const mainSession = makeSession({ id: 'main-session', exerciseId: 'neck-tilts' })
+    useSessionsStore(mainPinia).hydrate([mainSession])
+    setActivePinia(mainPinia)
+
+    const laboratorySession = makeSession({ id: 'laboratory-session', exerciseId: 'neck-tilts' })
+    listener?.({ ...state, snapshot: { settings: defaultSettings(), progress: defaultProgress(), sessions: [laboratorySession], weights: [] } })
+
+    expect(useSessionsStore(mainPinia).history.map(session => session.id)).toEqual(['main-session'])
+    expect(useSessionsStore(laboratoryPinia).history.map(session => session.id)).toEqual(['laboratory-session'])
+  })
   it('exposes the full preference controls and optional data layers inside the laboratory', async () => {
     const view = await panel()
     await view.findAll('nav button').find(button => button.text() === 'Настройки')!.trigger('click')

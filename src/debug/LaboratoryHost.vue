@@ -102,7 +102,8 @@ async function mountLab(): Promise<void> {
   try {
     window.api.registerLabHost?.()
     rootPinia = getActivePinia() ?? null
-    labPinia = createPinia()
+    const pinia = createPinia()
+    labPinia = pinia
     activateLabApi()
     app = createApp(LaboratoryPanel)
     app.use(labPinia)
@@ -112,11 +113,11 @@ async function mountLab(): Promise<void> {
     const api = rendererApi()
     if (api?.getSnapshot) {
       const { applySnapshot } = await import('@/bootstrap/hydrate')
-      applySnapshot(await api.getSnapshot())
-      const reminder = (await import('@/stores/reminder')).useReminderStore()
+      applySnapshot(await api.getSnapshot(), pinia)
+      const reminder = (await import('@/stores/reminder')).useReminderStore(pinia)
       reminder.apply(await api.getLoopState())
-      const photos = (await import('@/stores/photos')).usePhotosStore()
-      const customExercises = (await import('@/stores/custom-exercises')).useCustomExercisesStore()
+      const photos = (await import('@/stores/photos')).usePhotosStore(pinia)
+      const customExercises = (await import('@/stores/custom-exercises')).useCustomExercisesStore(pinia)
       void photos.refresh().catch(() => undefined)
       void customExercises.refresh().catch(() => undefined)
     }

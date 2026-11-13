@@ -37,7 +37,9 @@ import { createSoundPlayer } from '@/sounds'
 import { characterReaction } from '@shared/domain/character-reaction'
 import type { LabVisualPreview } from '@shared/domain/laboratory-preview'
 import { rendererApi } from '@/renderer-api'
+import { getActivePinia } from 'pinia'
 
+const laboratoryPinia = getActivePinia()
 const state = ref<LabState | null>(null)
 type LabTab = 'history' | 'popup' | 'appearance' | 'sound' | 'data' | 'settings'
 const tab = ref<LabTab>('history')
@@ -165,7 +167,7 @@ onMounted(async () => {
     const api = rendererApi()
     if (!api?.getLabState) throw new Error('Laboratory API missing')
     unsubscribe = api.onLabChanged(next => {
-      if (next.snapshot) applySnapshot(next.snapshot)
+      if (next.snapshot) applySnapshot(next.snapshot, laboratoryPinia)
       state.value = next
     })
     state.value = await api.getLabState()

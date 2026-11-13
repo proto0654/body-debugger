@@ -1,0 +1,3 @@
+Generated with built-in image_gen. Reference: sprite-sheet-average.png
+
+Character sprite sheet on fully transparent alpha background. Exactly 15 isolated busts with clear empty space between them, aligned in a 5 by 3 grid. This same character from the reference, preserve long hair, sunglasses, earrings, pink jacket and illustration style. Five expressions left to right tired, neutral, focused, happy, proud; three rows top to bottom lean, average, stocky. Every bust has a perfectly straight flat horizontal bottom edge. No rounded or semicircular edges, no border, no text.

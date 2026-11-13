@@ -11,6 +11,17 @@ MODULE = runpy.run_path(str(Path(__file__).resolve().parents[1] / "scripts/cut-c
 
 
 class CharacterSpriteCutterTests(unittest.TestCase):
+    def test_emotion_sheets_have_five_ordered_figures_for_each_build(self):
+        root = Path(__file__).resolve().parents[1] / "src/assets/character"
+        manifest = json.loads((root / "packs.json").read_text(encoding="utf-8"))
+        emotions = [name for name in manifest["frames"] if name.startswith("emotion-")]
+        self.assertEqual(emotions, ["emotion-tired", "emotion-neutral", "emotion-focused", "emotion-happy", "emotion-proud"])
+        self.assertEqual(manifest["emotionBuilds"], ["lean", "average", "stocky"])
+        for pack in manifest["packs"]:
+            with self.subTest(pack=pack["id"]), Image.open(root / pack["id"] / manifest["emotionSheet"]) as sheet:
+                grid = MODULE["pack_grid"](sheet, 3, 5)
+                self.assertEqual([len(row) for row in grid], [5, 5, 5])
+
     def test_shipped_frames_have_real_transparency_and_visible_artwork(self):
         root = Path(__file__).resolve().parents[1] / "src/assets/character"
         manifest = json.loads((root / "packs.json").read_text(encoding="utf-8"))

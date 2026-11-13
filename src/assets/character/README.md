@@ -10,6 +10,10 @@ Review the [build comparison](character-builds-preview.png) and the original
 
 ## Sources
 
+Desk Hulk's [emotion sheets](desk-hulk/emotions/emotions-set-1.png) use straight
+bottom edges; the portrait container applies the display clipping. The three
+source sheets and their prompts are kept together under `desk-hulk/emotions/`.
+
 The built-in `image_gen` tool generated all character art using the approved
 casting sheet as the identity/style reference. Exact generation or edit prompts
 are saved beside each PNG with the suffix `.prompt.txt`.
@@ -38,8 +42,13 @@ build assignments, cell order and standalone replacements. Each pack has a
 - `pose-{power,mobility}-{build}.png`: two full-body exercise poses.
 
 The ordinary sheets contain four rows of four cells. Combined build sheets repeat
-that sixteen-cell order twice: lean first, stocky second. Separate sheets are
-declared per pack when they provide a better result. The stocky mother's maximum
+that sixteen-cell order twice: lean first, stocky second. Each pack also has a
+separate `sprite-sheet-emotions.png` with five emotion columns (tired, neutral,
+focused, happy, proud) and three build rows (lean, average, stocky). Its busts
+have straight lower edges; the UI controls the displayed clipping. The cutter
+uses these emotion sheets in preference to the busts in the body sheets, leaving
+body and pose art independent. Separate body sheets are declared per pack when
+they provide a better result. The stocky mother's maximum
 neglect body has a standalone replacement because its sheet cell was cropped;
 the cutter uses the declared replacement, never the cropped cell.
 

@@ -2,6 +2,8 @@
   "version": 1,
   "columns": 4,
   "rowsPerBuild": 4,
+  "emotionSheet": "sprite-sheet-emotions.png",
+  "emotionBuilds": ["lean", "average", "stocky"],
   "frames": [
     "stage-0",
     "stage-1",

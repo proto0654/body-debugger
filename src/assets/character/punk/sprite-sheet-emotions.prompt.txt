@@ -1,0 +1,3 @@
+Generated with built-in image_gen. Reference: sprite-sheet-average.png
+
+Create a new compact sprite sheet of portraits for this exact illustrated character using the reference for identity, clothing, hair and expressions. Make an exact 5 column by 3 row grid, with five expressions in order left to right: tired, neutral, focused, happy, proud. Three rows top to bottom: lean, average, stocky. Each cell is a separate portrait bust, consistently scaled, separated by transparent space. Every bust must end at a perfectly straight horizontal lower edge, with clothing extended to that edge. No curved or semicircular edges, no frames, no text, no full body poses. Transparent background.

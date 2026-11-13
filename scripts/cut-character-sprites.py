@@ -405,6 +405,12 @@ def build_packs(pack_ids: list[str] | None = None) -> None:
                     for index, frame_key in enumerate(manifest["frames"]):
                         cell = cells[build_index * len(manifest["frames"]) + index]
                         prepared[f"{frame_key}-{build}.png"] = cut_pack_frame(sheet, cell)
+        emotion_keys = [key for key in manifest["frames"] if key.startswith("emotion-")]
+        with Image.open(pack_dir / manifest["emotionSheet"]) as sheet:
+            grid = pack_grid(sheet, len(manifest["emotionBuilds"]), len(emotion_keys))
+            for build, row in zip(manifest["emotionBuilds"], grid, strict=True):
+                for key, cell in zip(emotion_keys, row, strict=True):
+                    prepared[f"{key}-{build}.png"] = cut_pack_frame(sheet, cell)
         for frame_key, file_name in pack.get("overrides", {}).items():
             name = f"{frame_key}.png"
             if name not in prepared:

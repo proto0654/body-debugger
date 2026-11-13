@@ -21,6 +21,8 @@ describe('generated character packs', () => {
 
   it.each(manifest.packs)('ships all 48 RGBA frames and reproducible sources for $id', (pack) => {
     const directory = join(root, pack.id)
+    expect(readFileSync(join(directory, manifest.emotionSheet)).length).toBeGreaterThan(10_000)
+    expect(readFileSync(join(directory, manifest.emotionSheet.replace('.png', '.prompt.txt')), 'utf8')).toContain('image_gen')
     expect(readdirSync(join(directory, 'frames')).filter(file => file.endsWith('.png'))).toHaveLength(48)
     for (const sheet of Object.keys(pack.sheets ?? manifest.sheets)) {
       expect(readFileSync(join(directory, sheet)).length).toBeGreaterThan(10_000)

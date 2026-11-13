@@ -72,6 +72,7 @@ async function mountPopup(
     photos?: boolean
     laboratory?: boolean
     preview?: boolean
+    perSide?: boolean
   } = {}
 ) {
   const pinia = createPinia()
@@ -85,7 +86,7 @@ async function mountPopup(
     })
   )
   useSessionsStore().beginSession(
-    makeExercise({ id: 'neck-circles', durationSec: 30 }),
+    makeExercise({ id: 'neck-circles', durationSec: 30, perSide: options.perSide }),
     'session-1'
   )
   if (options.laboratory) useRuntimeStore().apply({ at: new Date().toISOString(), running: false, silent: false })
@@ -192,6 +193,8 @@ describe('PopupView — done flow', () => {
     const readyCaption = wrapper.get('.popup-speech').text()
     expect(useCharacterStore().emotion).toBe('neutral')
     await wrapper.get('[data-testid="start-exercise"]').trigger('click')
+    vi.advanceTimersByTime(5000)
+    await nextTick()
     expect(wrapper.get('.popup-speech').text()).not.toBe(readyCaption)
     expect(useCharacterStore().emotion).toBe('focused')
     await findButton(wrapper, 'Готово').trigger('click')
@@ -208,7 +211,7 @@ describe('PopupView — done flow', () => {
     expect(api.sessionResult).not.toHaveBeenCalled()
 
     await wrapper.get('[data-testid="start-exercise"]').trigger('click')
-    vi.advanceTimersByTime(24_000)
+    vi.advanceTimersByTime(29_000)
     await nextTick()
     expect(findButton(wrapper, 'Готово').attributes('disabled')).toBeUndefined()
   })
@@ -235,7 +238,7 @@ describe('PopupView — done flow', () => {
     api.sessionResult.mockResolvedValueOnce({ saved: false })
     await findButton(wrapper, 'Готово').trigger('click')
     await flushMicrotasks()
-    expect(wrapper.find('[role="status"]').exists()).toBe(false)
+    expect(wrapper.find('.popup-success').exists()).toBe(false)
     expect(wrapper.get('[role="alert"]').text()).toContain('Не удалось сохранить')
     expect(useSessionsStore().current?.id).toBe('session-1')
   })
@@ -275,6 +278,9 @@ describe('PopupView — done flow', () => {
 
     await findButton(wrapper, 'Начать').trigger('click')
 
+    expect(soundPlayer.playVoiceEvent).not.toHaveBeenCalledWith('active')
+    vi.advanceTimersByTime(5000)
+    await nextTick()
     expect(soundPlayer.playVoiceEvent).toHaveBeenCalledWith('active')
   })
 
@@ -368,7 +374,7 @@ describe('PopupView — done flow', () => {
 describe('PopupView — severity gate', () => {
   it('supports a keyboard hold on hardcore and ignores repeated keydowns', async () => {
     wrapper = await mountPopup({ severity: 'hardcore' })
-    vi.advanceTimersByTime(24_000)
+    vi.advanceTimersByTime(29_000)
     await nextTick()
     const done = findButton(wrapper, 'Готово')
     await done.trigger('keydown', { key: ' ', code: 'Space', repeat: false })
@@ -384,7 +390,7 @@ describe('PopupView — severity gate', () => {
     const done = findButton(wrapper, 'Готово')
     expect(done.attributes('disabled')).toBeDefined()
 
-    vi.advanceTimersByTime(24_000)
+    vi.advanceTimersByTime(29_000)
     await nextTick()
 
     expect(done.attributes('disabled')).toBeUndefined()
@@ -393,6 +399,127 @@ describe('PopupView — severity gate', () => {
   it('unlocks «Готово» immediately on soft', async () => {
     wrapper = await mountPopup({ severity: 'soft' })
     expect(findButton(wrapper, 'Готово').attributes('disabled')).toBeUndefined()
+  })
+})
+
+describe('PopupView — staged timer', () => {
+  it('shows the full plan before starting and automatically runs both sides', async () => {
+    wrapper = await mountPopup({ start: false, perSide: true, severity: 'medium' })
+    expect(wrapper.text()).toContain('30 с на сторону')
+    expect(wrapper.text()).toContain('Всего 1:10 с подготовкой')
+    expect(wrapper.get('.popup-timer-phase').text()).toBe('Начните с любой стороны')
+    expect(wrapper.findAll('.popup-cast-track')).toHaveLength(2)
+    vi.advanceTimersByTime(60000)
+    await nextTick()
+    expect(wrapper.get('.popup-cast-time').text()).toBe('00:30')
+
+    await findButton(wrapper, 'Начать').trigger('click')
+    expect(wrapper.get('.popup-timer-phase').text()).toBe('Приготовьтесь')
+    expect(wrapper.get('.popup-cast-time').text()).toBe('5')
+    vi.advanceTimersByTime(5000)
+    await nextTick()
+    expect(wrapper.get('.popup-timer-phase').text()).toBe('Первая сторона · 1 из 2')
+    expect(wrapper.get('.popup-cast-time').text()).toBe('00:30')
+    vi.advanceTimersByTime(30000)
+    await nextTick()
+    expect(wrapper.get('.popup-timer-phase').text()).toBe('Смените сторону')
+    expect(wrapper.findAll('.popup-cast-fill').map(node => node.attributes('style'))).toEqual(['width: 100%;', 'width: 0%;'])
+    expect(soundPlayer.play).toHaveBeenCalledExactlyOnceWith('alert')
+    expect(findButton(wrapper, 'Готово').attributes('disabled')).toBeDefined()
+    vi.advanceTimersByTime(5000)
+    await nextTick()
+    expect(wrapper.get('.popup-timer-phase').text()).toBe('Вторая сторона · 2 из 2')
+    vi.advanceTimersByTime(23750)
+    await nextTick()
+    expect(findButton(wrapper, 'Готово').attributes('disabled')).toBeDefined()
+    vi.advanceTimersByTime(250)
+    await nextTick()
+    expect(findButton(wrapper, 'Готово').attributes('disabled')).toBeUndefined()
+    vi.advanceTimersByTime(6000)
+    await nextTick()
+    expect(wrapper.get('.popup-timer-phase').text()).toBe('Обе стороны завершены')
+    expect(wrapper.get('.popup-cast-time').text()).toBe('00:00')
+    expect(soundPlayer.play.mock.calls.filter(([cue]) => cue === 'alert')).toHaveLength(2)
+    expect(soundPlayer.playVoiceEvent).toHaveBeenCalledExactlyOnceWith('active')
+    expect(api.sessionResult).not.toHaveBeenCalled()
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+    expect(api.sessionResult).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ durationSec: 30 }))
+  })
+
+  it('does not replay missed transition signals after a clock jump and stays frozen on lab time', async () => {
+    wrapper = await mountPopup({ perSide: true, laboratory: true, severity: 'medium' })
+    const at = nowMs()
+    vi.advanceTimersByTime(10000)
+    await nextTick()
+    expect(wrapper.get('.popup-timer-phase').text()).toBe('Приготовьтесь')
+    setLaboratoryClock({ at: new Date(at + 71000).toISOString(), running: false, silent: false })
+    vi.advanceTimersByTime(250)
+    await nextTick()
+    expect(wrapper.get('.popup-timer-phase').text()).toBe('Обе стороны завершены')
+    expect(soundPlayer.play).toHaveBeenCalledExactlyOnceWith('alert')
+    expect(soundPlayer.playVoiceEvent).not.toHaveBeenCalledWith('active')
+    vi.advanceTimersByTime(10000)
+    expect(soundPlayer.play).toHaveBeenCalledOnce()
+    expect(api.sessionResult).not.toHaveBeenCalled()
+  })
+
+  it('stops signals on unmount during the side transition', async () => {
+    wrapper = await mountPopup({ perSide: true })
+    vi.advanceTimersByTime(35000)
+    await nextTick()
+    expect(wrapper.get('.popup-timer-phase').text()).toBe('Смените сторону')
+    wrapper.unmount()
+    wrapper = null
+    soundPlayer.play.mockClear()
+    vi.advanceTimersByTime(60000)
+    expect(soundPlayer.play).not.toHaveBeenCalled()
+    expect(api.sessionResult).not.toHaveBeenCalled()
+  })
+
+  it('does not replay first-side narration or switching cues when seeking into the second side', async () => {
+    wrapper = await mountPopup({ perSide: true, laboratory: true })
+    setLaboratoryClock({ at: new Date(nowMs() + 50000).toISOString(), running: false, silent: false })
+    vi.advanceTimersByTime(250)
+    await nextTick()
+    expect(wrapper.get('.popup-timer-phase').text()).toBe('Вторая сторона · 2 из 2')
+    expect(soundPlayer.playVoiceEvent).not.toHaveBeenCalledWith('active')
+    expect(soundPlayer.play).not.toHaveBeenCalled()
+  })
+
+  it('keeps the working stage frozen while laboratory time is paused', async () => {
+    wrapper = await mountPopup({ perSide: true, laboratory: true, severity: 'medium' })
+    const at = nowMs()
+    setLaboratoryClock({ at: new Date(at + 15000).toISOString(), running: false, silent: false })
+    vi.advanceTimersByTime(250)
+    await nextTick()
+    expect(wrapper.get('.popup-timer-phase').text()).toBe('Первая сторона · 1 из 2')
+    expect(wrapper.get('.popup-cast-time').text()).toBe('00:20')
+    vi.advanceTimersByTime(60000)
+    await nextTick()
+    expect(wrapper.get('.popup-cast-time').text()).toBe('00:20')
+    expect(findButton(wrapper, 'Готово').attributes('disabled')).toBeDefined()
+    expect(soundPlayer.play).not.toHaveBeenCalled()
+    setLaboratoryClock({ at: new Date(at + 15000).toISOString(), running: true, silent: false })
+    vi.advanceTimersByTime(20000)
+    await nextTick()
+    expect(wrapper.get('.popup-timer-phase').text()).toBe('Смените сторону')
+    expect(soundPlayer.play).toHaveBeenCalledExactlyOnceWith('alert')
+  })
+
+  it('retains the final stage and dose after a failed save and retries once', async () => {
+    wrapper = await mountPopup({ perSide: true, severity: 'medium' })
+    vi.advanceTimersByTime(70000)
+    await nextTick()
+    api.sessionResult.mockRejectedValueOnce(new Error('IPC unavailable'))
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+    expect(wrapper.get('.popup-timer-phase').text()).toBe('Обе стороны завершены')
+    expect(wrapper.get('[role="alert"]').text()).toContain('Не удалось сохранить')
+    await findButton(wrapper, 'Готово').trigger('click')
+    await flushMicrotasks()
+    expect(api.sessionResult.mock.calls.map(([payload]) => payload.durationSec)).toEqual([30, 30])
+    expect(soundPlayer.play.mock.calls.filter(([cue]) => cue === 'alert')).toHaveLength(2)
   })
 })
 
@@ -509,7 +636,7 @@ describe('PopupView — isolated semantic driver', () => {
     }))
   })
   it('subscribes to the driver for chronicle preview without a laboratory clock', async () => {
-    wrapper = await mountPopup({ start: false, preview: true })
+    wrapper = await mountPopup({ start: false, preview: true, perSide: true })
     await flushMicrotasks()
     expect(acknowledge).toHaveBeenCalledWith({ kind: 'ready', sessionId: 'session-1' })
     action(1, 'start'); await flushMicrotasks()
@@ -544,7 +671,7 @@ describe('PopupView — isolated semantic driver', () => {
     expect(api.sessionResult).toHaveBeenCalledTimes(2)
   })
   it('cancels an incomplete real-time Hardcore hold and requires a fresh full hold', async () => {
-    wrapper = await mountPopup({ start: false, severity: 'hardcore', laboratory: true })
+    wrapper = await mountPopup({ start: false, severity: 'hardcore', laboratory: true, perSide: true })
     await flushMicrotasks()
     action(1, 'start')
     setLaboratoryClock({ at: new Date(nowMs() + 30000).toISOString(), running: false, silent: false })

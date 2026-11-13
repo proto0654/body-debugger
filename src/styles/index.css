@@ -587,7 +587,8 @@ button:focus-visible, input:focus-visible {
   position: relative;
   z-index: 6;
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-height: 0;
   flex-direction: column;
   gap: 5px;
   min-width: 0;
@@ -685,6 +686,8 @@ button:focus-visible, input:focus-visible {
   letter-spacing: -.045em;
   text-transform: uppercase;
   text-wrap: balance;
+  overflow-wrap: anywhere;
+  flex-shrink: 0;
   transform: rotate(-1deg);
   text-shadow:
     -2px -2px 0 var(--comic-ink),
@@ -739,11 +742,19 @@ button:focus-visible, input:focus-visible {
   width: 100%;
   max-width: 118px;
   min-width: 0;
+  text-align: center;
+  line-height: 1.2;
+}
+.popup-timer-phase { min-height: 2.4em; }
+.popup-cast-progress {
+  display: flex;
+  gap: 4px;
+  width: 100%;
 }
 .popup-cast-time {
   align-self: center;
   text-align: center;
-  font-size: 1.05rem;
+  font-size: 1.6rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -751,6 +762,7 @@ button:focus-visible, input:focus-visible {
 }
 .popup-cast-time.is-urgent { color: var(--color-amber-300); }
 .popup-cast-track {
+  flex: 1;
   width: 100%;
   height: 5px;
   overflow: hidden;

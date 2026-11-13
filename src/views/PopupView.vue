@@ -12,9 +12,13 @@ import { useProgressStore } from '@/stores/progress'
 import { useSettingsStore } from '@/stores/settings'
 import {
   HOLD_CONFIRM_MS,
-  canFinish,
   formatCountdown
 } from '@shared/domain/severity'
+import {
+  canFinishExerciseTimer,
+  exerciseTimerState,
+  EXERCISE_PREPARATION_MS
+} from '@shared/domain/exercise-timer'
 import { POPUP_BASE_HEIGHT } from '@shared/constants/popup'
 import { useMotionPreference } from '@/motion'
 import { reactionDuration, REACTION_TIMING_MS } from '@shared/domain/reaction-timing'
@@ -35,6 +39,8 @@ const runtime = useRuntimeStore()
 const { reduced } = useMotionPreference()
 /** Scope is finalized on mount from `getCurrentPopup().preview` (chronicle vs live). */
 let sounds: SoundPlayer = useSoundPlayer('live')
+// Timed signals must not wait behind the character's voice queue.
+const timerSounds = useSoundPlayer('live')
 const previewMode = ref(false)
 const previewCharacter = ref<SessionPopupCharacter | null>(null)
 const playbackMode = ref<LabPlaybackMode>('automatic')
@@ -72,12 +78,12 @@ const resolved = ref(false)
 const errorMessage = ref('')
 const successLabel = ref('Разминка в зачёт!')
 const successDetail = ref('Ещё один шаг к новой форме')
-// Start from the known session duration so a medium/hardcore popup never shows
-// an enabled «Готово» for the first frame; `onMounted` re-reads it after the
-// async session lookup.
-const initialDurationMs = Math.max(0, (sessions.current?.durationSec ?? 0) * 1000)
-const durationMs = ref(initialDurationMs)
-const remainingMs = ref(initialDurationMs)
+const elapsedMs = ref<number | null>(null)
+const timerState = computed(() => exerciseTimerState(
+  sessions.current?.durationSec ?? 0,
+  sessions.currentExercise?.timer?.perSide ?? sessions.currentExercise?.perSide ?? false,
+  elapsedMs.value
+))
 const holdProgress = ref(0)
 const leaving = ref(false)
 const exitKind = ref<'done' | 'quiet' | null>(null)
@@ -110,17 +116,20 @@ async function applyDriver(command: LabDriverCommand): Promise<void> {
   if (command.action === 'start') {
     startExercise()
     if (!started.value) { driverAck('failed'); return }
+    // Arcade skips preparation, then waits for the same active line as live use.
+    timerStartedAt = nowMs() - EXERCISE_PREPARATION_MS
+    updateTimer()
     // Full `active` line before arcade continues to the outcome click.
     await sounds.waitForPlayback()
     if (arcadeAborted.value || resolved.value) return
     driverAck('applied')
   } else if (command.action === 'hold') {
     // Arcade never waits out the real exercise clock — unlock, then hold.
-    remainingMs.value = 0
+    finishTimerForDriver()
     if (canFinishNow.value && severity.value === 'hardcore') { startHold(); driverAck('applied') }
     else driverAck('failed')
   } else if (command.action === 'done' || command.action === 'skipped' || command.action === 'snoozed') {
-    if (command.action === 'done') remainingMs.value = 0
+    if (command.action === 'done') finishTimerForDriver()
     if (command.action === 'done' && !canFinishNow.value) { driverAck('failed'); return }
     await submit(command.action)
   }
@@ -143,6 +152,8 @@ function abortArcade(): void {
   clearTimeout(feedbackTimer)
   stopHold()
   sounds.stop()
+  timerSounds.stop()
+  stopTimer()
   void window.api.labDriverAck?.({ sessionId: popupSessionId, kind: 'manual' })
     .catch(cause => console.warn('[laboratory] abort failed', cause))
 }
@@ -158,45 +169,72 @@ function userSubmit(status: SessionStatus): void {
 
 const severity = computed(() => settings.severity)
 const canFinishNow = computed(() =>
-  started.value && canFinish(severity.value, remainingMs.value, durationMs.value)
+  started.value && canFinishExerciseTimer(severity.value, timerState.value)
 )
-const timeLabel = computed(() => formatCountdown(remainingMs.value))
+const phaseLabel = computed(() => {
+  switch (timerState.value.phase) {
+    case 'ready': return timerState.value.perSide ? 'Начните с любой стороны' : 'Нажмите «Начать»'
+    case 'preparing': return 'Приготовьтесь'
+    case 'first': return timerState.value.perSide ? 'Первая сторона · 1 из 2' : 'Выполняйте упражнение'
+    case 'switching': return 'Смените сторону'
+    case 'second': return 'Вторая сторона · 2 из 2'
+    case 'finished': return timerState.value.perSide ? 'Обе стороны завершены' : 'Время вышло'
+  }
+})
+const timeLabel = computed(() => {
+  const state = timerState.value
+  return state.phase === 'preparing' || state.phase === 'switching'
+    ? String(Math.ceil(state.remainingMs / 1000)) : formatCountdown(state.remainingMs)
+})
+const doseLabel = computed(() => `${sessions.current?.durationSec ?? 0} с${timerState.value.perSide ? ' на сторону' : ''}`)
+const totalLabel = computed(() => formatCountdown(timerState.value.totalMs).replace(/^0/, ''))
 const isUrgent = computed(
-  () => started.value && !leaving.value && remainingMs.value > 0 && remainingMs.value <= URGENT_MS
+  () => !leaving.value && ['first', 'second'].includes(timerState.value.phase)
+    && timerState.value.remainingMs > 0 && timerState.value.remainingMs <= URGENT_MS
 )
 const shellClass = computed(() => {
   if (reduced.value) return ''
   if (!leaving.value) return 'popup-in'
   return exitKind.value === 'done' ? 'popup-out-done' : 'popup-out-quiet'
 })
-const progressPercent = computed(() => {
-  if (durationMs.value <= 0) return 100
-  const done = (durationMs.value - remainingMs.value) / durationMs.value
-  return Math.min(100, Math.max(0, Math.round(done * 100)))
-})
-
 function startExercise(): void {
   if (!sessions.current || busy.value || started.value) return
   started.value = true
-  character.react('active', sessions.history.length)
-  sounds.playVoiceEvent('active')
   startTimer()
 }
 
 let timerStartedAt: number | null = null
+let activeSpoken = false
+
+function updateTimer(): void {
+  if (timerStartedAt === null || resolved.value || arcadeAborted.value || labPaused.value) return
+  const previous = timerState.value.phase
+  // Clamp backwards clock adjustments so a side and its signals cannot repeat.
+  elapsedMs.value = Math.max(elapsedMs.value ?? 0, nowMs() - timerStartedAt)
+  const phase = timerState.value.phase
+  if (!activeSpoken && phase === 'first') {
+    activeSpoken = true
+    character.react('active', sessions.history.length)
+    sounds.playVoiceEvent('active')
+  }
+  if (phase !== previous && (phase === 'switching' || phase === 'finished')) {
+    timerSounds.stop()
+    timerSounds.play('alert')
+  }
+  if (phase === 'finished') stopTimer()
+}
+
+function finishTimerForDriver(): void {
+  if (!started.value) return
+  elapsedMs.value = timerState.value.totalMs
+  stopTimer()
+}
+
 function startTimer(): void {
-  const current = sessions.current
-  durationMs.value = Math.max(0, (current?.durationSec ?? 0) * 1000)
-  remainingMs.value = durationMs.value
-
-  if (timer) clearInterval(timer)
-  if (durationMs.value <= 0) return
-
-  const startedAt = nowMs()
-  timerStartedAt = startedAt
-  timer = setInterval(() => {
-    remainingMs.value = Math.max(0, durationMs.value - (nowMs() - startedAt))
-  }, 250)
+  stopTimer()
+  timerStartedAt = nowMs()
+  elapsedMs.value = 0
+  timer = setInterval(updateTimer, 250)
 }
 
 /** Base height, plus a little room when a save error needs to be readable. */
@@ -279,8 +317,6 @@ onMounted(async () => {
       sounds = useSoundPlayer(active.preview ? 'preview' : 'live')
       if (!sessions.current) sessions.beginSession(active.exercise, active.sessionId)
     }
-    durationMs.value = Math.max(0, (sessions.current?.durationSec ?? 0) * 1000)
-    remainingMs.value = durationMs.value
     if (!sessions.current) errorMessage.value = 'Эта разминка уже закрыта. Вызовите новую из трея.'
   } catch (cause) {
     console.error('[popup] failed to load exercise', cause)
@@ -318,6 +354,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   clearTimeout(feedbackTimer)
   sounds.stop()
+  timerSounds.stop()
   unsubscribeDriver?.()
   unsubscribeLab?.()
   stopTimer()
@@ -355,6 +392,7 @@ async function submit(status: SessionStatus): Promise<void> {
     resolved.value = true
     sessions.clearCurrent()
     stopTimer()
+    timerSounds.stop()
     if (status === 'done') {
       character.react(stageUp ? 'stage-up' : firstDoneToday ? 'first-done' : 'done', reactionSequence)
       if (stageUp) {
@@ -457,11 +495,15 @@ function finishFeedback(): void {
     <div class="popup-body">
       <div class="popup-side">
         <div class="popup-cast">
-          <div class="popup-cast-track">
-            <div class="popup-cast-fill" :style="{ width: `${progressPercent}%` }"></div>
+          <span v-if="!started" class="popup-hud-note">{{ doseLabel }}</span>
+          <div class="popup-cast-progress" aria-hidden="true">
+            <div v-for="(percent, index) in timerState.progress" :key="index" class="popup-cast-track">
+              <div class="popup-cast-fill" :style="{ width: `${percent}%` }"></div>
+            </div>
           </div>
-          <span class="popup-cast-time" :class="isUrgent ? 'timer-urgent is-urgent' : ''">{{ timeLabel }}</span>
-          <span v-if="sessions.currentExercise?.perSide" class="popup-hud-note">На каждую сторону</span>
+          <span class="popup-cast-time" aria-live="off" :class="isUrgent ? 'timer-urgent is-urgent' : ''">{{ timeLabel }}</span>
+          <span class="popup-hud-note popup-timer-phase" role="status" aria-live="polite" aria-atomic="true">{{ phaseLabel }}</span>
+          <span v-if="!started" class="popup-hud-note">Всего {{ totalLabel }} с подготовкой</span>
         </div>
         <div class="popup-actions" :class="arcadeLocked ? 'pointer-events-none is-locked' : ''">
           <button v-if="!sessions.current && !resolved" type="button" class="popup-action" :disabled="arcadeLocked" @click.stop="closeResolved(true)">Закрыть</button>

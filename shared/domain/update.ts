@@ -47,8 +47,11 @@ export function updateProgressPercent(transferred: number, total: number): numbe
   return Math.min(100, Math.max(0, Math.round((transferred / total) * 100)))
 }
 
-/** A restart is refused when nothing is downloaded or an exercise popup is open. */
-export type InstallBlocker = 'not-ready' | 'popup-open' | null
+/**
+ * A restart is refused when nothing is downloaded, an exercise popup is open,
+ * or (on Mac) the running bundle cannot be replaced in place.
+ */
+export type InstallBlocker = 'not-ready' | 'popup-open' | 'not-relocated' | null
 
 export function installBlocker(input: { status: UpdateStatus; popupOpen: boolean }): InstallBlocker {
   if (input.status !== 'ready') return 'not-ready'

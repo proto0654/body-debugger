@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { macUpdateRelocateMessage } from '@shared/domain/mac-update'
 import type { AppInfoPayload, UpdateStatePayload } from '@shared/types/events'
 
 const info = ref<AppInfoPayload | null>(null)
@@ -92,9 +93,13 @@ async function installUpdate(): Promise<void> {
   try {
     const result = await window.api?.installUpdate?.()
     if (result?.started) return
-    updateMessage.value = result?.reason === 'popup-open'
-      ? 'Открыт попап с упражнением. Закройте его — обновление установится при выходе из приложения.'
-      : 'Обновление ещё не готово к установке.'
+    if (result?.reason === 'popup-open') {
+      updateMessage.value = 'Открыт попап с упражнением. Закройте его — обновление установится при выходе из приложения.'
+    } else if (result?.reason === 'not-relocated') {
+      updateMessage.value = macUpdateRelocateMessage()
+    } else {
+      updateMessage.value = 'Обновление ещё не готово к установке.'
+    }
   } catch (cause) {
     console.error('[about] failed to install the update', cause)
     updateMessage.value = 'Не удалось запустить установку обновления.'

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { macUpdateRelocateMessage } from '@shared/domain/mac-update'
 import type { UpdateStatePayload } from '@shared/types/events'
 
 // The window is transparent (electron/main/windows/update-prompt.ts); the card
@@ -71,9 +72,13 @@ async function install(): Promise<void> {
     const result = await window.api.installUpdate()
     if (result.started) return
     installing.value = false
-    error.value = result.reason === 'popup-open'
-      ? 'Открыт попап с упражнением. Обновление установится при выходе.'
-      : 'Обновление ещё не готово к установке.'
+    if (result.reason === 'popup-open') {
+      error.value = 'Открыт попап с упражнением. Обновление установится при выходе.'
+    } else if (result.reason === 'not-relocated') {
+      error.value = macUpdateRelocateMessage()
+    } else {
+      error.value = 'Обновление ещё не готово к установке.'
+    }
   } catch (cause) {
     console.error('[update-prompt] failed to install the update', cause)
     installing.value = false

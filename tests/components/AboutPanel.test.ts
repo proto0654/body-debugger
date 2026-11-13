@@ -31,7 +31,7 @@ const getAppInfo = vi.fn(async (): Promise<AppInfoPayload> => info)
 const openLogs = vi.fn(async () => true)
 const getUpdateState = vi.fn(async (): Promise<UpdateStatePayload> => updateState)
 const checkForUpdates = vi.fn(async (): Promise<UpdateStatePayload> => updateState)
-const installUpdate = vi.fn(async () => ({ started: true, reason: null as 'popup-open' | 'not-ready' | null }))
+const installUpdate = vi.fn(async () => ({ started: true, reason: null as 'popup-open' | 'not-ready' | 'not-relocated' | null }))
 const onUpdateState = vi.fn((handler: (state: UpdateStatePayload) => void) => {
   updateListener = handler
   return () => { updateListener = null }

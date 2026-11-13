@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { autoUpdater, type Logger } from 'electron-updater'
+import { autoUpdater, type Logger, type UpdateDownloadedEvent } from 'electron-updater'
 import {
   installBlocker,
   shouldCheckForUpdates,
@@ -14,6 +14,11 @@ import { IpcChannels, type UpdateInstallResult } from '../../shared/types/events
 import { APP_CHANNEL } from './app-identity'
 import { broadcastToWindows } from './broadcast'
 import { logError, logInfo, logWarn } from './logger'
+import {
+  macUpdateInstallInFlight,
+  resolveMacUpdateInstallGate,
+  startMacAppSwap
+} from './mac-update-install'
 import { refreshTrayMenu } from './tray'
 import { stopTriggerLoop } from './trigger-loop'
 import { getPopupWindow, onPopupVisibilityChange } from './windows/popup'
@@ -24,6 +29,8 @@ import {
   isUpdatePromptVisible,
   showUpdatePrompt
 } from './windows/update-prompt'
+
+const usesMacAppSwap = process.platform === 'darwin'
 
 let state: UpdateState = {
   status: app.isPackaged ? 'idle' : 'disabled',
@@ -37,6 +44,8 @@ let state: UpdateState = {
 let lastCheckedAt: number | null = null
 let firstCheckTimer: NodeJS.Timeout | null = null
 let pollTimer: NodeJS.Timeout | null = null
+/** Path of the zip electron-updater downloaded for the Mac .app swap. */
+let downloadedUpdateFile: string | null = null
 /** A manual check may surface an error; a background check stays silent. */
 let manualCheck = false
 /** The user pressed «Позже»/closed the prompt for this version in this run. */
@@ -44,6 +53,7 @@ let dismissedVersion: string | null = null
 /** Distinguishes a programmatic close from the user closing the prompt. */
 let promptClosedByMain = false
 let unsubscribePopupVisibility: (() => void) | null = null
+let beforeQuitHooked = false
 
 function publish(next: Partial<UpdateState>): void {
   state = { ...state, ...next }
@@ -120,6 +130,38 @@ const updateLogger: Logger = {
   error: (message?: unknown) => logError('updater', String(message))
 }
 
+/**
+ * Start the Mac .app swap when a zip is ready. Returns a refused reason when
+ * the running bundle cannot be replaced; otherwise quits so the shell can finish.
+ */
+function beginMacInstall(): UpdateInstallResult {
+  if (!downloadedUpdateFile) return { started: false, reason: 'not-ready' }
+  const gate = resolveMacUpdateInstallGate()
+  if (!gate.ok) return { started: false, reason: 'not-relocated' }
+
+  const swap = startMacAppSwap({ zipPath: downloadedUpdateFile })
+  if (!swap.started) {
+    if (swap.reason === 'already-started') return { started: true, reason: null }
+    return { started: false, reason: 'not-relocated' }
+  }
+
+  logInfo('updater', `restarting into ${state.availableVersion ?? 'the downloaded version'} via mac .app swap`)
+  stopTriggerLoop()
+  setTimeout(() => { app.quit() }, 150)
+  return { started: true, reason: null }
+}
+
+/** On quit, apply a ready Mac update without asking Squirrel. */
+function installMacUpdateOnQuit(): void {
+  if (!usesMacAppSwap) return
+  if (macUpdateInstallInFlight()) return
+  if (state.status !== 'ready' || !downloadedUpdateFile) return
+  const swap = startMacAppSwap({ zipPath: downloadedUpdateFile })
+  if (swap.started) {
+    logInfo('updater', `mac .app swap armed on quit for ${state.availableVersion ?? 'downloaded version'}`)
+  }
+}
+
 /** Called once after `app.whenReady`; a development build never touches the network. */
 export function initUpdater(): void {
   if (!app.isPackaged) {
@@ -129,14 +171,19 @@ export function initUpdater(): void {
 
   const devChannel = APP_CHANNEL === 'dev'
   autoUpdater.autoDownload = true
-  autoUpdater.autoInstallOnAppQuit = true
+  // Windows: NSIS installs on quit. Mac: Squirrel rejects unsigned zips, so the
+  // .app swap runs from installUpdate / before-quit instead.
+  autoUpdater.autoInstallOnAppQuit = !usesMacAppSwap
   autoUpdater.autoRunAppAfterInstall = true
   autoUpdater.allowDowngrade = false
   autoUpdater.allowPrerelease = devChannel
   if (devChannel) autoUpdater.channel = 'dev'
   autoUpdater.logger = updateLogger
 
-  logInfo('updater', `channel=${APP_CHANNEL}; first check in ${UPDATE_FIRST_CHECK_DELAY_MS / 1000}s`)
+  logInfo(
+    'updater',
+    `channel=${APP_CHANNEL}; platform=${process.platform}; first check in ${UPDATE_FIRST_CHECK_DELAY_MS / 1000}s`
+  )
 
   autoUpdater.on('checking-for-update', () => {
     publish({ status: 'checking', error: null })
@@ -149,6 +196,7 @@ export function initUpdater(): void {
   })
   autoUpdater.on('update-not-available', () => {
     lastCheckedAt = Date.now()
+    downloadedUpdateFile = null
     publish({
       status: 'current',
       availableVersion: null,
@@ -161,9 +209,10 @@ export function initUpdater(): void {
   autoUpdater.on('download-progress', (progress) => {
     publish({ status: 'downloading', progressPercent: updateProgressPercent(progress.transferred, progress.total) })
   })
-  autoUpdater.on('update-downloaded', (info) => {
+  autoUpdater.on('update-downloaded', (info: UpdateDownloadedEvent) => {
     lastCheckedAt = Date.now()
-    logInfo('updater', `update downloaded: ${info.version}`)
+    downloadedUpdateFile = info.downloadedFile || null
+    logInfo('updater', `update downloaded: ${info.version}${downloadedUpdateFile ? ` (${downloadedUpdateFile})` : ''}`)
     publish({
       status: 'ready',
       availableVersion: info.version,
@@ -182,6 +231,11 @@ export function initUpdater(): void {
     if (open) hideUpdatePrompt()
     else syncUpdatePrompt()
   })
+
+  if (usesMacAppSwap && !beforeQuitHooked) {
+    beforeQuitHooked = true
+    app.on('before-quit', () => { installMacUpdateOnQuit() })
+  }
 
   firstCheckTimer = setTimeout(() => { void checkForUpdates(false) }, UPDATE_FIRST_CHECK_DELAY_MS)
   pollTimer = setInterval(() => { void checkForUpdates(false) }, UPDATE_CHECK_INTERVAL_MS)
@@ -234,6 +288,7 @@ export async function checkForUpdates(manual: boolean): Promise<UpdateState> {
 /**
  * Restart into the downloaded version. An open popup owns the current exercise,
  * so the request is refused and the update installs on the next quit instead.
+ * On Mac the install is an in-place .app swap, not Squirrel.Mac.
  */
 export function installUpdate(): UpdateInstallResult {
   const popup = getPopupWindow()
@@ -242,6 +297,8 @@ export function installUpdate(): UpdateInstallResult {
     popupOpen: Boolean(popup && !popup.isDestroyed())
   })
   if (blocker) return { started: false, reason: blocker }
+
+  if (usesMacAppSwap) return beginMacInstall()
 
   logInfo('updater', `restarting into ${state.availableVersion ?? 'the downloaded version'}`)
   stopTriggerLoop()

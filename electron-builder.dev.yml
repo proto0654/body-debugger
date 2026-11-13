@@ -42,6 +42,19 @@ nsis:
   shortcutName: Body Debugger Dev
   uninstallDisplayName: Body Debugger Dev
 
+# Same unsigned arm64 zip path as prod; separate product name and updater cache.
+mac:
+  icon: electron/resources/icon-dev.png
+  target:
+    - target: zip
+      arch:
+        - arm64
+  artifactName: Body-Debugger-Dev-${version}-mac-arm64.${ext}
+  identity: "-"
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  category: public.app-category.healthcare-fitness
+
 # Never let a manual dev publish look like a stable release. The release repo is
 # shared with prod; prod ignores prereleases and the dev updater reads dev.yml.
 publish:

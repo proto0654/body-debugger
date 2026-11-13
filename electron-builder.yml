@@ -29,6 +29,21 @@ nsis:
   include: installer.nsh
   artifactName: Body-Debugger-Setup-${version}.${ext}
 
+# Unsigned Apple Silicon zip for direct download and in-app .app swap updates.
+# Ad-hoc signing (identity "-") is required to launch on arm64; Gatekeeper still
+# needs a one-time xattr clear on first open. No Developer ID / notarization.
+mac:
+  icon: electron/resources/icon.png
+  target:
+    - target: zip
+      arch:
+        - arm64
+  artifactName: Body-Debugger-${version}-mac-arm64.${ext}
+  identity: "-"
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  category: public.app-category.healthcare-fitness
+
 publish:
   provider: github
   owner: proto0654

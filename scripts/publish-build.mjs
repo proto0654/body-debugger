@@ -2,8 +2,13 @@
 /**
  * Build and publish a Body Debugger release.
  *
- *   node scripts/publish-build.mjs prod   # stable latest.yml from a plain version
- *   node scripts/publish-build.mjs dev    # prerelease dev.yml from x.y.z-dev.N
+ *   node scripts/publish-build.mjs prod [win|mac]
+ *   node scripts/publish-build.mjs dev  [win|mac]
+ *
+ * `win` (default) creates or updates the GitHub release with the NSIS installer
+ * and `latest.yml` / `dev.yml`. `mac` uploads the Apple Silicon zip and
+ * `latest-mac.yml` / `dev-mac.yml` onto that existing release; it never creates
+ * a second release. Mac builds must run on macOS.
  *
  * electron-builder only builds the installer and update manifest here. The
  * upload is a single `gh release create/upload`, because electron-builder's
@@ -17,6 +22,7 @@ import { join, resolve } from 'node:path'
 const ROOT = resolve(import.meta.dirname, '..')
 const RELEASE_REPO = 'proto0654/body-debugger-releases'
 const CHANNELS = new Set(['prod', 'dev'])
+const PLATFORMS = new Set(['win', 'mac'])
 const GH = process.platform === 'win32' ? 'gh.exe' : 'gh'
 
 function run(command, args, env) {
@@ -59,8 +65,29 @@ function commandExists(command) {
   return !result.error && result.status === 0
 }
 
+function ghCapture(args, env) {
+  const result = spawnSync(GH, args, {
+    cwd: ROOT,
+    env,
+    encoding: 'utf8',
+    shell: false
+  })
+  if (result.error) fail(result.error.message)
+  if (result.status !== 0) {
+    fail(`gh ${args.join(' ')} failed: ${(result.stderr || result.stdout || '').trim()}`)
+  }
+  return result.stdout ?? ''
+}
+
 const channel = process.argv[2]
-if (!CHANNELS.has(channel)) fail('usage: node scripts/publish-build.mjs prod|dev')
+const platform = process.argv[3] ?? 'win'
+if (!CHANNELS.has(channel) || !PLATFORMS.has(platform)) {
+  fail('usage: node scripts/publish-build.mjs prod|dev [win|mac]')
+}
+
+if (platform === 'mac' && process.platform !== 'darwin') {
+  fail('mac releases must be built on macOS (Apple Silicon CI or a Mac)')
+}
 
 const packageJson = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
 const version = String(packageJson.version ?? '')
@@ -110,36 +137,47 @@ if (channel === 'dev') {
 
 const config = channel === 'dev' ? 'electron-builder.dev.yml' : 'electron-builder.yml'
 const outputDir = join(ROOT, channel === 'dev' ? 'dist-dev' : 'dist')
-const artifactStem = channel === 'dev' ? 'Body-Debugger-Dev-Setup' : 'Body-Debugger-Setup'
-const manifestName = channel === 'dev' ? 'dev.yml' : 'latest.yml'
 const tag = `v${version}`
 const title = channel === 'dev' ? 'Body Debugger Dev' : 'Body Debugger'
 
-console.log(`[publish] channel=${channel} version=${version} commit=${commit} config=${config}`)
+const winArtifactStem = channel === 'dev' ? 'Body-Debugger-Dev-Setup' : 'Body-Debugger-Setup'
+const macArtifactStem = channel === 'dev' ? 'Body-Debugger-Dev' : 'Body-Debugger'
+const winManifestName = channel === 'dev' ? 'dev.yml' : 'latest.yml'
+const macManifestName = channel === 'dev' ? 'dev-mac.yml' : 'latest-mac.yml'
+
+console.log(`[publish] channel=${channel} platform=${platform} version=${version} commit=${commit} config=${config}`)
 
 run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'build'], env)
-run(
-  process.platform === 'win32' ? 'npx.cmd' : 'npx',
-  [
-    '--no-install',
-    'electron-builder',
-    '--config',
-    config,
-    '--win',
-    'nsis',
-    // The upload is done below with one gh call; electron-builder must not
-    // create the same GitHub release concurrently from two artifact tasks.
-    '--publish',
-    'never'
-  ],
-  env
-)
 
-const artifacts = [
-  join(outputDir, `${artifactStem}-${version}.exe`),
-  join(outputDir, `${artifactStem}-${version}.exe.blockmap`),
-  join(outputDir, manifestName)
+const builderArgs = [
+  '--no-install',
+  'electron-builder',
+  '--config',
+  config,
+  // The upload is done below with one gh call; electron-builder must not
+  // create the same GitHub release concurrently from two artifact tasks.
+  '--publish',
+  'never'
 ]
+if (platform === 'win') {
+  builderArgs.push('--win', 'nsis')
+} else {
+  builderArgs.push('--mac', 'zip', '--arm64')
+}
+
+run(process.platform === 'win32' ? 'npx.cmd' : 'npx', builderArgs, env)
+
+const artifacts = platform === 'win'
+  ? [
+      join(outputDir, `${winArtifactStem}-${version}.exe`),
+      join(outputDir, `${winArtifactStem}-${version}.exe.blockmap`),
+      join(outputDir, winManifestName)
+    ]
+  : [
+      join(outputDir, `${macArtifactStem}-${version}-mac-arm64.zip`),
+      join(outputDir, macManifestName)
+    ]
+
 for (const file of artifacts) {
   if (!existsSync(file)) fail(`expected release asset is missing: ${file}`)
 }
@@ -153,11 +191,37 @@ const view = spawnSync(GH, ['release', 'view', tag, '--repo', RELEASE_REPO], {
 if (view.error) fail(view.error.message)
 const releaseExists = view.status === 0
 
-const notes = channel === 'dev'
+const baseNotes = channel === 'dev'
   ? `Dev build ${version}. Channel: dev; stable installs ignore this prerelease.`
   : `Stable build ${version}. Installs from the latest channel update to this version.`
 
-if (releaseExists) {
+const macZipName = `${macArtifactStem}-${version}-mac-arm64.zip`
+const macInstallNote = [
+  '',
+  '### macOS (Apple Silicon)',
+  `Download \`${macZipName}\`, unzip, move \`Body Debugger.app\` into Applications, then clear Gatekeeper quarantine once:`,
+  '```bash',
+  `xattr -dr com.apple.quarantine "/Applications/Body Debugger${channel === 'dev' ? ' Dev' : ''}.app"`,
+  '```',
+  'Later versions install from the in-app update prompt (no App Store).'
+].join('\n')
+
+if (platform === 'mac') {
+  if (!releaseExists) {
+    fail(`release ${tag} does not exist yet; publish the Windows assets first`)
+  }
+  console.log(`[publish] release ${tag} exists; uploading Mac assets`)
+  runGh(['release', 'upload', tag, ...artifacts, '--repo', RELEASE_REPO, '--clobber'], env)
+
+  const currentBody = ghCapture(
+    ['release', 'view', tag, '--repo', RELEASE_REPO, '--json', 'body', '--jq', '.body'],
+    env
+  ).replace(/\r\n/g, '\n').trimEnd()
+  if (!currentBody.includes('### macOS (Apple Silicon)')) {
+    const nextBody = `${currentBody || baseNotes}${macInstallNote}\n`
+    runGh(['release', 'edit', tag, '--repo', RELEASE_REPO, '--notes', nextBody], env)
+  }
+} else if (releaseExists) {
   console.log(`[publish] release ${tag} exists; uploading/replacing assets`)
   runGh(['release', 'upload', tag, ...artifacts, '--repo', RELEASE_REPO, '--clobber'], env)
 } else {
@@ -171,7 +235,7 @@ if (releaseExists) {
     '--title',
     `${title} ${version}`,
     '--notes',
-    notes
+    baseNotes
   ]
   if (channel === 'dev') args.push('--prerelease')
   else args.push('--latest')
@@ -179,5 +243,8 @@ if (releaseExists) {
 }
 
 console.log(
-  [`\n[publish] done: ${channel} ${tag} (${commit})`, `assets: ${artifacts.map(file => file.replace(ROOT + '\\', '')).join(', ')}`].join('\n')
+  [
+    `\n[publish] done: ${channel} ${platform} ${tag} (${commit})`,
+    `assets: ${artifacts.map(file => file.replace(ROOT + '\\', '').replace(ROOT + '/', '')).join(', ')}`
+  ].join('\n')
 )

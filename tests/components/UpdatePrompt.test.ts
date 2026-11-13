@@ -23,7 +23,7 @@ const onUpdateState = vi.fn((handler: (state: UpdateStatePayload) => void) => {
   listener = handler
   return () => { listener = null }
 })
-const installUpdate = vi.fn(async () => ({ started: true, reason: null as 'popup-open' | 'not-ready' | null }))
+const installUpdate = vi.fn(async () => ({ started: true, reason: null as 'popup-open' | 'not-ready' | 'not-relocated' | null }))
 const dismissUpdatePrompt = vi.fn(async () => undefined)
 
 let wrapper: VueWrapper | null = null

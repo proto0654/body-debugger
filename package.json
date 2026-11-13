@@ -14,6 +14,7 @@
     "dev": "node scripts/run-electron-vite.cjs",
     "build": "electron-vite build",
     "build:win": "npm run build && electron-builder --win nsis",
+    "build:mac": "npm run build && electron-builder --mac zip --arm64",
     "build:dir": "npm run build && electron-builder --dir",
     "build:dev": "npm run build && electron-builder --config electron-builder.dev.yml --win nsis",
     "build:dev:dir": "npm run build && electron-builder --config electron-builder.dev.yml --dir",

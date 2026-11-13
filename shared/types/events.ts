@@ -250,11 +250,12 @@ export type UpdateStatePayload = UpdateState
 
 /**
  * `reason` explains a refused restart: an open popup must never be interrupted
- * by an update, and a not-ready update cannot be installed.
+ * by an update, a not-ready update cannot be installed, and a Mac app that was
+ * never moved into Applications cannot swap its unsigned .app in place.
  */
 export interface UpdateInstallResult {
   started: boolean
-  reason: 'not-ready' | 'popup-open' | null
+  reason: 'not-ready' | 'popup-open' | 'not-relocated' | null
 }
 
 export interface LlmConfigPayload {

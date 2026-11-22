@@ -44,6 +44,22 @@ mac:
   gatekeeperAssess: false
   category: public.app-category.healthcare-fitness
 
+# Linux build for testing on X11/Wayland desktops: a single portable AppImage
+# with its own binary name so it does not clash with the dev profile.
+linux:
+  icon: electron/resources/icon.png
+  category: Utility
+  executableName: body-debugger
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  artifactName: Body-Debugger-${version}-linux-x86_64.${ext}
+  desktop:
+    entry:
+      Name: Body Debugger
+      Comment: Desktop tray app for short desk workouts — Body Debugger
+
 publish:
   provider: github
   owner: proto0654

@@ -112,3 +112,45 @@ jobs:
             dist/*-mac.yml
             dist-dev/*-mac-arm64.zip
             dist-dev/*-mac.yml
+
+  release-linux:
+    # Serialize after the Mac job: both append an install note to the same
+    # release body, so they must never run at the same time.
+    needs: release-mac
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Publish Linux release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          channel=prod
+          if [[ "${{ github.ref_name }}" == *-* ]]; then
+            channel=dev
+          fi
+          node scripts/publish-build.mjs "$channel" linux
+
+      - name: Upload Linux artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-linux-${{ github.ref_name }}
+          if-no-files-found: ignore
+          path: |
+            dist/*.AppImage
+            dist/*-linux.yml
+            dist-dev/*.AppImage
+            dist-dev/*-linux.yml

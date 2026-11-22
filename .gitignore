@@ -18,3 +18,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# The Windows-only E: cache root: npm and scripts/ensure-electron.js create it
+# as a relative directory when they run on Linux.
+E:/

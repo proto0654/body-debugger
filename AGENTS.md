@@ -91,7 +91,8 @@ npm run dev          # primary: HMR tray + dashboard; open Settings → develope
 npm run build:dir    # optional packaged prod smoke
 npm run build:win    # local NSIS + latest.yml (see docs/DELIVERY.md)
 npm run build:mac    # Apple Silicon zip + latest-mac.yml (macOS host)
-npm run publish:prod # ship stable Windows assets (requires GH_TOKEN); CI adds Mac after
+npm run build:linux  # portable AppImage + latest-linux.yml (Linux host)
+npm run publish:prod # ship stable Windows assets (requires GH_TOKEN); CI adds Mac and Linux after
 npm run typecheck    # main + renderer + tests
 npm test             # Vitest suite
 # Legacy until ROADMAP #18: build:dev / publish:dev

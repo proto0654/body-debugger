@@ -7,9 +7,10 @@ How the production app receives new versions, and how a build is identified. Dai
 | Mode | Command / action | Updates |
 |------|------------------|---------|
 | Develop | `npm run dev` | Disabled (HMR only; `.userdata/`) |
-| Ship | `npm run publish:prod` or CI on a stable `v*` tag | Writes Windows `latest.yml` then Mac `latest-mac.yml` + zip to [body-debugger-releases](https://github.com/proto0654/body-debugger-releases) |
+| Ship | `npm run publish:prod` or CI on a stable `v*` tag | Writes Windows `latest.yml`, then Mac `latest-mac.yml` + zip and Linux `latest-linux.yml` + AppImage to [body-debugger-releases](https://github.com/proto0654/body-debugger-releases) |
 | Use (Windows) | Install `Body-Debugger-Setup-<version>.exe`, then update from the client | Background check ~25 s after start and every 1 h |
 | Use (Mac) | Download `Body-Debugger-<version>-mac-arm64.zip`, clear quarantine once, then update from the client | Same prompt; install swaps the `.app` (no Apple Developer ID) |
+| Use (Linux, local) | `node scripts/publish-build.mjs prod linux` (or the CI job) publishes the AppImage; run it from a writable directory | In place, from the same prompt — only while the app runs from the AppImage itself |
 
 Do **not** use the side-by-side Dev product for ordinary work. Removing `Body Debugger Dev` / `publish:dev` / `dev.yml` is the next delivery wave — [ROADMAP.md](ROADMAP.md) #18.
 
@@ -17,7 +18,7 @@ Do **not** use the side-by-side Dev product for ordinary work. Removing `Body De
 
 | Topic | Decision |
 |-------|----------|
-| Target | Windows per-user NSIS (`oneClick`, no admin) and macOS Apple Silicon zip (ad-hoc signed, not notarized) |
+| Target | Windows per-user NSIS (`oneClick`, no admin), macOS Apple Silicon zip (ad-hoc signed, not notarized) and a portable Linux x64 AppImage for local use |
 | Feed | Public GitHub release repository: [proto0654/body-debugger-releases](https://github.com/proto0654/body-debugger-releases); holds artifacts and channel manifests only |
 | Source | Public source repository: [proto0654/body-debugger](https://github.com/proto0654/body-debugger) |
 | Primary channel | `latest.yml` (Windows) and `latest-mac.yml` (Mac) for stable prod |
@@ -25,6 +26,8 @@ Do **not** use the side-by-side Dev product for ordinary work. Removing `Body De
 | Update model | `electron-updater` downloads in the background, shows a small prompt with progress and asks for a restart; it never restarts on its own. Windows installs via NSIS; Mac swaps the `.app` after quit because Squirrel.Mac requires a Developer ID |
 | Restart gating | A restart is refused while an exercise popup is open; a downloaded update also installs on a normal quit. Mac refuses the swap when the app still lives under App Translocation or a read-only folder |
 | Autostart | Off by default; a settings toggle registers a per-user login item that launches the app hidden in the tray (Windows only today) |
+| Linux updates | `latest-linux.yml` feeds `electron-updater`, which replaces the AppImage in place — but only when the process runs from that file (`APPIMAGE` env) in a writable directory. An unpacked copy (`dist/linux-unpacked`, a hand-copied directory) logs `APPIMAGE env is not defined` and never updates |
+| Linux install | `node scripts/publish-build.mjs prod linux` uploads the AppImage onto the existing release (it never creates one); `npm run build:linux` builds without uploading, and `dist/linux-unpacked/` runs as-is. The AppImage needs FUSE 2 (`libfuse.so.2`, Arch: `fuse2`) or `--appimage-extract-and-run` |
 | Signing | Unsigned Windows beta (`publisherName` unset). Mac uses ad-hoc `identity: "-"` so arm64 launches; Gatekeeper needs a one-time `xattr` clear on first open |
 
 A public release repository is required: a private one would force an access token into the client. The repository holds only artifacts, channel manifests (`latest.yml`, and legacy `dev.yml`) and a short README; issues and wiki are disabled.
@@ -41,6 +44,7 @@ A public release repository is required: a private one would force an access tok
 | `appId` (AppUserModelId) | `com.bodydebugger.app` | `com.bodydebugger.app.dev` |
 | Windows installer | `Body-Debugger-Setup-<version>.exe` | `Body-Debugger-Dev-Setup-<version>.exe` |
 | Mac zip | `Body-Debugger-<version>-mac-arm64.zip` | `Body-Debugger-Dev-<version>-mac-arm64.zip` |
+| Linux AppImage | `Body-Debugger-<version>-linux-x86_64.AppImage` | — |
 | Icon | `electron/resources/icon.ico` / `icon.png` (emerald) | `electron/resources/icon-dev.ico` / `icon-dev.png` (amber + DEV tag) |
 | Profile | `%APPDATA%\Body Debugger` / `~/Library/Application Support/Body Debugger` | `%APPDATA%\Body Debugger Dev` / `~/Library/Application Support/Body Debugger Dev` |
 | Laboratory sandbox | `%APPDATA%\Body Debugger\laboratory` | `%APPDATA%\Body Debugger Dev\laboratory` |
@@ -178,12 +182,30 @@ xattr -dr com.apple.quarantine "/Applications/Body Debugger.app"
 
 4. Open the app. Later versions install from the same update prompt as Windows; the client swaps the `.app` after «Перезапустить» or on quit. If the app was never moved out of Downloads (App Translocation), the prompt asks to move it into Applications first.
 
+### Linux (AppImage)
+
+Linux ships a portable x64 AppImage on the same release tag as Windows and macOS. Because the updater replaces the AppImage file in place, the channel only works for a build that runs **from** that file.
+
+```bash
+npm run build:linux                          # dist/Body-Debugger-<version>-linux-x86_64.AppImage + latest-linux.yml
+node scripts/publish-build.mjs prod linux    # upload onto the existing release (needs GH_TOKEN)
+```
+
+- The `linux:` block in [electron-builder.yml](../electron-builder.yml) sets the executable name, the `Utility` category, a 1024 px icon and the `.desktop` `Name` / `Comment`. The embedded entry also carries `StartupWMClass=Body Debugger`, so a launcher groups the running window with its icon. [electron-builder.dev.yml](../electron-builder.dev.yml) has its own block for `Body-Debugger-Dev-…-linux-x86_64.AppImage` and `dev-linux.yml`.
+- `publish-build.mjs … linux` uploads onto an **existing** release, like `mac`: the Windows job creates the tag, the Mac and Linux jobs only append their assets and their install-note section. It refuses to run outside Linux.
+- The AppImage needs FUSE 2 (`fuse2` on Arch). Without it, either install the package or run `--appimage-extract-and-run`.
+- `dist/linux-unpacked/body-debugger` runs without FUSE and is the faster loop for a packaged smoke test — but it can never auto-update, because `APPIMAGE` is unset.
+- Updates behave like the other platforms while the app runs from a writable AppImage: the same bottom-right prompt, download, restart gate during a popup, and in-place replacement on quit. No code signing on Linux — integrity comes from the sha512 in `latest-linux.yml`.
+- What a Linux build does **not** have: autostart (`launch-at-login` is Windows-only), the tray pin and the live tray portrait repaint (both win32-only). Everything else — reminder loop, popup, dashboard, sounds, persistence — works.
+- Window placement is the compositor's job on Wayland: the popup cannot position itself, so a Hyprland/Omarchy desktop needs one window rule for it. The popup window keeps a fixed title, `Body Debugger Popup`, for exactly that match — see [DEVELOPMENT.md](DEVELOPMENT.md#linux-notes).
+
 ### CI
 
 `.github/workflows/release.yml` runs on a `v*` tag:
 
 1. **windows-latest** — `npm ci`, typecheck, test; verifies the tag equals `v${package.json.version}`; chooses `dev` when the tag contains `-`, otherwise `prod`; runs `node scripts/publish-build.mjs <channel> win` with `GH_TOKEN` from `secrets.RELEASE_TOKEN`; uploads Windows artifacts.
 2. **macos-latest** (after the Windows job) — `npm ci`; runs `node scripts/publish-build.mjs <channel> mac`; uploads the arm64 zip and `*-mac.yml`. A Mac failure leaves the Windows release in place.
+3. **ubuntu-latest** (after the Mac job, so two jobs never edit the release body at once) — `npm ci`; runs `node scripts/publish-build.mjs <channel> linux`; uploads the AppImage and `*-linux.yml`.
 
 CI runs from the public source repository [proto0654/body-debugger](https://github.com/proto0654/body-debugger) and needs a `RELEASE_TOKEN` secret: a fine-grained PAT with `Contents: Read and write` on `proto0654/body-debugger-releases`. Until the secret exists, it is dormant; the local `publish:*` commands are the primary path. The Windows job overrides the repo-local `E:` npm cache with a workspace-local `.npm-cache`; `scripts/ensure-electron.js` also falls back to the temp directory when `E:` is unavailable.
 

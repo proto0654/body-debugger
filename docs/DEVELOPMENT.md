@@ -7,6 +7,7 @@ npm run dev          # primary: HMR tray + dashboard; Лаборатория sta
 npm run build:dir    # optional packaged prod smoke in dist/win-unpacked
 npm run build:win    # local NSIS + latest.yml in dist/ (no upload)
 npm run build:mac    # Apple Silicon zip + latest-mac.yml (must run on macOS)
+npm run build:linux  # portable AppImage + latest-linux.yml in dist/ (run on Linux)
 npm run publish:prod # ship stable Windows assets to the release repo (GH_TOKEN)
 npm run typecheck    # main + preload + shared (tsc), renderer and tests (vue-tsc)
 npm test             # Vitest suite (see TESTING.md)
@@ -74,9 +75,32 @@ Do **not** download Electron into `%LOCALAPPDATA%\electron` or park the profile 
 - After a **Готово** in the popup, streak, sessions and character survive quit/relaunch (check `.userdata/data/`).
 - If the shell exports `ELECTRON_RUN_AS_NODE=1` (some editors/agents do), `electron.exe .` boots as plain Node and crashes on `electron.app`. The npm `dev` script strips it for the Electron child; clear it yourself for a direct `electron.exe .` or a packaged smoke run — it also makes a packaged `Body Debugger.exe` exit instantly with no profile and no log.
 
+## Linux notes
+
+The Linux build is a local target (`npm run build:linux`); packaging details and what is missing live in [DELIVERY.md](DELIVERY.md#linux-appimage).
+
+- **Install scripts.** npm 11 does not run dependency postinstalls until they are approved, so `node_modules/electron/dist` stays empty and every Electron call dies with `Electron failed to install correctly`. Approve them (`npm install-scripts approve electron esbuild`) or install the binary by hand. `scripts/ensure-electron.js` still prefers `E:/Electron/.cache/electron`, which on Linux creates a literal `E:` directory inside the repo — point `electron_config_cache` at a real path instead.
+- **The popup cannot position itself under Wayland.** `xdg_toplevel` has no position request, so `BrowserWindow({ x, y })` is ignored, `resizePopupWindow()` cannot re-anchor, and the compositor centres the window. The popup therefore keeps a fixed title, `Body Debugger Popup` (and refuses the renderer page title through `page-title-updated`), so one compositor rule can place it. Hyprland/Omarchy, in `~/.config/hypr/looknfeel.lua`:
+
+  ```lua
+  o.window(
+    { title = "^(Body Debugger Popup)$" },
+    {
+      float = true,
+      border_size = 0,
+      no_shadow = true,
+      move = { "(monitor_w-window_w-16)", "(monitor_h-window_h-16)" },
+    }
+  )
+  ```
+
+  Without the rule the popup still works, but it opens centred and with the compositor border cutting across the transparent window rectangle.
+- **Do not force XWayland** (`app.commandLine.appendSwitch('ozone-platform', 'x11')`) as a shortcut for positioning. It looks like the obvious fix, but on Mesa iGPU machines the Chromium GPU process exits with SIGSEGV in a loop and the app never opens a window (seen on Haswell with incomplete Vulkan support). Wayland plus the rule above is the working path.
+- Tray, dashboard, popup, sounds and persistence behave the same as on the other platforms. Autostart, the tray pin and the live tray portrait repaint are `win32`-only by design.
+
 ## Packaging
 
-`electron-builder` produces a per-user NSIS one-click installer on Windows and an Apple Silicon zip on macOS. The production config and publish target live in [electron-builder.yml](../electron-builder.yml); the side-by-side dev build is described by [electron-builder.dev.yml](../electron-builder.dev.yml). Full flow: [DELIVERY.md](DELIVERY.md).
+`electron-builder` produces a per-user NSIS one-click installer on Windows, an Apple Silicon zip on macOS and a portable AppImage on Linux. The production config and publish target live in [electron-builder.yml](../electron-builder.yml); the side-by-side dev build is described by [electron-builder.dev.yml](../electron-builder.dev.yml). Full flow: [DELIVERY.md](DELIVERY.md).
 
 ```powershell
 $env:ELECTRON_BUILDER_CACHE = "E:\Electron\.cache\electron-builder"
@@ -86,6 +110,8 @@ npm run build:dev      # dist-dev\Body-Debugger-Dev-Setup-<version>.exe, .blockm
 npm run build:dev:dir  # dist-dev\win-unpacked\Body Debugger Dev.exe
 # On macOS only:
 npm run build:mac      # dist/Body-Debugger-<version>-mac-arm64.zip, latest-mac.yml
+# On Linux:
+npm run build:linux    # dist/Body-Debugger-<version>-linux-x86_64.AppImage, latest-linux.yml
 ```
 
 These scripts rebuild `out/` themselves; a packaged run never uses a stale bundle. The dev config sets `extraMetadata.name` and `extraMetadata.productName`: the first separates the updater cache, the second the profile and window identity. Keep both in sync with `shared/domain/app-identity.ts`.

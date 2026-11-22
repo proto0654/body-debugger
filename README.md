@@ -13,4 +13,6 @@ Desktop tray app for short desk workouts. One popup = one exercise.
 npm run dev
 ```
 
+Platforms: Windows (per-user NSIS) and macOS Apple Silicon are the shipped channels with in-app updates; Linux x64 builds a portable AppImage with `npm run build:linux` — see [docs/DELIVERY.md](docs/DELIVERY.md#linux-appimage).
+
 Caches and Electron binary stay on `E:` — see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).

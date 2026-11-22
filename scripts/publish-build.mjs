@@ -2,13 +2,16 @@
 /**
  * Build and publish a Body Debugger release.
  *
- *   node scripts/publish-build.mjs prod [win|mac]
- *   node scripts/publish-build.mjs dev  [win|mac]
+ *   node scripts/publish-build.mjs prod [win|mac|linux]
+ *   node scripts/publish-build.mjs dev  [win|mac|linux]
  *
  * `win` (default) creates or updates the GitHub release with the NSIS installer
  * and `latest.yml` / `dev.yml`. `mac` uploads the Apple Silicon zip and
  * `latest-mac.yml` / `dev-mac.yml` onto that existing release; it never creates
- * a second release. Mac builds must run on macOS.
+ * a second release. Mac builds must run on macOS. `linux` uploads the portable
+ * AppImage and `latest-linux.yml` / `dev-linux.yml` the same way, and must run
+ * on Linux. The AppImage updates in place only while it sits in a writable
+ * directory, so the install note tells users to keep it there.
  *
  * electron-builder only builds the installer and update manifest here. The
  * upload is a single `gh release create/upload`, because electron-builder's
@@ -22,7 +25,7 @@ import { join, resolve } from 'node:path'
 const ROOT = resolve(import.meta.dirname, '..')
 const RELEASE_REPO = 'proto0654/body-debugger-releases'
 const CHANNELS = new Set(['prod', 'dev'])
-const PLATFORMS = new Set(['win', 'mac'])
+const PLATFORMS = new Set(['win', 'mac', 'linux'])
 const GH = process.platform === 'win32' ? 'gh.exe' : 'gh'
 
 function run(command, args, env) {
@@ -82,11 +85,14 @@ function ghCapture(args, env) {
 const channel = process.argv[2]
 const platform = process.argv[3] ?? 'win'
 if (!CHANNELS.has(channel) || !PLATFORMS.has(platform)) {
-  fail('usage: node scripts/publish-build.mjs prod|dev [win|mac]')
+  fail('usage: node scripts/publish-build.mjs prod|dev [win|mac|linux]')
 }
 
 if (platform === 'mac' && process.platform !== 'darwin') {
   fail('mac releases must be built on macOS (Apple Silicon CI or a Mac)')
+}
+if (platform === 'linux' && process.platform !== 'linux') {
+  fail('linux releases must be built on Linux (Ubuntu CI or a Linux host)')
 }
 
 const packageJson = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
@@ -141,9 +147,10 @@ const tag = `v${version}`
 const title = channel === 'dev' ? 'Body Debugger Dev' : 'Body Debugger'
 
 const winArtifactStem = channel === 'dev' ? 'Body-Debugger-Dev-Setup' : 'Body-Debugger-Setup'
-const macArtifactStem = channel === 'dev' ? 'Body-Debugger-Dev' : 'Body-Debugger'
+const appArtifactStem = channel === 'dev' ? 'Body-Debugger-Dev' : 'Body-Debugger'
 const winManifestName = channel === 'dev' ? 'dev.yml' : 'latest.yml'
 const macManifestName = channel === 'dev' ? 'dev-mac.yml' : 'latest-mac.yml'
+const linuxManifestName = channel === 'dev' ? 'dev-linux.yml' : 'latest-linux.yml'
 
 console.log(`[publish] channel=${channel} platform=${platform} version=${version} commit=${commit} config=${config}`)
 
@@ -161,11 +168,15 @@ const builderArgs = [
 ]
 if (platform === 'win') {
   builderArgs.push('--win', 'nsis')
-} else {
+} else if (platform === 'mac') {
   builderArgs.push('--mac', 'zip', '--arm64')
+} else {
+  builderArgs.push('--linux', 'AppImage')
 }
 
 run(process.platform === 'win32' ? 'npx.cmd' : 'npx', builderArgs, env)
+
+const linuxAppImageName = `${appArtifactStem}-${version}-linux-x86_64.AppImage`
 
 const artifacts = platform === 'win'
   ? [
@@ -173,10 +184,15 @@ const artifacts = platform === 'win'
       join(outputDir, `${winArtifactStem}-${version}.exe.blockmap`),
       join(outputDir, winManifestName)
     ]
-  : [
-      join(outputDir, `${macArtifactStem}-${version}-mac-arm64.zip`),
-      join(outputDir, macManifestName)
-    ]
+  : platform === 'mac'
+    ? [
+        join(outputDir, `${appArtifactStem}-${version}-mac-arm64.zip`),
+        join(outputDir, macManifestName)
+      ]
+    : [
+        join(outputDir, linuxAppImageName),
+        join(outputDir, linuxManifestName)
+      ]
 
 for (const file of artifacts) {
   if (!existsSync(file)) fail(`expected release asset is missing: ${file}`)
@@ -195,7 +211,7 @@ const baseNotes = channel === 'dev'
   ? `Dev build ${version}. Channel: dev; stable installs ignore this prerelease.`
   : `Stable build ${version}. Installs from the latest channel update to this version.`
 
-const macZipName = `${macArtifactStem}-${version}-mac-arm64.zip`
+const macZipName = `${appArtifactStem}-${version}-mac-arm64.zip`
 const macInstallNote = [
   '',
   '### macOS (Apple Silicon)',
@@ -206,19 +222,33 @@ const macInstallNote = [
   'Later versions install from the in-app update prompt (no App Store).'
 ].join('\n')
 
-if (platform === 'mac') {
+const linuxInstallNote = [
+  '',
+  '### Linux (AppImage)',
+  `Download \`${linuxAppImageName}\` and make it executable:`,
+  '```bash',
+  `chmod +x ${linuxAppImageName}`,
+  '```',
+  'The AppImage needs FUSE 2 (`fuse2` on Arch); without it, run it with `--appimage-extract-and-run`.',
+  'Later versions update in place from the in-app update prompt while the AppImage sits in a writable directory.'
+].join('\n')
+
+if (platform === 'mac' || platform === 'linux') {
   if (!releaseExists) {
     fail(`release ${tag} does not exist yet; publish the Windows assets first`)
   }
-  console.log(`[publish] release ${tag} exists; uploading Mac assets`)
+  const label = platform === 'mac' ? 'Mac' : 'Linux'
+  const noteMarker = platform === 'mac' ? '### macOS (Apple Silicon)' : '### Linux (AppImage)'
+  const installNote = platform === 'mac' ? macInstallNote : linuxInstallNote
+  console.log(`[publish] release ${tag} exists; uploading ${label} assets`)
   runGh(['release', 'upload', tag, ...artifacts, '--repo', RELEASE_REPO, '--clobber'], env)
 
   const currentBody = ghCapture(
     ['release', 'view', tag, '--repo', RELEASE_REPO, '--json', 'body', '--jq', '.body'],
     env
   ).replace(/\r\n/g, '\n').trimEnd()
-  if (!currentBody.includes('### macOS (Apple Silicon)')) {
-    const nextBody = `${currentBody || baseNotes}${macInstallNote}\n`
+  if (!currentBody.includes(noteMarker)) {
+    const nextBody = `${currentBody || baseNotes}${installNote}\n`
     runGh(['release', 'edit', tag, '--repo', RELEASE_REPO, '--notes', nextBody], env)
   }
 } else if (releaseExists) {

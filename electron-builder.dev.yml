@@ -55,6 +55,22 @@ mac:
   gatekeeperAssess: false
   category: public.app-category.healthcare-fitness
 
+# Portable dev AppImage with its own binary and artifact name so it cannot be
+# mistaken for, or clash with, the prod AppImage on the same machine.
+linux:
+  icon: electron/resources/icon-dev.png
+  category: Utility
+  executableName: body-debugger-dev
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  artifactName: Body-Debugger-Dev-${version}-linux-x86_64.${ext}
+  desktop:
+    entry:
+      Name: Body Debugger Dev
+      Comment: Desktop tray app for short desk workouts — Body Debugger
+
 # Never let a manual dev publish look like a stable release. The release repo is
 # shared with prod; prod ignores prereleases and the dev updater reads dev.yml.
 publish:

@@ -1,4 +1,5 @@
 import { app, BrowserWindow } from 'electron'
+import { parseAppCommand } from '../../shared/domain/cli'
 import { shouldStartHidden } from '../../shared/domain/launch-at-login'
 import { APP_IDENTITY } from './app-identity'
 import { getUserDataPath, isLabHeadless, isLabProcess } from './lab-environment'
@@ -43,11 +44,14 @@ initLogging(userDataPath)
 
 // A second copy would race the reminder loop and the updater; the laboratory keeps its own lock.
 const requiresLock = isLabProcess() || app.isPackaged
+const lockAcquired = !requiresLock || app.requestSingleInstanceLock()
 // A login-item launch stays in the tray; a manual launch opens the dashboard.
 const startHidden = !isLabProcess() && shouldStartHidden(process.argv)
-if (requiresLock && !app.requestSingleInstanceLock()) {
+if (!lockAcquired) {
+  // `app.quit()` is asynchronous: the rest of this module would still run and initialise
+  // persistence, the tray and the updater on top of the first copy's profile.
   logInfo('app', 'start blocked: another instance owns the lock')
-  app.quit()
+  app.exit(0)
 } else {
   logInfo(
     'app',
@@ -55,7 +59,17 @@ if (requiresLock && !app.requestSingleInstanceLock()) {
   )
 }
 app.on('second-instance', (_event, argv) => {
-  if (isLabProcess()) return
+  if (!lockAcquired || isLabProcess()) return
+  // An already-running instance is driven by a second launch from an external launcher.
+  const command = parseAppCommand(argv)
+  if (command === 'trigger-now') {
+    triggerNow('manual')
+    return
+  }
+  if (command === 'open-dashboard') {
+    createDashboardWindow()
+    return
+  }
   if (!shouldStartHidden(argv)) createDashboardWindow()
 })
 
@@ -67,6 +81,8 @@ if (process.platform === 'win32') {
 }
 
 app.whenReady().then(() => {
+  // A process that did not win the single-instance lock must never initialise the app.
+  if (!lockAcquired) return
   initializeLaboratory()
   // Before any migration or backfill rewrites the stored JSON.
   backupDataOnVersionChange(getDataDir(), app.getVersion())
@@ -94,6 +110,8 @@ app.whenReady().then(() => {
   }
 
   startTriggerLoop()
+  // An external launcher may start the app with the trigger flag: honour it once the loop runs.
+  if (!isLabProcess() && parseAppCommand(process.argv) === 'trigger-now') triggerNow('manual')
 
   if (isLabProcess()) {
     // No tray or dashboard: the dashboard laboratory tab hosts the only lab UI.

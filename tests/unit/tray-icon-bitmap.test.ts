@@ -10,8 +10,8 @@ function pixel(bitmap: Uint8Array, size: number, x: number, y: number): number[]
 }
 
 /** A point on the middle of the ring. Angle 0 is 12 o'clock, clockwise. */
-function ringPoint(size: number, angle: number): { x: number; y: number } {
-  const { outer, inner } = trayIconMetrics(size)
+function ringPoint(size: number, angle: number, ringOnly = false): { x: number; y: number } {
+  const { outer, inner } = trayIconMetrics(size, { ringOnly })
   const radius = (outer + inner) / 2
   const center = (size - 1) / 2
   return {
@@ -37,8 +37,8 @@ describe('tray icon bitmap', () => {
     const empty = composeTrayIcon({ size, face: null, progress: 0, color: 'green' })
     const half = composeTrayIcon({ size, face: null, progress: 0.5, color: 'green' })
     const full = composeTrayIcon({ size, face: null, progress: 1, color: 'green' })
-    const right = ringPoint(size, Math.PI / 2)
-    const left = ringPoint(size, Math.PI * 1.5)
+    const right = ringPoint(size, Math.PI / 2, true)
+    const left = ringPoint(size, Math.PI * 1.5, true)
     const center = pixel(empty, size, 16, 16)
 
     expect(center[3]).toBe(0)
@@ -51,8 +51,17 @@ describe('tray icon bitmap', () => {
   it('paints the warning ring yellow', () => {
     const size = 32
     const bitmap = composeTrayIcon({ size, face: null, progress: 1, color: 'yellow' })
-    const right = ringPoint(size, Math.PI / 2)
+    const right = ringPoint(size, Math.PI / 2, true)
     expect(pixel(bitmap, size, right.x, right.y).slice(0, 3)).toEqual(YELLOW)
+  })
+
+  it('thickens the ring when there is no face', () => {
+    const size = 16
+    const normal = trayIconMetrics(size)
+    const ringOnly = trayIconMetrics(size, { ringOnly: true })
+    expect(ringOnly.outer).toBe(normal.outer)
+    expect(ringOnly.inner).toBeLessThan(normal.inner)
+    expect(ringOnly.faceSize).toBeLessThan(normal.faceSize)
   })
 
   it('keeps an opaque face pixel inside the ring', () => {

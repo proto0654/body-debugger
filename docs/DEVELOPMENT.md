@@ -97,6 +97,8 @@ The Linux build is a local target (`npm run build:linux`); packaging details and
   Without the rule the popup still works, but it opens centred and with the compositor border cutting across the transparent window rectangle.
 - **Do not force XWayland** (`app.commandLine.appendSwitch('ozone-platform', 'x11')`) as a shortcut for positioning. It looks like the obvious fix, but on Mesa iGPU machines the Chromium GPU process exits with SIGSEGV in a loop and the app never opens a window (seen on Haswell with incomplete Vulkan support). Wayland plus the rule above is the working path.
 - Tray, dashboard, popup, sounds and persistence behave the same as on the other platforms. Autostart, the tray pin and the live tray portrait repaint are `win32`-only by design.
+- **The bar icon is the countdown ring alone.** A 16 px bar slot leaves no room for the character face, so on Linux `tray-portrait.ts` skips the face and `composeTrayIcon` thickens the ring (`trayIconMetrics(size, { ringOnly: true })`). The ring colour still encodes waiting / warning / paused, the SNI pixmap is repainted on every step change (verified live in the Omarchy bar) and the countdown rides in the tooltip («Body Debugger — через 17 мин»).
+- **Keeping the ring visible.** The Omarchy tray widget puts unpinned items behind a chevron, so pin the item once: `omarchy bar set omarchy.tray pinned '["chrome_status_icon_1"]' --json` (that is the StatusNotifierItem id Electron registers). Clicks open the tray menu — Дашборд / Напоминание сейчас / Пауза — because an SNI item has no left-click action of its own on Linux; a real one-click action needs a Quickshell bar widget that stands in for the item.
 
 ## Packaging
 

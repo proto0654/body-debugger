@@ -15,9 +15,14 @@ const FILL: Record<TrayRingColor, readonly [number, number, number, number]> = {
 
 const TRACK: readonly [number, number, number, number] = [48, 64, 56, 210]
 
-export function trayIconMetrics(size: number): { outer: number; inner: number; faceSize: number } {
+export function trayIconMetrics(
+  size: number,
+  options?: { ringOnly?: boolean }
+): { outer: number; inner: number; faceSize: number } {
   const pad = Math.max(1, Math.round(size * 0.04))
-  const thickness = Math.max(2, Math.round(size * 0.12))
+  const thickness = options?.ringOnly
+    ? Math.max(3, Math.round(size * 0.18))
+    : Math.max(2, Math.round(size * 0.12))
   const outer = size / 2 - pad
   const inner = Math.max(1, outer - thickness)
   const faceSize = Math.max(1, Math.floor(inner * 2) - 1)
@@ -50,7 +55,8 @@ export function composeTrayIcon(input: {
   color: TrayRingColor
 }): Uint8Array {
   const size = Math.max(8, Math.round(input.size))
-  const { outer, inner } = trayIconMetrics(size)
+  // A face-less icon is the ring-only case (Linux bar), which needs a thicker ring.
+  const { outer, inner } = trayIconMetrics(size, { ringOnly: input.face === null })
   const pixels = new Uint8Array(size * size * 4)
   const fill = FILL[input.color]
   const progress = Math.min(1, Math.max(0, input.progress))

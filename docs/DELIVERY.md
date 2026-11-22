@@ -196,7 +196,7 @@ node scripts/publish-build.mjs prod linux    # upload onto the existing release 
 - The AppImage needs FUSE 2 (`fuse2` on Arch). Without it, either install the package or run `--appimage-extract-and-run`.
 - `dist/linux-unpacked/body-debugger` runs without FUSE and is the faster loop for a packaged smoke test — but it can never auto-update, because `APPIMAGE` is unset.
 - Updates behave like the other platforms while the app runs from a writable AppImage: the same bottom-right prompt, download, restart gate during a popup, and in-place replacement on quit. No code signing on Linux — integrity comes from the sha512 in `latest-linux.yml`.
-- What a Linux build does **not** have: autostart (`launch-at-login` is Windows-only), the tray pin and the live tray portrait repaint (both win32-only). Everything else — reminder loop, popup, dashboard, sounds, persistence — works.
+- What a Linux build does **not** have: autostart (`launch-at-login` is Windows-only) and the Windows tray pin/portrait tricks. Its bar icon is the countdown ring itself, and whether it is always visible belongs to the compositor's tray widget — see [DEVELOPMENT.md](DEVELOPMENT.md#linux-notes). Everything else — reminder loop, popup, dashboard, sounds, persistence — works.
 - Window placement is the compositor's job on Wayland: the popup cannot position itself, so a Hyprland/Omarchy desktop needs one window rule for it. The popup window keeps a fixed title, `Body Debugger Popup`, for exactly that match — see [DEVELOPMENT.md](DEVELOPMENT.md#linux-notes).
 
 ### CI

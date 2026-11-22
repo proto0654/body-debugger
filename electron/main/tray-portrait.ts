@@ -141,7 +141,12 @@ function render(input: TrayPortraitInput): void {
   const color = trayRingColor(phase, blinkOn)
   const emotion = trayFaceEmotion(input.trayState, input.conditionLevel)
   const packId = normalizeCharacterPackId(input.packId)
-  const faceKey = resolveFacePath(emotion, input.build, packId) ?? 'none'
+  // Linux (Omarchy/Hyprland) asks the StatusNotifierItem to redraw on every step,
+  // but the bar tray slot is ~16 px and the face is unreadable there, so Linux gets
+  // the countdown ring alone; Windows keeps the face.
+  const faceKey = process.platform === 'linux'
+    ? 'none'
+    : resolveFacePath(emotion, input.build, packId) ?? 'none'
   const cacheKey = `${faceKey}|${step}|${color}|${input.trayState}`
   const cached = painted.get(cacheKey)
   const images = cached ?? paintImages(faceKey, step / TRAY_RING_STEPS, color)

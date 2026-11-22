@@ -57,6 +57,8 @@ export function createPopupWindow(): BrowserWindow {
     height,
     x: sw - width - POPUP_SCREEN_MARGIN,
     y: sh - height - POPUP_SCREEN_MARGIN,
+    // A stable title lets compositor/window-manager rules target the popup.
+    title: 'Body Debugger Popup',
     show: false,
     frame: false,
     resizable: false,
@@ -76,6 +78,10 @@ export function createPopupWindow(): BrowserWindow {
       sandbox: false
     }
   })
+
+  // The renderer document title would otherwise overwrite the window title and
+  // break compositor/window-manager rules that match on it.
+  popupWindow.on('page-title-updated', event => event.preventDefault())
 
   notifyPopupVisibility(true)
 
